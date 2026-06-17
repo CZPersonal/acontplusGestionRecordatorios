@@ -26,4 +26,7 @@ const appId = firebaseConfig.appId;
 export const getCollectionRef = (name) =>
   collection(db, 'artifacts', appId, 'public', 'data', name);
 
+export const getVisitsRef = (taskId) =>
+  collection(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId, 'visits');
+
 export { app, auth, db, appId };

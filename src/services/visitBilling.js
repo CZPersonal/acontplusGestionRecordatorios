@@ -1,5 +1,5 @@
-import { doc, updateDoc } from 'firebase/firestore';
-import { getCollectionRef } from '../lib/firebase';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db, getVisitsRef } from '../lib/firebase';
 
 // ─── Helpers de cálculo ────────────────────────────────────────────────────────
 
@@ -17,6 +17,15 @@ export function generateReceiptNo(visitId) {
   return `REC-${part}-${ts}`;
 }
 
+// Escribe todos los documentos de visita en la subcollección (migra datos embebidos legacy)
+async function saveVisitsToSubcollection(taskId, visits) {
+  const batch = writeBatch(db);
+  visits.forEach(v => {
+    batch.set(doc(getVisitsRef(taskId), v.id), v);
+  });
+  await batch.commit();
+}
+
 // ─── Guardar datos de cobro en la visita ──────────────────────────────────────
 
 export async function saveVisitBilling(taskId, visits, visitId, billingData) {
@@ -24,16 +33,12 @@ export async function saveVisitBilling(taskId, visits, visitId, billingData) {
     v.id === visitId
       ? {
           ...v,
-          valorCobrar:     billingData.valorCobrar     !== undefined ? billingData.valorCobrar     : v.valorCobrar,
-          commitmentDate:  billingData.commitmentDate  !== undefined ? billingData.commitmentDate  : v.commitmentDate,
-          payments:        billingData.payments        !== undefined ? billingData.payments        : (v.payments || []),
+          valorCobrar:    billingData.valorCobrar    !== undefined ? billingData.valorCobrar    : v.valorCobrar,
+          commitmentDate: billingData.commitmentDate !== undefined ? billingData.commitmentDate : v.commitmentDate,
         }
       : v
   );
-  await updateDoc(
-    doc(getCollectionRef('water_filter_tasks'), taskId),
-    { visits: updated }
-  );
+  await saveVisitsToSubcollection(taskId, updated);
   return updated;
 }
 
@@ -47,37 +52,29 @@ export async function addPayment(taskId, visits, visitId, paymentData, userEmail
     id:           crypto.randomUUID(),
     date:         paymentData.date,
     amount:       parseFloat(paymentData.amount) || 0,
-    method:       paymentData.method,            // 'Efectivo' | 'Transferencia' | 'Cheque' | 'Otro'
+    method:       paymentData.method,
     note:         paymentData.note  || '',
     receiptNo:    generateReceiptNo(visitId),
     registeredBy: userEmail,
     registeredAt: new Date().toISOString(),
   };
 
-  const updatedPayments = [...(visit.payments || []), newPayment];
-  const updated = visits.map(v =>
-    v.id === visitId ? { ...v, payments: updatedPayments } : v
-  );
+  const updatedVisit  = { ...visit, payments: [...(visit.payments || []), newPayment] };
+  const updatedVisits = visits.map(v => v.id === visitId ? updatedVisit : v);
 
-  await updateDoc(
-    doc(getCollectionRef('water_filter_tasks'), taskId),
-    { visits: updated }
-  );
-  return { updatedVisits: updated, newPayment };
+  await saveVisitsToSubcollection(taskId, updatedVisits);
+  return { updatedVisits, newPayment };
 }
 
 // ─── Eliminar un abono ────────────────────────────────────────────────────────
 
 export async function deletePayment(taskId, visits, visitId, paymentId) {
   const visit = visits.find(v => v.id === visitId);
-  if (!visit) return;
-  const updatedPayments = (visit.payments || []).filter(p => p.id !== paymentId);
-  const updated = visits.map(v =>
-    v.id === visitId ? { ...v, payments: updatedPayments } : v
-  );
-  await updateDoc(
-    doc(getCollectionRef('water_filter_tasks'), taskId),
-    { visits: updated }
-  );
-  return updated;
+  if (!visit) return visits;
+
+  const updatedVisit  = { ...visit, payments: (visit.payments || []).filter(p => p.id !== paymentId) };
+  const updatedVisits = visits.map(v => v.id === visitId ? updatedVisit : v);
+
+  await saveVisitsToSubcollection(taskId, updatedVisits);
+  return updatedVisits;
 }

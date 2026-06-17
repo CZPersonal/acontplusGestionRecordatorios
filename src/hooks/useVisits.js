@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { getCollectionRef } from '../lib/firebase';
+import { doc, writeBatch } from 'firebase/firestore';
+import { db, getVisitsRef } from '../lib/firebase';
 
 export function useVisits(task, user) {
   const [visits,    setVisits]    = useState(task?.visits || []);
@@ -10,16 +10,18 @@ export function useVisits(task, user) {
     setVisits(task?.visits || []);
   }, [task]);
 
-  // ─── Persistencia base ──────────────────────────────────────────────────
-  const saveVisits = async (updatedVisits) => {
-    await updateDoc(
-      doc(getCollectionRef('water_filter_tasks'), task.id),
-      { visits: updatedVisits }
-    );
+  // Persiste todos los documentos de visita en la subcollección.
+  // Al escribir el array completo, los datos legacy del campo embebido quedan migrados.
+  const saveAllVisits = async (updatedVisits) => {
+    const batch = writeBatch(db);
+    updatedVisits.forEach(v => {
+      batch.set(doc(getVisitsRef(task.id), v.id), v);
+    });
+    await batch.commit();
     setVisits(updatedVisits);
   };
 
-  // ─── Agregar visita ──────────────────────────────────────────────────────
+  // ─── Agregar visita ──────────────────────────────────────────────────────────
   const addVisit = async (visitData) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -40,7 +42,7 @@ export function useVisits(task, user) {
       closingObservations: '',
     };
     try {
-      await saveVisits([...visits, newVisit]);
+      await saveAllVisits([...visits, newVisit]);
       return true;
     } catch (error) {
       console.error('Error al agregar visita:', error);
@@ -50,7 +52,7 @@ export function useVisits(task, user) {
     }
   };
 
-  // ─── Editar visita ───────────────────────────────────────────────────────
+  // ─── Editar visita ───────────────────────────────────────────────────────────
   const editVisit = async (visitId, visitData) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -70,7 +72,7 @@ export function useVisits(task, user) {
             }
           : v
       );
-      await saveVisits(updated);
+      await saveAllVisits(updated);
       return true;
     } catch (error) {
       console.error('Error al editar visita:', error);
@@ -80,7 +82,7 @@ export function useVisits(task, user) {
     }
   };
 
-  // ─── Completar visita ────────────────────────────────────────────────────
+  // ─── Completar visita ────────────────────────────────────────────────────────
   const completeVisit = async (visitId, closingData) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -96,7 +98,7 @@ export function useVisits(task, user) {
             }
           : v
       );
-      await saveVisits(updated);
+      await saveAllVisits(updated);
       return true;
     } catch (error) {
       console.error('Error al completar visita:', error);
@@ -106,7 +108,7 @@ export function useVisits(task, user) {
     }
   };
 
-  // ─── Cancelar visita (reversible) ───────────────────────────────────────
+  // ─── Cancelar visita (reversible) ───────────────────────────────────────────
   const cancelVisit = async (visitId) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -114,7 +116,7 @@ export function useVisits(task, user) {
       const updated = visits.map(v =>
         v.id === visitId ? { ...v, status: 'Cancelada' } : v
       );
-      await saveVisits(updated);
+      await saveAllVisits(updated);
       return true;
     } catch (error) {
       console.error('Error al cancelar visita:', error);
@@ -124,8 +126,7 @@ export function useVisits(task, user) {
     }
   };
 
-  // ─── Revertir visita → Programada ────────────────────────────────────────
-  //     Aplica tanto a "Cancelada" como a "Anulada"
+  // ─── Revertir visita → Programada ────────────────────────────────────────────
   const revertVisit = async (visitId) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -134,13 +135,13 @@ export function useVisits(task, user) {
         v.id === visitId
           ? {
               ...v,
-              status:    'Programada',
+              status:     'Programada',
               revertedAt: new Date().toISOString(),
               revertedBy: user.email,
             }
           : v
       );
-      await saveVisits(updated);
+      await saveAllVisits(updated);
       return true;
     } catch (error) {
       console.error('Error al revertir visita:', error);
@@ -150,7 +151,7 @@ export function useVisits(task, user) {
     }
   };
 
-  // ─── Anular visita (inactiva, más fuerte que cancelar) ───────────────────
+  // ─── Anular visita (más fuerte que cancelar) ─────────────────────────────────
   const annulVisit = async (visitId) => {
     if (!user || !task) return false;
     setIsLoading(true);
@@ -159,13 +160,13 @@ export function useVisits(task, user) {
         v.id === visitId
           ? {
               ...v,
-              status:    'Anulada',
+              status:     'Anulada',
               annulledAt: new Date().toISOString(),
               annulledBy: user.email,
             }
           : v
       );
-      await saveVisits(updated);
+      await saveAllVisits(updated);
       return true;
     } catch (error) {
       console.error('Error al anular visita:', error);
