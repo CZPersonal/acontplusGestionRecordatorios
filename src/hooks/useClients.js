@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db, getCollectionRef } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 
 export function useClients(user) {
   const [clients, setClients] = useState([]);
@@ -160,6 +161,17 @@ export function useClients(user) {
 
     return { ok, errors };
   };
+
+  // Sincronizar clientes al store
+  useEffect(() => {
+    useAppStore.setState({ clients });
+  }, [clients]);
+
+  // Registrar acciones de clientes al store cuando cambia el usuario
+  useEffect(() => {
+    useAppStore.setState({ saveClient, createClient, updateClient, setClientActive, importClients });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return { clients, saveClient, createClient, updateClient, setClientActive, importClients };
 }

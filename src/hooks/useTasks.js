@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { getCollectionRef, getVisitsRef } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 
 export function useTasks(user) {
-  const [rawTasks,      setRawTasks]      = useState([]);
-  const [visitsMap,     setVisitsMap]     = useState({});
+  const [rawTasks,       setRawTasks]       = useState([]);
+  const [visitsMap,      setVisitsMap]      = useState({});
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const initialLoadDone = useRef(false);
-  const visitUnsubsRef  = useRef(new Map()); // taskId → unsubscribe fn
+  const visitUnsubsRef  = useRef(new Map());
 
   useEffect(() => {
     if (!user) {
@@ -25,7 +26,6 @@ export function useTasks(user) {
     const unsubTasks = onSnapshot(colRef, (snapshot) => {
       const currentIds = new Set(snapshot.docs.map(d => d.id));
 
-      // Suscribirse a la subcollección de visitas para cada tarea nueva
       snapshot.docs.forEach(taskDoc => {
         const taskId = taskDoc.id;
         if (!visitUnsubsRef.current.has(taskId)) {
@@ -37,7 +37,6 @@ export function useTasks(user) {
         }
       });
 
-      // Limpiar suscripciones de tareas eliminadas
       visitUnsubsRef.current.forEach((unsub, taskId) => {
         if (!currentIds.has(taskId)) {
           unsub();
@@ -68,7 +67,6 @@ export function useTasks(user) {
     };
   }, [user]);
 
-  // Visitas: usa subcollección si tiene datos; si no, fallback al array embebido (datos legacy)
   const tasks = useMemo(() =>
     rawTasks.map(task => ({
       ...task,
@@ -79,10 +77,18 @@ export function useTasks(user) {
     [rawTasks, visitsMap]
   );
 
+  // ─── Sincronizar estado al store ───────────────────────────────────────────
+  useEffect(() => {
+    useAppStore.setState({ tasks, rawTasks, isLoadingTasks });
+  }, [tasks, rawTasks, isLoadingTasks]);
+
+  // ─── Acciones — leen estado fresco de store para evitar closures stale ─────
+  // Se definen con useRef para registrarlas solo una vez.
+
   const addTask = async (task, userEmail) => {
-    if (!user) return false;
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     const taskId = task.id || crypto.randomUUID();
-    // Las visitas viven en la subcollección — no se persisten en el documento tarea
     const { visits: _visits, ...taskWithoutVisits } = task;
     try {
       await setDoc(
@@ -91,7 +97,7 @@ export function useTasks(user) {
           ...taskWithoutVisits,
           id:        taskId,
           createdAt: task.createdAt || new Date().toISOString(),
-          createdBy: task.createdBy || userEmail || user.email || '—',
+          createdBy: task.createdBy || userEmail || u.email || '—',
         }
       );
       return true;
@@ -102,7 +108,7 @@ export function useTasks(user) {
   };
 
   const deleteTask = async (id) => {
-    if (!user) return false;
+    if (!useAppStore.getState().user) return false;
     try {
       await deleteDoc(doc(getCollectionRef('water_filter_tasks'), id));
       return true;
@@ -113,8 +119,9 @@ export function useTasks(user) {
   };
 
   const markAsCompleted = async (id, completionData) => {
-    if (!user) return false;
-    const taskToUpdate = rawTasks.find(t => t.id === id);
+    const { user: u, rawTasks: rt } = useAppStore.getState();
+    if (!u) return false;
+    const taskToUpdate = rt.find(t => t.id === id);
     if (!taskToUpdate) return false;
     const { visits: _v, ...taskData } = taskToUpdate;
     try {
@@ -135,9 +142,16 @@ export function useTasks(user) {
     }
   };
 
-  // No-op: las visitas se gestionan directamente en la subcollección via useVisits/visitBilling.
-  // Se mantiene para que la cadena BillingModal → handleVisitsUpdate no genere errores.
-  const updateTaskVisits = async (_taskId, _updatedVisits, _userEmail) => true;
+  // Registrar acciones en el store (una vez en mount)
+  useEffect(() => {
+    useAppStore.setState({
+      addTask,
+      deleteTask,
+      markAsCompleted,
+      updateTaskVisits: async () => true,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  return { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted, updateTaskVisits };
+  return { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted, updateTaskVisits: async () => true };
 }

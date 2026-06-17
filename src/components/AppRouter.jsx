@@ -1,5 +1,6 @@
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 import NavItem from './NavItem.jsx';
 import Dashboard from './Dashboard.jsx';
 import TaskList from './TaskList.jsx';
@@ -16,18 +17,45 @@ import {
   Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users
 } from 'lucide-react';
 
-export default function AppRouter({
-  user, isOnline,
-  activeTab, setActiveTab,
-  editingTask, setEditingTask,
-  showExportConfig, setShowExportConfig,
-  tasks, clients, serviceTypes, statuses,
-  exportConfigs, configLoading, saveConfig, resetConfig, getActiveColumns,
-  toasts, removeToast,
-  notificationPermission, requestNotifications, showAlerts,
-  useClientsHook,
-  onAddTask, onEdit, onDelete, onComplete, onVisitsUpdate,
-}) {
+const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
+
+export default function AppRouter() {
+  const user             = useAppStore(s => s.user);
+  const isOnline         = useAppStore(s => s.isOnline);
+  const activeTab        = useAppStore(s => s.activeTab);
+  const setActiveTab     = useAppStore(s => s.setActiveTab);
+  const editingTask      = useAppStore(s => s.editingTask);
+  const setEditingTask   = useAppStore(s => s.setEditingTask);
+  const showExportConfig = useAppStore(s => s.showExportConfig);
+  const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
+
+  const tasks        = useAppStore(s => s.tasks);
+  const clients      = useAppStore(s => s.clients);
+  const serviceTypes = useAppStore(s => s.serviceTypes);
+
+  const exportConfigs    = useAppStore(s => s.exportConfigs);
+  const configLoading    = useAppStore(s => s.configLoading);
+  const saveConfig       = useAppStore(s => s.saveConfig);
+  const resetConfig      = useAppStore(s => s.resetConfig);
+  const getActiveColumns = useAppStore(s => s.getActiveColumns);
+
+  const toasts                = useAppStore(s => s.toasts);
+  const removeToast           = useAppStore(s => s.removeToast);
+  const notificationPermission = useAppStore(s => s.notificationPermission);
+  const requestNotifications  = useAppStore(s => s.requestNotifications);
+  const showAlerts            = useAppStore(s => s.showAlerts);
+
+  const createClient    = useAppStore(s => s.createClient);
+  const updateClient    = useAppStore(s => s.updateClient);
+  const setClientActive = useAppStore(s => s.setClientActive);
+  const importClients   = useAppStore(s => s.importClients);
+
+  const handleAddTask     = useAppStore(s => s.handleAddTask);
+  const handleEdit        = useAppStore(s => s.handleEdit);
+  const handleDelete      = useAppStore(s => s.handleDelete);
+  const handleComplete    = useAppStore(s => s.handleComplete);
+  const handleVisitsUpdate = useAppStore(s => s.handleVisitsUpdate);
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20 md:pb-0 md:flex">
 
@@ -54,7 +82,7 @@ export default function AppRouter({
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
-            <div className="text-xs text-slate-400 mb-2 truncate px-2">{user.email}</div>
+            <div className="text-xs text-slate-400 mb-2 truncate px-2">{user?.email}</div>
             <button
               onClick={() => signOut(auth)}
               className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
@@ -77,7 +105,6 @@ export default function AppRouter({
           </div>
 
           <div className="flex items-center space-x-2 ml-auto">
-            {/* Indicador online/offline */}
             <div className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold ${
               isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
             }`}>
@@ -85,7 +112,6 @@ export default function AppRouter({
               <span className="hidden sm:inline">{isOnline ? 'En línea' : 'Sin conexión'}</span>
             </div>
 
-            {/* Campana notificaciones */}
             <button
               onClick={notificationPermission === 'granted' ? showAlerts : requestNotifications}
               className={`p-2 rounded-full transition-colors ${
@@ -97,7 +123,6 @@ export default function AppRouter({
               {notificationPermission === 'granted' ? <Bell size={20} /> : <BellOff size={20} />}
             </button>
 
-            {/* Logout mobile */}
             <button
               onClick={() => signOut(auth)}
               className="p-2 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors md:hidden"
@@ -122,9 +147,9 @@ export default function AppRouter({
         {activeTab === 'list' && (
           <TaskList
             tasks={tasks}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onComplete={onComplete}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onComplete={handleComplete}
             onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
             user={user}
           />
@@ -133,14 +158,14 @@ export default function AppRouter({
           <ClientsManager
             clients={clients}
             tasks={tasks}
-            useClientsHook={useClientsHook}
+            useClientsHook={{ createClient, updateClient, setClientActive, importClients }}
           />
         )}
         {activeTab === 'form' && (
           <TaskForm
-            onSubmit={onAddTask}
+            onSubmit={handleAddTask}
             initialData={editingTask}
-            statuses={statuses}
+            statuses={STATUSES}
             onCancel={() => setActiveTab('list')}
             clients={clients}
             serviceTypes={serviceTypes}
@@ -171,7 +196,7 @@ export default function AppRouter({
         {activeTab === 'billing' && (
           <BillingReport
             tasks={tasks}
-            onTasksUpdate={onVisitsUpdate}
+            onTasksUpdate={handleVisitsUpdate}
             user={user}
             exportConfig={getActiveColumns('billing')}
             onOpenConfig={() => setShowExportConfig(true)}

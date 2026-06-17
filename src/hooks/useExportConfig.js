@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 
 // ─── Definición canónica de columnas por reporte ───────────────────────────────
 // Cada columna tiene: key (ID único), label (nombre visible), enabled (por defecto)
@@ -122,6 +123,17 @@ export function useExportConfig(user) {
   // Devuelve solo las columnas activas en el orden guardado
   const getActiveColumns = (type) =>
     (configs[type] || DEFAULTS[type]).filter(c => c.enabled);
+
+  // Sincronizar al store (getActiveColumns es acción del store que lee exportConfigs via get())
+  useEffect(() => {
+    useAppStore.setState({
+      exportConfigs:  configs,
+      configLoading:  isLoading,
+      saveConfig,
+      resetConfig,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configs, isLoading]);
 
   return { configs, isLoading, saveConfig, resetConfig, getActiveColumns };
 }

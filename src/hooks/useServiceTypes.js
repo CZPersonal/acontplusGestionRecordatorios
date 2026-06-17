@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 
 export function useServiceTypes(user) {
   const [serviceTypes, setServiceTypes] = useState([]);
@@ -73,6 +74,10 @@ export function useServiceTypes(user) {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    useAppStore.setState({ serviceTypes });
+  }, [serviceTypes]);
 
   return { serviceTypes, isLoading, addServiceType, updateServiceType, deleteServiceType };
 }

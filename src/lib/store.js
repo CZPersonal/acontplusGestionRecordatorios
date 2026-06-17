@@ -1,0 +1,79 @@
+import { create } from 'zustand';
+
+// Estado global de la app. Los hooks de Firestore sincronizan su estado aquí
+// (write-through). Los componentes leen con selectores: useAppStore(s => s.tasks).
+
+export const useAppStore = create((set, get) => ({
+
+  // ─── Auth ─────────────────────────────────────────────────────────────────
+  user:          null,
+  isAuthLoading: true,
+
+  // ─── Network ──────────────────────────────────────────────────────────────
+  isOnline: navigator.onLine,
+
+  // ─── UI Navigation ────────────────────────────────────────────────────────
+  activeTab:        'dashboard',
+  editingTask:      null,
+  showExportConfig: false,
+  setActiveTab:     (tab)  => set({ activeTab: tab }),
+  setEditingTask:   (task) => set({ editingTask: task }),
+  setShowExportConfig: (show) => set({ showExportConfig: show }),
+
+  // ─── Tasks (poblado por useTasks) ─────────────────────────────────────────
+  tasks:           [],
+  rawTasks:        [],
+  isLoadingTasks:  true,
+  addTask:         async () => false,
+  deleteTask:      async () => false,
+  markAsCompleted: async () => false,
+  updateTaskVisits: async () => true,
+
+  // ─── Clients (poblado por useClients) ─────────────────────────────────────
+  clients:         [],
+  saveClient:      async () => null,
+  createClient:    async () => false,
+  updateClient:    async () => false,
+  setClientActive: async () => false,
+  importClients:   async () => ({ ok: 0, errors: [] }),
+
+  // ─── Service Types (poblado por useServiceTypes) ──────────────────────────
+  serviceTypes: [],
+
+  // ─── Export Config (poblado por useExportConfig) ──────────────────────────
+  exportConfigs: {},   // defaults inyectados por useExportConfig en el primer render
+  configLoading: false,
+  saveConfig:    async () => {},
+  resetConfig:   async () => {},
+  getActiveColumns: (type) =>
+    (get().exportConfigs[type] || []).filter(c => c.enabled),
+
+  // ─── Toasts / Notificaciones (poblado por App.jsx desde useNotifications) ──
+  toasts:               [],
+  notificationPermission: null,
+  showAlerts:           () => {},
+  requestNotifications: () => {},
+  addToast:             () => {},
+  removeToast:          () => {},
+
+  // ─── Handlers de app (usan get() para estado siempre fresco) ─────────────
+  handleAddTask: async (task) => {
+    const { saveClient, addTask, user, addToast } = get();
+    if (task.identification?.trim() && task.clientName) await saveClient(task);
+    const ok = await addTask(task, user.email);
+    if (ok) set({ activeTab: 'list', editingTask: null });
+    else addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo guardar la tarea. Verifica tu conexión o los permisos.' });
+  },
+  handleEdit: (task) => set({ editingTask: task, activeTab: 'form' }),
+  handleDelete: async (id) => {
+    const { deleteTask, addToast } = get();
+    if (!await deleteTask(id))
+      addToast({ type: 'error', title: '❌ Error al eliminar', body: 'No se pudo eliminar la tarea. Verifica tu conexión.' });
+  },
+  handleComplete: async (id, data) => {
+    const { markAsCompleted, addToast } = get();
+    if (!await markAsCompleted(id, data))
+      addToast({ type: 'error', title: '❌ Error al completar', body: 'No se pudo marcar la tarea como completada. Verifica tu conexión.' });
+  },
+  handleVisitsUpdate: async () => true,
+}));
