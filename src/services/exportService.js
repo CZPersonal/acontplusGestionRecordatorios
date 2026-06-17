@@ -1,8 +1,7 @@
 // src/services/exportService.js
 // Funciones de exportación CSV y Excel que respetan la config de columnas activas.
-
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+import { localDateStr } from '../utils/dates.js';
+import { fmtMoneyRaw } from '../utils/format.js';
 
 const fmt = (isoString) => {
   if (!isoString) return '';
@@ -17,9 +16,6 @@ const fmtDate = (s) => {
   const [y, m, d] = s.split('-');
   return `${d}/${m}/${y}`;
 };
-
-const fmtMoney = (n) =>
-  (parseFloat(n) || 0).toFixed(2);
 
 // ─── Extractores de valor por campo ───────────────────────────────────────────
 
@@ -77,9 +73,9 @@ function billingValue(key, { task, visit, summary }) {
     case 'serviceType':     return task.serviceType  || '';
     case 'visitType':       return visit.type        || '';
     case 'visitStatus':     return visit.status      || '';
-    case 'totalValor':      return summary.total   > 0 ? fmtMoney(summary.total)   : '';
-    case 'totalAbonado':    return fmtMoney(summary.abonado);
-    case 'totalSaldo':      return fmtMoney(summary.saldo);
+    case 'totalValor':      return summary.total   > 0 ? fmtMoneyRaw(summary.total)   : '';
+    case 'totalAbonado':    return fmtMoneyRaw(summary.abonado);
+    case 'totalSaldo':      return fmtMoneyRaw(summary.saldo);
     case 'payStatus':
       if (summary.pagado)          return 'Pagado';
       if (summary.abonado > 0)     return 'Abono parcial';

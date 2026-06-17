@@ -6,10 +6,7 @@ import {
 import StatCard from './StatCard.jsx';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
-
-// ✅ Fecha local (no UTC) — evita desfase en Ecuador (UTC-5) y zonas similares
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+import { localDateStr, formatDateOnly } from '../utils/dates.js';
 
 const URGENCY_ORDER = { 'Alta': 3, 'Media': 2, 'Baja': 1 };
 
@@ -34,12 +31,6 @@ function enrichTask(task) {
     _technician:    nextVisit?.technician    || null,
     _observations:  nextVisit?.observations  || null,
   };
-}
-
-function formatDateOnly(dateStr) {
-  if (!dateStr) return '—';
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
 }
 
 export default function Dashboard({ tasks, onNavigate, notificationPermission, onRequestNotifications, onShowAlerts, user }) {

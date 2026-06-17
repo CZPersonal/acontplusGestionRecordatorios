@@ -22,11 +22,7 @@ function formatDate(isoString) {
   });
 }
 
-function formatDateOnly(dateStr) {
-  if (!dateStr) return '—';
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
-}
+import { formatDateOnly } from '../utils/dates.js';
 
 // ─── PDF de una visita ─────────────────────────────────────────────────────
 function generateVisitPDF(task, visit) {

@@ -6,16 +6,7 @@ import {
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
-
-// ✅ Fecha local — evita desfase UTC en Ecuador (UTC-5)
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-const formatDateOnly = (dateStr) => {
-  if (!dateStr) return '—';
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
-};
+import { localDateStr, formatDateOnly } from '../utils/dates.js';
 
 const formatDateTime = (isoString) => {
   if (!isoString) return '—';

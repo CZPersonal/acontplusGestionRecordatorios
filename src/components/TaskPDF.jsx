@@ -1,3 +1,5 @@
+import { formatDateOnly } from '../utils/dates.js';
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -15,12 +17,6 @@ export function generateTaskPDF(task) {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
-  };
-
-  const formatDateOnly = (dateStr) => {
-    if (!dateStr) return '—';
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
   };
 
   const today      = new Date().toISOString().split('T')[0];
@@ -254,12 +250,6 @@ export function printTaskPDF(task) {
 }
 
 export function shareViaWhatsApp(task) {
-  const formatDateOnly = (dateStr) => {
-    if (!dateStr) return '—';
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  };
-
   const message = [
     `🔧 *ACONTPLUS RECORDATORIOS*`,
     `📋 *Ficha de Mantenimiento*`,

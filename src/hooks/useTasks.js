@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getCollectionRef } from '../lib/firebase';
 
 export function useTasks(user) {
   const [tasks, setTasks] = useState([]);
@@ -15,7 +15,7 @@ export function useTasks(user) {
       return;
     }
 
-    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks');
+    const colRef = getCollectionRef('water_filter_tasks');
 
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -46,7 +46,7 @@ export function useTasks(user) {
     };
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId),
+        doc(getCollectionRef('water_filter_tasks'), taskId),
         taskData
       );
       return true;
@@ -60,7 +60,7 @@ export function useTasks(user) {
     if (!user) return false;
     try {
       await deleteDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', id)
+        doc(getCollectionRef('water_filter_tasks'), id)
       );
       return true;
     } catch (error) {
@@ -75,7 +75,7 @@ export function useTasks(user) {
     if (!taskToUpdate) return false;
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', id),
+        doc(getCollectionRef('water_filter_tasks'), id),
         {
           ...taskToUpdate,
           status: 'Completado',

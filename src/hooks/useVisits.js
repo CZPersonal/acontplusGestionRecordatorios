@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { getCollectionRef } from '../lib/firebase';
 
 export function useVisits(task, user) {
   const [visits,    setVisits]    = useState(task?.visits || []);
@@ -13,7 +13,7 @@ export function useVisits(task, user) {
   // ─── Persistencia base ──────────────────────────────────────────────────
   const saveVisits = async (updatedVisits) => {
     await updateDoc(
-      doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', task.id),
+      doc(getCollectionRef('water_filter_tasks'), task.id),
       { visits: updatedVisits }
     );
     setVisits(updatedVisits);

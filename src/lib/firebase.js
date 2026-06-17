@@ -1,7 +1,7 @@
 // src/lib/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, collection } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -22,5 +22,8 @@ const db = initializeFirestore(app, {
 });
 
 const appId = firebaseConfig.appId;
+
+export const getCollectionRef = (name) =>
+  collection(db, 'artifacts', appId, 'public', 'data', name);
 
 export { app, auth, db, appId };

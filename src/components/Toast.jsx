@@ -5,13 +5,7 @@ import {
 } from 'lucide-react';
 import { printTaskPDF, shareViaWhatsApp } from './TaskPDF.jsx';
 import { printVisitPDF, shareVisitWhatsApp } from './VisitsModal.jsx';
-
-// ── Helper: formatea YYYY-MM-DD → DD/MM/YYYY ──────────────────────────────
-function formatDateOnly(dateStr) {
-  if (!dateStr) return '—';
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
-}
+import { formatDateOnly } from '../utils/dates.js';
 
 // ── Estilos por tipo de alerta ────────────────────────────────────────────
 const STYLES = {

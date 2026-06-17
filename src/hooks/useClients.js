@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
+import { db, getCollectionRef } from '../lib/firebase';
 
 export function useClients(user) {
   const [clients, setClients] = useState([]);
 
   useEffect(() => {
     if (!user) return;
-    const colRef    = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
+    const colRef    = getCollectionRef('clients');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setClients(data);
@@ -35,7 +35,7 @@ export function useClients(user) {
     };
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
+        doc(getCollectionRef('clients'), clientId),
         client,
         { merge: true }
       );
@@ -52,7 +52,7 @@ export function useClients(user) {
     const clientId = identification.replace(/\s/g, '');
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId),
+        doc(getCollectionRef('clients'), clientId),
         {
           id:             clientId,
           name:           name.trim(),
@@ -78,7 +78,7 @@ export function useClients(user) {
     if (!user || !name?.trim()) return false;
     try {
       await updateDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'clients', id),
+        doc(getCollectionRef('clients'), id),
         {
           name:      name.trim(),
           phone:     phone?.trim()   || '',
@@ -100,7 +100,7 @@ export function useClients(user) {
     if (!user) return false;
     try {
       await updateDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'clients', id),
+        doc(getCollectionRef('clients'), id),
         { active, updatedAt: new Date().toISOString() }
       );
       return true;
@@ -131,7 +131,7 @@ export function useClients(user) {
           continue;
         }
         const clientId = row.identification.replace(/\s/g, '');
-        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'clients', clientId);
+        const ref = doc(getCollectionRef('clients'), clientId);
         batch.set(ref, {
           id:             clientId,
           name:           row.name.trim(),

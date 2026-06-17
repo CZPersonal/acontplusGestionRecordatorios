@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getCollectionRef } from '../lib/firebase';
 
 export function useServiceTypes(user) {
   const [serviceTypes, setServiceTypes] = useState([]);
@@ -8,7 +8,7 @@ export function useServiceTypes(user) {
 
   useEffect(() => {
     if (!user) return;
-    const colRef    = collection(db, 'artifacts', appId, 'public', 'data', 'service_types');
+    const colRef    = getCollectionRef('service_types');
     const unsub     = onSnapshot(colRef, (snap) => {
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -24,7 +24,7 @@ export function useServiceTypes(user) {
     try {
       const id  = crypto.randomUUID();
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'service_types', id),
+        doc(getCollectionRef('service_types'), id),
         {
           id,
           name:        name.trim(),
@@ -47,7 +47,7 @@ export function useServiceTypes(user) {
     setIsLoading(true);
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'service_types', id),
+        doc(getCollectionRef('service_types'), id),
         { id, name: name.trim(), description: description?.trim() || '', updatedAt: new Date().toISOString() },
         { merge: true }
       );
@@ -64,7 +64,7 @@ export function useServiceTypes(user) {
     if (!user) return false;
     setIsLoading(true);
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'service_types', id));
+      await deleteDoc(doc(getCollectionRef('service_types'), id));
       return true;
     } catch (err) {
       console.error('Error al eliminar tipo:', err);

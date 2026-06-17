@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { setConfigStore } from '../lib/configStore.js';
-import { db, appId } from '../lib/firebase';
+import { getCollectionRef } from '../lib/firebase';
 
 const CONFIG_DOC_ID = 'config_empresa';
 
@@ -24,7 +24,7 @@ export function useConfiguracion(user) {
       setPermError(true);
     }, 5000);
 
-    const ref  = doc(db, 'artifacts', appId, 'public', 'data', 'configuracion', CONFIG_DOC_ID);
+    const ref  = doc(getCollectionRef('configuracion'), CONFIG_DOC_ID);
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -54,7 +54,7 @@ export function useConfiguracion(user) {
     if (!user) return false;
     setIsSaving(true);
     try {
-      const ref = doc(db, 'artifacts', appId, 'public', 'data', 'configuracion', CONFIG_DOC_ID);
+      const ref = doc(getCollectionRef('configuracion'), CONFIG_DOC_ID);
       await setDoc(ref, {
         ...data,
         updatedAt: new Date().toISOString(),

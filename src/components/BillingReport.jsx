@@ -9,18 +9,8 @@ import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import { calcPaymentSummary } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
-
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-const formatDateOnly = (s) => {
-  if (!s) return '—';
-  const [y, m, d] = s.split('-');
-  return `${d}/${m}/${y}`;
-};
-
-const fmtMoney = (n) =>
-  (parseFloat(n) || 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { localDateStr, formatDateOnly } from '../utils/dates.js';
+import { fmtMoney } from '../utils/format.js';
 
 // ─── Aplanar todas las visitas ─────────────────────────────────────────────────
 function flattenVisits(tasks) {

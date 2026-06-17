@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { getCollectionRef } from '../lib/firebase';
 
 // ─── Definición canónica de columnas por reporte ───────────────────────────────
 // Cada columna tiene: key (ID único), label (nombre visible), enabled (por defecto)
@@ -76,7 +76,7 @@ export function useExportConfig(user) {
 
   useEffect(() => {
     if (!user) return;
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'export_config', 'columns');
+    const docRef = doc(getCollectionRef('export_config'), 'columns');
     const unsub  = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -104,7 +104,7 @@ export function useExportConfig(user) {
     setIsLoading(true);
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'export_config', 'columns'),
+        doc(getCollectionRef('export_config'), 'columns'),
         { [type]: columns },
         { merge: true }
       );

@@ -1,7 +1,7 @@
 // src/hooks/useTiposVisita.js
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getCollectionRef } from '../lib/firebase';
 
 export function useTiposVisita(user) {
   const [tipos, setTipos] = useState([]);
@@ -9,7 +9,7 @@ export function useTiposVisita(user) {
 
   useEffect(() => {
     if (!user) return;
-    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'tipos_visita');
+    const colRef = getCollectionRef('tipos_visita');
     const unsub = onSnapshot(colRef, (snap) => {
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -25,7 +25,7 @@ export function useTiposVisita(user) {
     const id = crypto.randomUUID();
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'tipos_visita', id),
+        doc(getCollectionRef('tipos_visita'), id),
         { id, nombre: nombre.trim(), createdAt: new Date().toISOString() }
       );
       return true;
@@ -40,7 +40,7 @@ export function useTiposVisita(user) {
   const deleteTipo = async (id) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tipos_visita', id));
+      await deleteDoc(doc(getCollectionRef('tipos_visita'), id));
     } catch (e) {
       console.error('Error al eliminar tipo de visita:', e);
     }

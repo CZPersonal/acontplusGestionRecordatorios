@@ -1,7 +1,7 @@
 // src/hooks/useTecnicos.js
 import { useState, useEffect } from 'react';
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getCollectionRef } from '../lib/firebase';
 
 export function useTecnicos(user) {
   const [tecnicos, setTecnicos] = useState([]);
@@ -9,7 +9,7 @@ export function useTecnicos(user) {
 
   useEffect(() => {
     if (!user) return;
-    const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'tecnicos');
+    const colRef = getCollectionRef('tecnicos');
     const unsub = onSnapshot(colRef, (snap) => {
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -25,7 +25,7 @@ export function useTecnicos(user) {
     const id = crypto.randomUUID();
     try {
       await setDoc(
-        doc(db, 'artifacts', appId, 'public', 'data', 'tecnicos', id),
+        doc(getCollectionRef('tecnicos'), id),
         {
           id,
           nombre: nombre.trim(),
@@ -45,7 +45,7 @@ export function useTecnicos(user) {
   const deleteTecnico = async (id) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tecnicos', id));
+      await deleteDoc(doc(getCollectionRef('tecnicos'), id));
     } catch (e) {
       console.error('Error al eliminar técnico:', e);
     }

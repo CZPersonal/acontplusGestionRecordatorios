@@ -3,10 +3,7 @@ import { Filter, X, ChevronDown, ChevronUp, Download, FileText, Search, Settings
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
-
-// ✅ Fecha local (no UTC) — evita desfase en Ecuador (UTC-5) y zonas similares
-const localDateStr = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+import { localDateStr } from '../utils/dates.js';
 
 const INITIAL_FILTERS = {
   search: '',

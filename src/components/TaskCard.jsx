@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { printTaskPDF, shareViaWhatsApp } from './TaskPDF.jsx';
 import VisitsModal from './VisitsModal.jsx';
+import { formatDateOnly } from '../utils/dates.js';
 
 const statusColors = {
   'Pendiente':  'bg-yellow-100 text-yellow-700',
@@ -29,12 +30,6 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
-  };
-
-  const formatDateOnly = (dateStr) => {
-    if (!dateStr) return '—';
-    const [y, m, d] = dateStr.split('-');
-    return `${d}/${m}/${y}`;
   };
 
   return (

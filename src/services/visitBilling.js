@@ -1,5 +1,5 @@
 import { doc, updateDoc } from 'firebase/firestore';
-import { db, appId } from '../lib/firebase';
+import { getCollectionRef } from '../lib/firebase';
 
 // ─── Helpers de cálculo ────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export async function saveVisitBilling(taskId, visits, visitId, billingData) {
       : v
   );
   await updateDoc(
-    doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId),
+    doc(getCollectionRef('water_filter_tasks'), taskId),
     { visits: updated }
   );
   return updated;
@@ -60,7 +60,7 @@ export async function addPayment(taskId, visits, visitId, paymentData, userEmail
   );
 
   await updateDoc(
-    doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId),
+    doc(getCollectionRef('water_filter_tasks'), taskId),
     { visits: updated }
   );
   return { updatedVisits: updated, newPayment };
@@ -76,7 +76,7 @@ export async function deletePayment(taskId, visits, visitId, paymentId) {
     v.id === visitId ? { ...v, payments: updatedPayments } : v
   );
   await updateDoc(
-    doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId),
+    doc(getCollectionRef('water_filter_tasks'), taskId),
     { visits: updated }
   );
   return updated;

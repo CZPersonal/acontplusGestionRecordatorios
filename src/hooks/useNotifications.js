@@ -1,12 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { localDateStr } from '../utils/dates.js';
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-// ── Fecha local del navegador (no UTC — corrige bug Ecuador UTC-5) ──────────
-const getLocalDate = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 async function showSystemNotification(title, body, icon) {
   if (!('Notification' in window)) return;
@@ -39,7 +35,7 @@ function getRelevantVisits(task, today) {
 
 // ── Construye un toast para una visita específica ──────────────────────────
 function buildToast(task, visit, id) {
-  const today     = getLocalDate();
+  const today     = localDateStr();
   const isOverdue = visit.scheduledDate < today;
   const isToday   = visit.scheduledDate === today;
 
@@ -103,7 +99,7 @@ export function useNotifications(tasks) {
 
   // ── showAlerts: genera un item por cada visita relevante de cada tarea ──
   const showAlerts = useCallback(() => {
-    const today   = getLocalDate();
+    const today   = localDateStr();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     const alertItems = [];
@@ -136,7 +132,7 @@ export function useNotifications(tasks) {
   useEffect(() => {
     if (tasks.length === 0) return;
 
-    const today   = getLocalDate();
+    const today   = localDateStr();
     const pending = tasks.filter(t => t.status !== 'Completado' && t.status !== 'Cancelado');
 
     if (!hasInitialized.current) {
