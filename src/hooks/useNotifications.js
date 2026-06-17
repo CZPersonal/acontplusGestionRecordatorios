@@ -88,6 +88,10 @@ export function useNotifications(tasks) {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const addToast = useCallback((toast) => {
+    setToasts(prev => [...prev, { id: `toast-${Date.now()}`, ...toast }]);
+  }, []);
+
   const requestPermission = async () => {
     if (!('Notification' in window)) return;
     const result = await Notification.requestPermission();
@@ -178,5 +182,5 @@ export function useNotifications(tasks) {
     });
   }, [tasks, permission]);
 
-  return { permission, requestPermission, toasts, removeToast, showAlerts };
+  return { permission, requestPermission, toasts, removeToast, showAlerts, addToast };
 }

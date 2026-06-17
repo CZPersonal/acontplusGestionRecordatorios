@@ -57,20 +57,22 @@ export function useTasks(user) {
   };
 
   const deleteTask = async (id) => {
-    if (!user) return;
+    if (!user) return false;
     try {
       await deleteDoc(
         doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', id)
       );
+      return true;
     } catch (error) {
       console.error("Error al eliminar:", error);
+      return false;
     }
   };
 
   const markAsCompleted = async (id, completionData) => {
-    if (!user) return;
+    if (!user) return false;
     const taskToUpdate = tasks.find(t => t.id === id);
-    if (!taskToUpdate) return;
+    if (!taskToUpdate) return false;
     try {
       await setDoc(
         doc(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', id),
@@ -82,8 +84,10 @@ export function useTasks(user) {
           completedBy: completionData.completedBy,
         }
       );
+      return true;
     } catch (error) {
       console.error("Error al completar:", error);
+      return false;
     }
   };
 

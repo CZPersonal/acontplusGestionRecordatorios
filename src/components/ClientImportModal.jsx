@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   X, Upload, Download, CheckCircle, AlertCircle,
   Loader2, FileText, Trash2, Users
@@ -26,12 +27,11 @@ function downloadTemplate() {
 }
 
 // ─── Parsear Excel/CSV usando SheetJS ─────────────────────────────────────────
-async function parseFile(file) {
+function parseFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
-        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
         const data = new Uint8Array(e.target.result);
         const wb   = XLSX.read(data, { type: 'array' });
         const ws   = wb.Sheets[wb.SheetNames[0]];
@@ -127,6 +127,7 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
   const [progress,    setProgress]    = useState({ done: 0, total: 0 });
   const [result,      setResult]      = useState(null);
   const [dragOver,    setDragOver]    = useState(false);
+  const [parseError,  setParseError]  = useState('');
   const fileRef = useRef();
 
   const existingIds = new Set(existingClients.map(c => c.identification?.replace(/\s/g, '')));
@@ -159,13 +160,14 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
   const handleFile = async (file) => {
     if (!file) return;
     setIsParsing(true);
+    setParseError('');
     try {
       const raw        = await parseFile(file);
       const normalized = raw.map(normalizeRow).filter(r => r.name || r.identification || r.foreignRaw);
       setRows(normalized);
       setStep('preview');
     } catch {
-      alert('Error al leer el archivo. Asegúrate de que sea .xlsx o .csv válido.');
+      setParseError('No se pudo leer el archivo. Asegúrate de que sea .xlsx o .csv válido.');
     } finally {
       setIsParsing(false);
     }
@@ -277,6 +279,13 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                   </div>
                 )}
               </div>
+
+              {parseError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <AlertCircle size={15} className="text-red-500 flex-shrink-0" />
+                  <p className="text-xs text-red-700 font-medium">{parseError}</p>
+                </div>
+              )}
             </div>
           )}
 

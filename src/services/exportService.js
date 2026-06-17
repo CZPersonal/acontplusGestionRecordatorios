@@ -92,6 +92,16 @@ function billingValue(key, { task, visit, summary }) {
   }
 }
 
+// ─── Escape HTML para prevenir XSS en exportación Excel ──────────────────────
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ─── Generador de filas ────────────────────────────────────────────────────────
 
 function buildRows(activeColumns, data, valueFn) {
@@ -138,8 +148,8 @@ export function exportExcel(reportType, activeColumns, data) {
     tr:nth-child(even) td { background:#f8fafc; }
   </style></head>
   <body><table>
-    <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></body></html>`;
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);

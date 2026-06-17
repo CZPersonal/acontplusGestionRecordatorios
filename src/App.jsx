@@ -51,7 +51,8 @@ export default function App() {
     requestPermission: requestNotifications,
     toasts,
     removeToast,
-    showAlerts
+    showAlerts,
+    addToast,
   } = useNotifications(tasks);
 
   // Auth
@@ -84,7 +85,11 @@ export default function App() {
       setActiveTab('list');
       setEditingTask(null);
     } else {
-      alert('Error al guardar la tarea. Verifica tu conexión o los permisos de la base de datos.');
+      addToast({
+        type:  'error',
+        title: '❌ Error al guardar',
+        body:  'No se pudo guardar la tarea. Verifica tu conexión o los permisos.',
+      });
     }
   };
 
@@ -93,11 +98,40 @@ export default function App() {
     setActiveTab('form');
   };
 
+  const handleDelete = async (id) => {
+    const ok = await deleteTask(id);
+    if (!ok) {
+      addToast({
+        type:  'error',
+        title: '❌ Error al eliminar',
+        body:  'No se pudo eliminar la tarea. Verifica tu conexión.',
+      });
+    }
+  };
+
+  const handleComplete = async (id, completionData) => {
+    const ok = await markAsCompleted(id, completionData);
+    if (!ok) {
+      addToast({
+        type:  'error',
+        title: '❌ Error al completar',
+        body:  'No se pudo marcar la tarea como completada. Verifica tu conexión.',
+      });
+    }
+  };
+
   // Actualizar visitas de una tarea específica desde BillingReport
   const handleVisitsUpdate = async (taskId, updatedVisits) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-    await addTask({ ...task, visits: updatedVisits }, user.email);
+    const ok = await addTask({ ...task, visits: updatedVisits }, user.email);
+    if (!ok) {
+      addToast({
+        type:  'error',
+        title: '❌ Error al actualizar visitas',
+        body:  'No se pudieron guardar los cambios. Verifica tu conexión.',
+      });
+    }
   };
 
   if (isLoading || (isLoadingTasks && tasks.length === 0)) {
@@ -206,8 +240,8 @@ export default function App() {
           <TaskList
             tasks={tasks}
             onEdit={handleEdit}
-            onDelete={deleteTask}
-            onComplete={markAsCompleted}
+            onDelete={handleDelete}
+            onComplete={handleComplete}
             onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
             user={user}
           />

@@ -45,14 +45,23 @@ const STYLES = {
 };
 
 function ToastItem({ toast, onClose }) {
-  // Toast especial "sin alertas"
+  // Toast simple: error o "sin alertas"
   if (!toast.task && !toast.visit) {
+    const isError = toast.type === 'error';
     return (
-      <div className="relative flex items-start space-x-3 p-3 rounded-xl border-2 bg-green-50 border-green-300">
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl bg-green-500" />
+      <div className={`relative flex items-start space-x-3 p-3 rounded-xl border-2 ${
+        isError ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'
+      }`}>
+        <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl ${
+          isError ? 'bg-red-500' : 'bg-green-500'
+        }`} />
         <div className="ml-2 flex-1 min-w-0">
-          <p className="text-sm font-bold text-green-800">{toast.title}</p>
-          <p className="text-xs text-green-700 mt-0.5">{toast.body}</p>
+          <p className={`text-sm font-bold ${isError ? 'text-red-800' : 'text-green-800'}`}>
+            {toast.title}
+          </p>
+          <p className={`text-xs mt-0.5 ${isError ? 'text-red-700' : 'text-green-700'}`}>
+            {toast.body}
+          </p>
         </div>
         <button onClick={() => onClose(toast.id)}
           className="text-slate-400 hover:text-slate-700 flex-shrink-0 p-1 rounded-lg transition-colors">

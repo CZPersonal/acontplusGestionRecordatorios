@@ -1,3 +1,13 @@
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function generateTaskPDF(task) {
   const formatDate = (isoString) => {
     if (!isoString) return '—';
@@ -34,7 +44,7 @@ export function generateTaskPDF(task) {
     <html lang="es">
     <head>
       <meta charset="UTF-8">
-      <title>Ficha de Mantenimiento - ${task.clientName}</title>
+      <title>Ficha de Mantenimiento - ${escapeHtml(task.clientName)}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; background: #fff; }
@@ -104,7 +114,7 @@ export function generateTaskPDF(task) {
           <div class="header-right">
             <div class="doc-title">Ficha de Mantenimiento</div>
             ${task.serviceOrder
-              ? `<div class="doc-number">OS: ${task.serviceOrder}</div>`
+              ? `<div class="doc-number">OS: ${escapeHtml(task.serviceOrder)}</div>`
               : `<div class="doc-number" style="color:#94a3b8">Sin orden asignada</div>`
             }
             <div class="doc-date">Generado: ${formatDate(new Date().toISOString())}</div>
@@ -115,16 +125,16 @@ export function generateTaskPDF(task) {
         <div class="status-row">
           <div class="status-card">
             <div class="sc-label">Estado</div>
-            <div class="sc-value" style="color:${statusColor}">${task.status}</div>
+            <div class="sc-value" style="color:${statusColor}">${escapeHtml(task.status)}</div>
           </div>
           <div class="status-card">
             <div class="sc-label">Urgencia</div>
-            <div class="sc-value" style="color:${urgencyColor}">${task.urgency || '—'}</div>
+            <div class="sc-value" style="color:${urgencyColor}">${escapeHtml(task.urgency || '—')}</div>
           </div>
           ${task.serviceType ? `
           <div class="status-card" style="border-color:#fed7aa;background:#fff7ed;">
             <div class="sc-label" style="color:#c2410c;">📦 Tipo inst./equipo</div>
-            <div class="sc-value" style="color:#c2410c;">${task.serviceType}</div>
+            <div class="sc-value" style="color:#c2410c;">${escapeHtml(task.serviceType)}</div>
           </div>` : ''}
           <div class="status-card">
             <div class="sc-label">Fecha vencimiento</div>
@@ -140,15 +150,15 @@ export function generateTaskPDF(task) {
           <table>
             <tr>
               <td class="label">Nombre completo</td>
-              <td class="value">${task.clientName || '—'}</td>
+              <td class="value">${escapeHtml(task.clientName || '—')}</td>
               <td class="label">Cédula / RUC</td>
-              <td class="value" style="font-family:monospace">${task.identification || '—'}</td>
+              <td class="value" style="font-family:monospace">${escapeHtml(task.identification || '—')}</td>
             </tr>
             <tr>
               <td class="label">Teléfono</td>
-              <td class="value">${task.clientPhone || '—'}</td>
+              <td class="value">${escapeHtml(task.clientPhone || '—')}</td>
               <td class="label">Dirección</td>
-              <td class="value">${task.clientAddress || '—'}</td>
+              <td class="value">${escapeHtml(task.clientAddress || '—')}</td>
             </tr>
           </table>
         </div>
@@ -159,19 +169,19 @@ export function generateTaskPDF(task) {
           <table>
             <tr>
               <td class="label">Orden de servicio</td>
-              <td class="value mono">${task.serviceOrder || '—'}</td>
+              <td class="value mono">${escapeHtml(task.serviceOrder || '—')}</td>
               <td class="label">Tipo visita</td>
-              <td class="value">${task.type || '—'}</td>
+              <td class="value">${escapeHtml(task.type || '—')}</td>
             </tr>
             <tr>
               <td class="label">📦 Tipo inst./equipo/serv.</td>
-              <td class="value highlight" colspan="3">${task.serviceType || '—'}</td>
+              <td class="value highlight" colspan="3">${escapeHtml(task.serviceType || '—')}</td>
             </tr>
             <tr>
               <td class="label">Fecha de registro</td>
               <td class="value">${formatDate(task.createdAt)}</td>
               <td class="label">Registrado por</td>
-              <td class="value">${task.createdBy || '—'}</td>
+              <td class="value">${escapeHtml(task.createdBy || '—')}</td>
             </tr>
           </table>
         </div>
@@ -180,7 +190,7 @@ export function generateTaskPDF(task) {
         <div class="section">
           <div class="section-title">📝 Observaciones</div>
           <div class="obs-box ${!task.observations ? 'empty' : ''}">
-            ${task.observations || 'Sin observaciones registradas'}
+            ${escapeHtml(task.observations || 'Sin observaciones registradas')}
           </div>
         </div>
 
@@ -191,7 +201,7 @@ export function generateTaskPDF(task) {
           <table>
             <tr>
               <td class="label" style="background:#dcfce7;border-color:#bbf7d0">Completado por</td>
-              <td class="value" style="background:#dcfce7;border-color:#bbf7d0">${task.completedBy || '—'}</td>
+              <td class="value" style="background:#dcfce7;border-color:#bbf7d0">${escapeHtml(task.completedBy || '—')}</td>
               <td class="label" style="background:#dcfce7;border-color:#bbf7d0">Fecha de cierre</td>
               <td class="value" style="background:#dcfce7;border-color:#bbf7d0">${formatDate(task.completedAt)}</td>
             </tr>
@@ -199,7 +209,7 @@ export function generateTaskPDF(task) {
           ${task.completionObservations ? `
           <div style="margin-top:10px">
             <div style="font-size:10px;font-weight:bold;color:#166534;margin-bottom:4px">Observación de cierre:</div>
-            <div class="obs-box completion">${task.completionObservations}</div>
+            <div class="obs-box completion">${escapeHtml(task.completionObservations)}</div>
           </div>` : ''}
         </div>` : ''}
 
@@ -263,7 +273,7 @@ export function shareViaWhatsApp(task) {
     task.clientAddress  ? `• Dirección: ${task.clientAddress}`   : '',
     ``,
     `🔧 *SERVICIO*`,
-    task.serviceType ? `📦 *Tipo instalación/equipo:* ${task.serviceType}` : '', // ← nuevo
+    task.serviceType ? `📦 *Tipo instalación/equipo:* ${task.serviceType}` : '',
     `• Tipo visita: ${task.type || '—'}`,
     task.equipment  ? `• Equipo: ${task.equipment}` : '',
     `• Urgencia: ${task.urgency || '—'}`,
