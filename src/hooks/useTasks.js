@@ -91,5 +91,11 @@ export function useTasks(user) {
     }
   };
 
-  return { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted };
+  const updateTaskVisits = async (taskId, updatedVisits, userEmail) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return false;
+    return addTask({ ...task, visits: updatedVisits }, userEmail);
+  };
+
+  return { tasks, isLoadingTasks, addTask, deleteTask, markAsCompleted, updateTaskVisits };
 }
