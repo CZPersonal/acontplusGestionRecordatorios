@@ -215,7 +215,7 @@ export default function AppRouter() {
           />
         )}
         {activeTab === 'config' && (
-          <Configuracion />
+          <Configuracion user={user} />
         )}
       </main>
 
