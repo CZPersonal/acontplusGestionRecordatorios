@@ -71,9 +71,12 @@ function JoinCodeSection() {
 
 export default function Configuracion({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
+  const tenantName = useAppStore(s => s.tenantName);
+  const tenantRuc  = useAppStore(s => s.tenantRuc);
 
   const [form, setForm]         = useState({
     empresaNombre:   '',
+    ruc:             '',
     empresaSlogan:   '',
     whatsappNumero:  '',
     whatsappPrefijo: '593',
@@ -84,19 +87,18 @@ export default function Configuracion({ user }) {
   const [error, setError]             = useState('');
   const fileInputRef                  = useRef(null);
 
-  // Cargar config existente
+  // Cargar config existente; usa tenantName/tenantRuc como fallback si el doc aún no tiene valor
   useEffect(() => {
-    if (config) {
-      setForm({
-        empresaNombre:   config.empresaNombre   || '',
-        empresaSlogan:   config.empresaSlogan   || '',
-        whatsappNumero:  config.whatsappNumero  || '',
-        whatsappPrefijo: config.whatsappPrefijo || '593',
-        logoUrl:         config.logoUrl         || '',
-      });
-      setLogoPreview(config.logoUrl || '');
-    }
-  }, [config]);
+    setForm({
+      empresaNombre:   config?.empresaNombre   || tenantName || '',
+      ruc:             config?.ruc             || tenantRuc  || '',
+      empresaSlogan:   config?.empresaSlogan   || '',
+      whatsappNumero:  config?.whatsappNumero  || '',
+      whatsappPrefijo: config?.whatsappPrefijo || '593',
+      logoUrl:         config?.logoUrl         || '',
+    });
+    setLogoPreview(config?.logoUrl || '');
+  }, [config, tenantName, tenantRuc]);
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -208,6 +210,19 @@ export default function Configuracion({ user }) {
               onChange={handleChange('empresaNombre')}
               placeholder="Ej: Mi Empresa S.A."
               className={inp}
+              onFocus={e => e.target.style.borderColor = '#D61672'}
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+            />
+          </div>
+          <div>
+            <label className={lbl}>RUC</label>
+            <input
+              type="text"
+              value={form.ruc}
+              onChange={e => setForm(prev => ({ ...prev, ruc: e.target.value.replace(/\D/g, '').slice(0, 13) }))}
+              placeholder="0000000000001"
+              maxLength={13}
+              className={`${inp} font-mono`}
               onFocus={e => e.target.style.borderColor = '#D61672'}
               onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             />
