@@ -12,9 +12,10 @@ import ExportConfigManager from './ExportConfigManager.jsx';
 import ClientsManager from './ClientsManager.jsx';
 import Toast from './Toast.jsx';
 import CalendarView from './CalendarView.jsx';
+import Configuracion from './Configuracion.jsx';
 import {
   Home, Wrench, FileText, Bell, BellOff,
-  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users
+  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings
 } from 'lucide-react';
 
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
@@ -79,6 +80,7 @@ export default function AppRouter() {
           <NavItem icon={<FileText />}     label="Reportes"   isActive={activeTab === 'reports'}       onClick={() => setActiveTab('reports')} />
           <NavItem icon={<ClipboardList />}label="Visitas"    isActive={activeTab === 'visits-report'} onClick={() => setActiveTab('visits-report')} />
           <NavItem icon={<Wallet />}       label="Cobros"     isActive={activeTab === 'billing'}       onClick={() => setActiveTab('billing')} />
+          <NavItem icon={<Settings />}     label="Config."    isActive={activeTab === 'config'}        onClick={() => setActiveTab('config')} />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -201,6 +203,9 @@ export default function AppRouter() {
             exportConfig={getActiveColumns('billing')}
             onOpenConfig={() => setShowExportConfig(true)}
           />
+        )}
+        {activeTab === 'config' && (
+          <Configuracion />
         )}
       </main>
 
