@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getToken, onMessage } from 'firebase/messaging';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, messaging } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 import { localDateStr } from '../utils/dates.js';
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -72,7 +76,24 @@ function buildToast(task, visit, id) {
   };
 }
 
+// Registra el FCM token del dispositivo en users/{uid} para recibir push remotos
+async function registerFcmToken(uid) {
+  if (!messaging || !import.meta.env.VITE_FIREBASE_VAPID_KEY) return;
+  try {
+    const sw  = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const token = await getToken(messaging, {
+      vapidKey:                  import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      serviceWorkerRegistration: sw,
+    });
+    if (token) await updateDoc(doc(db, 'users', uid), { fcmToken: token });
+  } catch (e) {
+    console.warn('[FCM] Token registration failed:', e);
+  }
+}
+
 export function useNotifications(tasks) {
+  const user = useAppStore(s => s.user);
+
   const [permission, setPermission] = useState(
     'Notification' in window ? Notification.permission : 'denied'
   );
@@ -94,8 +115,31 @@ export function useNotifications(tasks) {
     setPermission(result);
     notifiedIds.current.clear();
     hasInitialized.current = false;
+    if (result === 'granted' && user) registerFcmToken(user.uid);
     return result;
   };
+
+  // Si el permiso ya está concedido al cargar (sesión anterior), registrar token
+  useEffect(() => {
+    if (permission === 'granted' && user) registerFcmToken(user.uid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Mensajes FCM en primer plano — mostrar como toast
+  useEffect(() => {
+    if (!messaging) return;
+    const unsub = onMessage(messaging, (payload) => {
+      const n = payload.notification || {};
+      setToasts(prev => [...prev, {
+        id:    `fcm-${Date.now()}`,
+        type:  'urgent',
+        title: n.title || 'Acontplus',
+        body:  n.body  || '',
+        clientName: '', task: null, visit: null,
+      }]);
+    });
+    return unsub;
+  }, []);
 
   // ── showAlerts: genera un item por cada visita relevante de cada tarea ──
   const showAlerts = useCallback(() => {

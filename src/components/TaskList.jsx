@@ -4,6 +4,7 @@ import TaskCard from './TaskCard.jsx';
 import CompleteModal from './CompleteModal.jsx';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
+import { useAppStore } from '../lib/store.js';
 
 const INITIAL_FILTERS = {
   search: '',
@@ -18,6 +19,10 @@ const INITIAL_FILTERS = {
 
 // ✅ Mejora 1: se añade el prop onNewTask para el botón "Nueva tarea"
 export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTask, user }) {
+  const hasMoreTasks  = useAppStore(s => s.hasMoreTasks);
+  const isLoadingMore = useAppStore(s => s.isLoadingMore);
+  const loadMoreTasks = useAppStore(s => s.loadMoreTasks);
+
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [completingTask, setCompletingTask] = useState(null);
@@ -327,6 +332,22 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTas
             endIndex={completedPagination.endIndex}
             totalItems={completedPagination.totalItems}
           />
+        </div>
+      )}
+
+      {/* Cargar tareas anteriores */}
+      {hasMoreTasks && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={loadMoreTasks}
+            disabled={isLoadingMore}
+            className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+          >
+            {isLoadingMore && (
+              <span className="inline-block w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+            )}
+            {isLoadingMore ? 'Cargando...' : 'Cargar tareas anteriores'}
+          </button>
         </div>
       )}
 

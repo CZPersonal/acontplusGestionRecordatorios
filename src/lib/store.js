@@ -9,6 +9,10 @@ export const useAppStore = create((set, get) => ({
   user:          null,
   isAuthLoading: true,
 
+  // ─── Tenant (poblado en App.jsx tras auth) ────────────────────────────────
+  tenantId:   null,   // UUID del tenant; null = aún sin empresa configurada
+  tenantName: '',
+
   // ─── Network ──────────────────────────────────────────────────────────────
   isOnline: navigator.onLine,
 
@@ -24,9 +28,12 @@ export const useAppStore = create((set, get) => ({
   tasks:           [],
   rawTasks:        [],
   isLoadingTasks:  true,
+  hasMoreTasks:    false,
+  isLoadingMore:   false,
   addTask:         async () => false,
   deleteTask:      async () => false,
   markAsCompleted: async () => false,
+  loadMoreTasks:   async () => {},
   updateTaskVisits: async () => true,
 
   // ─── Clients (poblado por useClients) ─────────────────────────────────────
@@ -39,6 +46,16 @@ export const useAppStore = create((set, get) => ({
 
   // ─── Service Types (poblado por useServiceTypes) ──────────────────────────
   serviceTypes: [],
+
+  // ─── Configuración de empresa (poblado por useConfiguracion) ────────────────
+  empresaConfig: {
+    empresaNombre:   'ACONTPLUS',
+    empresaSlogan:   'Recordatorios',
+    empresaTag:      'Facturar nunca fue tan fácil',
+    whatsappNumero:  '',
+    whatsappPrefijo: '593',
+    logoUrl:         '',
+  },
 
   // ─── Export Config (poblado por useExportConfig) ──────────────────────────
   exportConfigs: {},   // defaults inyectados por useExportConfig en el primer render

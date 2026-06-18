@@ -1,8 +1,8 @@
 // src/hooks/useConfiguracion.js
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { setConfigStore } from '../lib/configStore.js';
-import { getCollectionRef } from '../lib/firebase';
+import { getCollectionRef } from '../lib/tenantDb';
+import { useAppStore } from '../lib/store';
 
 const CONFIG_DOC_ID = 'config_empresa';
 
@@ -31,7 +31,18 @@ export function useConfiguracion(user) {
         clearTimeout(timeout);
         const data = snap.exists() ? snap.data() : null;
         setConfig(data);
-        if (data) setConfigStore(data); // sincroniza el store global
+        if (data) {
+          useAppStore.setState({
+            empresaConfig: {
+              empresaNombre:   data.empresaNombre   || 'ACONTPLUS',
+              empresaSlogan:   data.empresaSlogan   || 'Recordatorios',
+              empresaTag:      data.empresaTag      || 'Facturar nunca fue tan fácil',
+              whatsappNumero:  data.whatsappNumero  || '',
+              whatsappPrefijo: data.whatsappPrefijo || '593',
+              logoUrl:         data.logoUrl         || '',
+            },
+          });
+        }
         setIsLoading(false);
         setPermError(false);
       },

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { getCollectionRef } from '../lib/firebase';
+import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
 // ─── Definición canónica de columnas por reporte ───────────────────────────────

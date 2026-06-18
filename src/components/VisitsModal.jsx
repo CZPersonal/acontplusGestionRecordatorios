@@ -5,7 +5,7 @@ import {
   Edit, Printer, MessageCircle, RotateCcw, Ban, Settings
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
-import { getConfigStore, getEmpresaWhatsApp } from '../lib/configStore.js';
+import { useAppStore } from '../lib/store';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useTecnicos } from '../hooks/useTecnicos';
 import TiposVisitaForm from './TiposVisitaForm.jsx';
@@ -24,9 +24,17 @@ function formatDate(isoString) {
 
 import { formatDateOnly } from '../utils/dates.js';
 
+// Formatea número WhatsApp empresa para wa.me (puro, sin imports globales)
+function formatEmpresaWhatsApp(cfg) {
+  if (!cfg.whatsappNumero) return '';
+  const raw = cfg.whatsappNumero.replace(/\D/g, '');
+  const num = raw.startsWith('0') ? raw.slice(1) : raw;
+  return `${cfg.whatsappPrefijo || '593'}${num}`;
+}
+
 // ─── PDF de una visita ─────────────────────────────────────────────────────
 function generateVisitPDF(task, visit) {
-  const cfg        = getConfigStore();
+  const cfg        = useAppStore.getState().empresaConfig;
   const logoSrc    = cfg.logoUrl || `${window.location.origin}/logo.png`;
   const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
   const sloganEmp  = cfg.empresaSlogan || 'Recordatorios';
@@ -177,7 +185,7 @@ export function printVisitPDF(task, visit) {
 
 // ─── WhatsApp de una visita ────────────────────────────────────────────────
 export function shareVisitWhatsApp(task, visit) {
-  const cfg        = getConfigStore();
+  const cfg        = useAppStore.getState().empresaConfig;
   const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
   const lines = [
     `🔧 *${nombreEmp.toUpperCase()}*`,
@@ -210,7 +218,7 @@ export function shareVisitWhatsApp(task, visit) {
     const raw = task.clientPhone.replace(/\D/g, '');
     destPhone = raw.startsWith('0') ? `593${raw.slice(1)}` : `593${raw}`;
   } else {
-    destPhone = getEmpresaWhatsApp();
+    destPhone = formatEmpresaWhatsApp(cfg);
   }
   const url = destPhone
     ? `https://wa.me/${destPhone}?text=${encoded}`

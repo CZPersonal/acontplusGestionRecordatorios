@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
-import { db, getCollectionRef } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
 export function useClients(user) {

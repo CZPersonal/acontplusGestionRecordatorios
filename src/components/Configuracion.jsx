@@ -2,9 +2,72 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Phone, Save, CheckCircle, AlertCircle,
-  Upload, Image, Building2, Bell, Info
+  Upload, Image, Building2, Bell, Info, Users, Copy
 } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAppStore } from '../lib/store';
 import { useConfiguracion } from '../hooks/useConfiguracion.js';
+
+function JoinCodeSection() {
+  const tenantId   = useAppStore(s => s.tenantId);
+  const [code,     setCode]    = useState('');
+  const [copied,   setCopied]  = useState(false);
+  const [loading,  setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    getDoc(doc(db, 'tenants', tenantId))
+      .then(snap => { if (snap.exists()) setCode(snap.data().joinCode || ''); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [tenantId]);
+
+  const copy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+        style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <Users size={15} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-700">Código de invitación</p>
+          <p className="text-xs text-slate-400">Compártelo para que otros se unan a tu empresa</p>
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        {loading ? (
+          <p className="text-sm text-slate-400">Cargando...</p>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 bg-slate-100 rounded-xl px-5 py-3">
+              <span className="text-2xl font-mono font-bold tracking-widest text-slate-800">
+                {code || '—'}
+              </span>
+              {code && (
+                <button onClick={copy} className="text-slate-400 hover:text-slate-700">
+                  {copied
+                    ? <CheckCircle size={18} className="text-green-500" />
+                    : <Copy size={18} />}
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 flex-1">
+              Los nuevos usuarios ingresan este código en la pantalla de configuración de empresa.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Configuracion({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
@@ -348,7 +411,7 @@ export default function Configuracion({ user }) {
       )}
 
       {/* ── Botón guardar ── */}
-      <div className="flex justify-end pb-6">
+      <div className="flex justify-end pb-2">
         <button
           onClick={handleSave}
           disabled={isSaving}
@@ -361,6 +424,10 @@ export default function Configuracion({ user }) {
           )}
         </button>
       </div>
+
+      {/* ── SECCIÓN: Código de invitación ── */}
+      <JoinCodeSection />
+
     </div>
   );
 }

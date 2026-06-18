@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { doc, writeBatch } from 'firebase/firestore';
-import { db, getVisitsRef } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { getVisitsRef } from '../lib/tenantDb';
 
 export function useVisits(task, user) {
   const [visits,    setVisits]    = useState(task?.visits || []);

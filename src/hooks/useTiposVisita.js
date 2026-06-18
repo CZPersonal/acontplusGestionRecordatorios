@@ -1,7 +1,7 @@
 // src/hooks/useTiposVisita.js
 import { useState, useEffect } from 'react';
-import { doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { getCollectionRef } from '../lib/firebase';
+import { doc, setDoc, deleteDoc, onSnapshot, query, limit } from 'firebase/firestore';
+import { getCollectionRef } from '../lib/tenantDb';
 
 export function useTiposVisita(user) {
   const [tipos, setTipos] = useState([]);
@@ -9,8 +9,7 @@ export function useTiposVisita(user) {
 
   useEffect(() => {
     if (!user) return;
-    const colRef = getCollectionRef('tipos_visita');
-    const unsub = onSnapshot(colRef, (snap) => {
+    const unsub = onSnapshot(query(getCollectionRef('tipos_visita'), limit(200)), (snap) => {
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre));

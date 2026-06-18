@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Phone, MapPin, FileText, CreditCard, User, Package, Settings } from 'lucide-react';
 import ClientSearch from './ClientSearch.jsx';
 import ServiceTypesManager from './ServiceTypesManager.jsx';
+import { identificacionEcSchema, phoneSchema, emailSchema, serviceOrderSchema } from '../utils/validations.js';
 
 export default function TaskForm({ onSubmit, initialData, statuses, onCancel, clients, serviceTypes, user }) {
   const [selectedClient, setSelectedClient] = useState(
@@ -67,8 +68,31 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
   // ── Validación ────────────────────────────────────────────────────────────
   const validate = () => {
     const errs = {};
+
+    if (formData.serviceOrder?.trim()) {
+      const r = serviceOrderSchema.safeParse(formData.serviceOrder);
+      if (!r.success) errs.serviceOrder = r.error.issues[0].message;
+    }
+
     if (!formData.clientName?.trim())
       errs.clientName = 'Por favor ingresa o selecciona un cliente.';
+
+    // Los campos siguientes solo aplican cuando se está creando un cliente nuevo
+    if (!selectedClient) {
+      if (formData.identification?.trim() && !formData.foreign) {
+        const r = identificacionEcSchema.safeParse(formData.identification);
+        if (!r.success) errs.identification = r.error.issues[0].message;
+      }
+      if (formData.clientPhone?.trim()) {
+        const r = phoneSchema.safeParse(formData.clientPhone.trim());
+        if (!r.success) errs.clientPhone = r.error.issues[0].message;
+      }
+      if (formData.clientEmail?.trim()) {
+        const r = emailSchema.safeParse(formData.clientEmail.trim());
+        if (!r.success) errs.clientEmail = r.error.issues[0].message;
+      }
+    }
+
     return errs;
   };
 
@@ -114,10 +138,14 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
               value={formData.serviceOrder}
               onChange={handleChange}
               placeholder="Ej: OS-2026-001"
-              className={`${inputClass} font-mono tracking-wide`}
+              maxLength={50}
+              className={`${inputClass} font-mono tracking-wide ${errors.serviceOrder ? 'border-red-400' : ''}`}
               onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              onBlur={e => e.target.style.borderColor = errors.serviceOrder ? '#f87171' : '#e2e8f0'}
             />
+            {errors.serviceOrder && (
+              <p className="text-xs text-red-500 mt-1">⚠️ {errors.serviceOrder}</p>
+            )}
           </div>
 
           {/* Buscador de cliente */}
@@ -188,12 +216,15 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
                       if (errors.identification) setErrors(prev => ({ ...prev, identification: null }));
                     }}
                     placeholder={formData.foreign ? 'Pasaporte...' : 'Ej: 0912345678'}
-                    className={`${inputClass} font-mono`}
+                    className={`${inputClass} font-mono ${errors.identification ? 'border-red-400' : ''}`}
                     type={formData.foreign ? 'text' : 'tel'}
                     maxLength={formData.foreign ? 30 : 13}
                     onFocus={e => e.target.style.borderColor = '#D61672'}
-                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={e => e.target.style.borderColor = errors.identification ? '#f87171' : '#e2e8f0'}
                   />
+                  {errors.identification && (
+                    <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>
+                  )}
                 </div>
               </div>
 
@@ -245,11 +276,14 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
                     name="clientPhone"
                     value={formData.clientPhone}
                     onChange={handleChange}
-                    placeholder="Número de contacto"
-                    className={inputClass}
+                    placeholder="Ej: 0991234567"
+                    className={`${inputClass} ${errors.clientPhone ? 'border-red-400' : ''}`}
                     onFocus={e => e.target.style.borderColor = '#D61672'}
-                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={e => e.target.style.borderColor = errors.clientPhone ? '#f87171' : '#e2e8f0'}
                   />
+                  {errors.clientPhone && (
+                    <p className="text-xs text-red-500 mt-1">⚠️ {errors.clientPhone}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>
@@ -261,10 +295,13 @@ export default function TaskForm({ onSubmit, initialData, statuses, onCancel, cl
                     onChange={handleChange}
                     placeholder="correo@ejemplo.com"
                     type="email"
-                    className={inputClass}
+                    className={`${inputClass} ${errors.clientEmail ? 'border-red-400' : ''}`}
                     onFocus={e => e.target.style.borderColor = '#D61672'}
-                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    onBlur={e => e.target.style.borderColor = errors.clientEmail ? '#f87171' : '#e2e8f0'}
                   />
+                  {errors.clientEmail && (
+                    <p className="text-xs text-red-500 mt-1">⚠️ {errors.clientEmail}</p>
+                  )}
                 </div>
               </div>
 

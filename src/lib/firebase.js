@@ -1,7 +1,9 @@
 // src/lib/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, initializeFirestore, persistentLocalCache, collection } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,6 +16,22 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// App Check — debe inicializarse antes que Auth y Firestore.
+// En DEV el SDK genera un debug token automático y lo imprime en consola;
+// cópialo y regístralo en Firebase Console → App Check → Apps → Debug tokens.
+// En producción usa reCAPTCHA v3: requiere VITE_RECAPTCHA_SITE_KEY.
+if (import.meta.env.DEV) {
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN =
+    import.meta.env.VITE_APP_CHECK_DEBUG_TOKEN || true;
+}
+if (import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
+
 const auth = getAuth(app);
 
 // persistentLocalCache reemplaza el deprecado enableIndexedDbPersistence
@@ -21,12 +39,11 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache()
 });
 
-const appId = firebaseConfig.appId;
+// Firebase Messaging — solo disponible en navegadores con soporte Push API.
+// messaging es null en entornos sin soporte (SSR, algunos navegadores).
+let messaging = null;
+isSupported().then(supported => {
+  if (supported) messaging = getMessaging(app);
+}).catch(() => {});
 
-export const getCollectionRef = (name) =>
-  collection(db, 'artifacts', appId, 'public', 'data', name);
-
-export const getVisitsRef = (taskId) =>
-  collection(db, 'artifacts', appId, 'public', 'data', 'water_filter_tasks', taskId, 'visits');
-
-export { app, auth, db, appId };
+export { app, auth, db, messaging };

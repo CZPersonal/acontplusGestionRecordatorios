@@ -1,5 +1,6 @@
 import { doc, writeBatch } from 'firebase/firestore';
-import { db, getVisitsRef } from '../lib/firebase';
+import { db } from '../lib/firebase';
+import { getVisitsRef } from '../lib/tenantDb';
 
 // ─── Helpers de cálculo ────────────────────────────────────────────────────────
 
