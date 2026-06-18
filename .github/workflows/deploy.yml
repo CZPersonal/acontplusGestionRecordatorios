@@ -38,8 +38,8 @@ jobs:
       - name: Write Firebase service account
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/firebase-sa.json
 
-      - name: Deploy (Hosting + Firestore rules + indexes)
-        run: npx firebase-tools deploy --only "hosting,firestore" --project gestorrecordatorios --non-interactive
+      - name: Deploy (Hosting)
+        run: npx firebase-tools deploy --only hosting --project gestorrecordatorios --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
 
