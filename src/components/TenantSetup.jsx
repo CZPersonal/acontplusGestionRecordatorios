@@ -12,6 +12,7 @@ export default function TenantSetup() {
   const user = useAppStore(s => s.user);
   const [tab,       setTab]       = useState('create'); // 'create' | 'join'
   const [name,      setName]      = useState('');
+  const [ruc,       setRuc]       = useState('');
   const [joinCode,  setJoinCode]  = useState('');
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -20,6 +21,7 @@ export default function TenantSetup() {
 
   const handleCreate = async () => {
     if (!name.trim()) { setError('Ingresa el nombre de la empresa.'); return; }
+    if (!/^\d{13}$/.test(ruc.trim())) { setError('El RUC debe tener exactamente 13 dígitos.'); return; }
     setError(''); setLoading(true);
     try {
       const tenantId = crypto.randomUUID();
@@ -27,6 +29,7 @@ export default function TenantSetup() {
       await setDoc(doc(db, 'tenants', tenantId), {
         id:        tenantId,
         name:      name.trim(),
+        ruc:       ruc.trim(),
         joinCode:  code,
         adminUid:  user.uid,
         createdAt: new Date().toISOString(),
@@ -139,9 +142,25 @@ export default function TenantSetup() {
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
                 placeholder="Ej: Acontplus S.A.S"
                 className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': '#D61672' }}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor = '#cbd5e1'}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">
+                RUC (13 dígitos)
+              </label>
+              <input
+                type="text"
+                value={ruc}
+                onChange={e => setRuc(e.target.value.replace(/\D/g, '').slice(0, 13))}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                placeholder="0000000000001"
+                maxLength={13}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2"
                 style={{ '--tw-ring-color': '#D61672' }}
                 onFocus={e => e.target.style.borderColor = '#D61672'}
                 onBlur={e => e.target.style.borderColor = '#cbd5e1'}
