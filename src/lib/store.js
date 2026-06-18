@@ -12,6 +12,7 @@ export const useAppStore = create((set, get) => ({
   // ─── Tenant (poblado en App.jsx tras auth) ────────────────────────────────
   tenantId:   null,   // UUID del tenant; null = aún sin empresa configurada
   tenantName: '',
+  tenantRuc:  '',
 
   // ─── Network ──────────────────────────────────────────────────────────────
   isOnline: navigator.onLine,

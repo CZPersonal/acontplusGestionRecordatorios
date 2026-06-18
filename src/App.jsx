@@ -32,12 +32,15 @@ export default function App() {
         // Leer tenantId del perfil — null si aún no está en ninguna empresa
         const snap = await getDoc(doc(db, 'users', u.uid));
         const tid  = snap.exists() ? (snap.data().tenantId ?? null) : null;
-        const tname = tid
-          ? await getDoc(doc(db, 'tenants', tid)).then(d => d.data()?.name ?? '')
-          : '';
-        useAppStore.setState({ user: u, tenantId: tid, tenantName: tname, isAuthLoading: false });
+        let tname = '', truc = '';
+        if (tid) {
+          const td = await getDoc(doc(db, 'tenants', tid));
+          tname = td.data()?.name ?? '';
+          truc  = td.data()?.ruc  ?? '';
+        }
+        useAppStore.setState({ user: u, tenantId: tid, tenantName: tname, tenantRuc: truc, isAuthLoading: false });
       } else {
-        useAppStore.setState({ user: null, tenantId: null, tenantName: '', isAuthLoading: false });
+        useAppStore.setState({ user: null, tenantId: null, tenantName: '', tenantRuc: '', isAuthLoading: false });
       }
     });
     return () => unsub();

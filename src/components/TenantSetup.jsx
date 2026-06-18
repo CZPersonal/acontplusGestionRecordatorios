@@ -36,7 +36,7 @@ export default function TenantSetup() {
       });
       await setDoc(doc(db, 'users', user.uid), { tenantId, email: user.email }, { merge: true });
       setCreated({ tenantId, joinCode: code });
-      useAppStore.setState({ tenantId, tenantName: name.trim() });
+      useAppStore.setState({ tenantId, tenantName: name.trim(), tenantRuc: ruc.trim() });
     } catch (e) {
       setError('Error al crear la empresa. Intenta de nuevo.');
       console.error(e);

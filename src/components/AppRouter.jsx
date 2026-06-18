@@ -22,6 +22,8 @@ const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 export default function AppRouter() {
   const user             = useAppStore(s => s.user);
+  const tenantName       = useAppStore(s => s.tenantName);
+  const tenantRuc        = useAppStore(s => s.tenantRuc);
   const isOnline         = useAppStore(s => s.isOnline);
   const activeTab        = useAppStore(s => s.activeTab);
   const setActiveTab     = useAppStore(s => s.setActiveTab);
@@ -105,6 +107,14 @@ export default function AppRouter() {
             <img src="/logo.png" alt="Acontplus" className="w-8 h-8 object-contain" />
             <span className="text-sm font-bold" style={{ color: '#D61672' }}>ACONTPLUS</span>
           </div>
+
+          {/* Empresa info — visible en todas las vistas */}
+          {tenantName && (
+            <div className="hidden md:flex flex-col leading-tight">
+              <span className="text-sm font-bold text-slate-800">{tenantName}</span>
+              {tenantRuc && <span className="text-xs text-slate-400">RUC: {tenantRuc}</span>}
+            </div>
+          )}
 
           <div className="flex items-center space-x-2 ml-auto">
             <div className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold ${
