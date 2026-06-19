@@ -484,8 +484,11 @@ exports.notifyVisitCompleted = onDocumentUpdated(
               ? `<tr><td style="padding:6px 0;color:#888;">Orden</td>
                      <td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
             ${after.observations
-              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones de cierre</td>
+              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones</td>
                      <td style="padding:6px 0;font-style:italic;">${escHtml(after.observations)}</td></tr>` : ''}
+            ${after.closingObservations
+              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones de cierre</td>
+                     <td style="padding:6px 0;font-style:italic;">${escHtml(after.closingObservations)}</td></tr>` : ''}
           </table>
           <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
           <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
