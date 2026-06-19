@@ -41,10 +41,22 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
     .filter(t => t.status !== 'Completado' && t.status !== 'Cancelado')
     .map(enrichTask);
 
+  const now         = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  const isOverdue = (t) => {
+    if (!t._scheduledDate) return false;
+    if (t._scheduledDate < today) return true;
+    if (t._scheduledDate === today && t._nextVisit?.scheduledTime) {
+      return t._nextVisit.scheduledTime < currentTime;
+    }
+    return false;
+  };
+
   const tasksWithVisits  = enrichedTasks.filter(t => t._nextVisit !== null);
   const urgentTasksAll   = tasksWithVisits.filter(t => t._urgency === 'Alta');
-  const dueTodayTasksAll = tasksWithVisits.filter(t => t._scheduledDate === today);
-  const overdueTasksAll  = tasksWithVisits.filter(t => t._scheduledDate && t._scheduledDate < today);
+  const overdueTasksAll  = tasksWithVisits.filter(isOverdue);
+  const dueTodayTasksAll = tasksWithVisits.filter(t => t._scheduledDate === today && !isOverdue(t));
 
   const allActiveTasks = [...enrichedTasks].sort((a, b) => {
     const dateA = a._scheduledDate || '9999-99-99';

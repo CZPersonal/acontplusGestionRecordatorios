@@ -470,8 +470,12 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
   // ── Flags de estado temporal (solo para visitas Programadas) ──────────────
   // Fecha local del navegador (evita desfase UTC en zonas -5 como Ecuador)
   const todayLocal = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-  const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < todayLocal;
-  const isToday      = visit.status === 'Programada' && visit.scheduledDate === todayLocal;
+  const nowTime    = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
+  const isOverdue  = visit.status === 'Programada' && (
+    visit.scheduledDate < todayLocal ||
+    (visit.scheduledDate === todayLocal && !!visit.scheduledTime && visit.scheduledTime < nowTime)
+  );
+  const isToday    = visit.status === 'Programada' && visit.scheduledDate === todayLocal && !isOverdue;
 
   const handleComplete = async () => {
     setIsLoading(true);

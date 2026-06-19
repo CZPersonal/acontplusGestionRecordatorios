@@ -23,14 +23,30 @@ async function showSystemNotification(title, body, icon) {
   }
 }
 
+// Retorna la hora actual en formato HH:MM
+function currentTime() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+// Una visita está retrasada si su fecha es anterior a hoy,
+// O si es hoy y tiene hora programada que ya pasó.
+function visitIsOverdue(visit, today) {
+  if (visit.scheduledDate < today) return true;
+  if (visit.scheduledDate === today && visit.scheduledTime) {
+    return visit.scheduledTime < currentTime();
+  }
+  return false;
+}
+
 // ── Obtiene TODAS las visitas relevantes de una tarea (retrasadas, hoy, urgentes) ──
 function getRelevantVisits(task, today) {
   if (!task.visits?.length) return [];
   return task.visits
     .filter(v => v.status === 'Programada')
     .filter(v => {
-      const isOverdue = v.scheduledDate < today;
-      const isToday   = v.scheduledDate === today;
+      const isOverdue = visitIsOverdue(v, today);
+      const isToday   = v.scheduledDate === today && !isOverdue;
       const isUrgent  = v.urgency === 'Alta';
       return isOverdue || isToday || isUrgent;
     })
@@ -40,8 +56,8 @@ function getRelevantVisits(task, today) {
 // ── Construye un toast para una visita específica ──────────────────────────
 function buildToast(task, visit, id) {
   const today     = localDateStr();
-  const isOverdue = visit.scheduledDate < today;
-  const isToday   = visit.scheduledDate === today;
+  const isOverdue = visitIsOverdue(visit, today);
+  const isToday   = visit.scheduledDate === today && !isOverdue;
 
   let type, title;
 
