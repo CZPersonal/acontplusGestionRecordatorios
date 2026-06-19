@@ -41,6 +41,24 @@ export function useTecnicos(user) {
     }
   };
 
+  const updateTecnico = async (id, { nombre, email }) => {
+    if (!user || !nombre.trim()) return false;
+    setIsLoading(true);
+    try {
+      await setDoc(
+        doc(getCollectionRef('tecnicos'), id),
+        { nombre: nombre.trim(), email: email?.trim() || '', updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return true;
+    } catch (e) {
+      console.error('Error al actualizar técnico:', e);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const deleteTecnico = async (id) => {
     if (!user) return;
     try {
@@ -50,5 +68,5 @@ export function useTecnicos(user) {
     }
   };
 
-  return { tecnicos, isLoading, addTecnico, deleteTecnico };
+  return { tecnicos, isLoading, addTecnico, updateTecnico, deleteTecnico };
 }

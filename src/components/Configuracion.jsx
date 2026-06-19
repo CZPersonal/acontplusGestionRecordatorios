@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Phone, Save, CheckCircle, AlertCircle, Upload, Image,
-  Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package
+  Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package, CalendarCheck
 } from 'lucide-react';
 import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -9,6 +9,7 @@ import { useAppStore } from '../lib/store';
 import { useConfiguracion } from '../hooks/useConfiguracion.js';
 import TecnicosForm from './TecnicosForm.jsx';
 import ServiceTypesManager from './ServiceTypesManager.jsx';
+import TiposVisitaManager from './TiposVisitaManager.jsx';
 
 // ─── Sub-componentes de Entidad ───────────────────────────────────────────────
 
@@ -422,6 +423,7 @@ function TabEntidad({ user }) {
 function TabCatalogos({ user }) {
   const [showTecnicos,     setShowTecnicos]     = useState(false);
   const [showServiceTypes, setShowServiceTypes] = useState(false);
+  const [showTiposVisita,  setShowTiposVisita]  = useState(false);
 
   const cards = [
     {
@@ -440,6 +442,14 @@ function TabCatalogos({ user }) {
       bg: '#fce7f3',
       onClick: () => setShowServiceTypes(true),
     },
+    {
+      label: 'Tipos de visita',
+      description: 'Define las categorías de visitas técnicas',
+      icon: <CalendarCheck size={22} />,
+      color: '#7c3aed',
+      bg: '#ede9fe',
+      onClick: () => setShowTiposVisita(true),
+    },
   ];
 
   return (
@@ -447,8 +457,7 @@ function TabCatalogos({ user }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {cards.map(c => (
           <button key={c.label} onClick={c.onClick}
-            className="flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-slate-200 hover:border-opacity-80 hover:shadow-md transition-all text-left group"
-            style={{ '--hover-color': c.color }}
+            className="flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-slate-200 hover:shadow-md transition-all text-left group"
             onMouseEnter={e => e.currentTarget.style.borderColor = c.color}
             onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
           >
@@ -464,8 +473,9 @@ function TabCatalogos({ user }) {
         ))}
       </div>
 
-      {showTecnicos     && <TecnicosForm       user={user} onClose={() => setShowTecnicos(false)} />}
-      {showServiceTypes && <ServiceTypesManager user={user} onClose={() => setShowServiceTypes(false)} />}
+      {showTecnicos     && <TecnicosForm        user={user} onClose={() => setShowTecnicos(false)} />}
+      {showServiceTypes && <ServiceTypesManager  user={user} onClose={() => setShowServiceTypes(false)} />}
+      {showTiposVisita  && <TiposVisitaManager   user={user} onClose={() => setShowTiposVisita(false)} />}
     </div>
   );
 }

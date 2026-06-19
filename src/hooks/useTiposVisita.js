@@ -36,6 +36,24 @@ export function useTiposVisita(user) {
     }
   };
 
+  const updateTipo = async (id, nombre) => {
+    if (!user || !nombre.trim()) return false;
+    setIsLoading(true);
+    try {
+      await setDoc(
+        doc(getCollectionRef('tipos_visita'), id),
+        { nombre: nombre.trim(), updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return true;
+    } catch (e) {
+      console.error('Error al actualizar tipo de visita:', e);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const deleteTipo = async (id) => {
     if (!user) return;
     try {
@@ -45,8 +63,7 @@ export function useTiposVisita(user) {
     }
   };
 
-  // Lista de nombres para usar en selects — solo desde Firestore
   const tiposParaSelect = tipos.map(t => t.nombre);
 
-  return { tipos, tiposParaSelect, isLoading, addTipo, deleteTipo };
+  return { tipos, tiposParaSelect, isLoading, addTipo, updateTipo, deleteTipo };
 }
