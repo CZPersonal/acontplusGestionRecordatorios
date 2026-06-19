@@ -119,6 +119,9 @@ exports.sendDailyReminders = onSchedule(
               <table style="border-collapse:collapse;width:100%;">
                 <tr><td style="padding:6px 0;color:#555;">Cliente</td>
                     <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
+                ${task.clientPhone
+                  ? `<tr><td style="padding:6px 0;color:#555;">Teléfono</td>
+                         <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
                 <tr><td style="padding:6px 0;color:#555;">Fecha</td>
                     <td style="padding:6px 0;">${escHtml(visit.scheduledDate)}</td></tr>
                 ${visit.scheduledTime
@@ -257,6 +260,9 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
             ${task.clientAddress
               ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
                      <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+            ${task.clientPhone
+              ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
+                     <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
             <tr><td style="padding:6px 0;color:#888;">Fecha</td>
                 <td style="padding:6px 0;">${escHtml(visit.scheduledDate || '—')}</td></tr>
             ${visit.scheduledTime
@@ -372,6 +378,8 @@ exports.sendTechnicianDailyAgenda = onSchedule(
                 <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
                 ${task.clientAddress
                   ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+                ${task.clientPhone
+                  ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
                 ${visit.type
                   ? `<span style="color:#64748b;font-size:13px;">${escHtml(visit.type)}</span>` : ''}
                 ${visit.urgency
@@ -458,6 +466,9 @@ exports.notifyVisitCompleted = onDocumentUpdated(
             ${task.clientAddress
               ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
                      <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+            ${task.clientPhone
+              ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
+                     <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
             <tr><td style="padding:6px 0;color:#888;">Fecha</td>
                 <td style="padding:6px 0;">${escHtml(after.scheduledDate || '—')}</td></tr>
             ${after.scheduledTime
@@ -579,6 +590,8 @@ exports.sendOverdueAlert = onSchedule(
               <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
               ${task.clientAddress
                 ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+              ${task.clientPhone
+                ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
               ${visit.type
                 ? `<span style="color:#64748b;font-size:13px;">${escHtml(visit.type)}</span>` : ''}
               ${visit.technician
