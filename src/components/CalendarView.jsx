@@ -98,6 +98,14 @@ function WeekEventCard({ event, onClick, onAddVisit }) {
   const isTask  = event.type === 'task';
   const isVisit = event.type === 'visit';
 
+  // Detección de retraso (solo visitas Programadas)
+  const todayStr = localDateStr();
+  const nowTime  = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
+  const isOverdue = isVisit && event.visitStatus === 'Programada' && (
+    event.date < todayStr ||
+    (event.date === todayStr && !!event.time && event.time < nowTime)
+  );
+
   const urgencyDot = {
     Alta:  'bg-red-500',
     Media: 'bg-yellow-400',
@@ -109,37 +117,47 @@ function WeekEventCard({ event, onClick, onAddVisit }) {
     'Cancelado':  'bg-slate-100 text-slate-500',
     'En Proceso': 'bg-blue-100 text-blue-700',
     'Pendiente':  'bg-yellow-100 text-yellow-800',
-  }[event.status] || 'bg-yellow-100 text-yellow-800') : ({
-    'Programada': 'bg-pink-100 text-pink-700',
-    'Realizada':  'bg-green-100 text-green-700',
-    'Cancelada':  'bg-slate-100 text-slate-500',
-  }[event.visitStatus] || 'bg-pink-100 text-pink-700');
+  }[event.status] || 'bg-yellow-100 text-yellow-800') : (
+    isOverdue                        ? 'bg-red-100 text-red-700' :
+    event.visitStatus === 'Realizada'  ? 'bg-green-100 text-green-700' :
+    event.visitStatus === 'Cancelada'  ? 'bg-slate-100 text-slate-500' :
+    'bg-pink-100 text-pink-700'
+  );
 
-  const borderLeft = isTask ? 'border-l-2 border-blue-400' : {
-    'Programada': 'border-l-2 border-pink-400',
-    'Realizada':  'border-l-2 border-green-400',
-    'Cancelada':  'border-l-2 border-slate-300',
-  }[event.visitStatus] || 'border-l-2 border-pink-400';
+  const borderLeft = isTask ? 'border-l-2 border-blue-400' :
+    isOverdue                        ? 'border-l-4 border-red-500' :
+    event.visitStatus === 'Realizada'  ? 'border-l-2 border-green-400' :
+    event.visitStatus === 'Cancelada'  ? 'border-l-2 border-slate-300' :
+    'border-l-2 border-pink-400';
 
   const task = event.task;
 
   return (
-    <div className={`bg-white rounded-lg border border-slate-100 shadow-sm mb-1.5 overflow-hidden hover:shadow-md transition-shadow ${borderLeft}`}>
+    <div className={`rounded-lg border shadow-sm mb-1.5 overflow-hidden hover:shadow-md transition-shadow ${borderLeft} ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}>
       {/* Cabecera clickeable */}
       <button
         onClick={() => onClick(event)}
         className="w-full text-left px-2.5 pt-2 pb-1"
       >
+        {/* Badge retrasada */}
+        {isOverdue && (
+          <div className="flex items-center gap-1 mb-1">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-bold bg-red-200 text-red-800 border border-red-300">
+              <AlertCircle size={10} />⚠️ Retrasada
+            </span>
+          </div>
+        )}
+
         {/* Nombre cliente + urgency dot */}
         <div className="flex items-center gap-1.5 mb-1">
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${urgencyDot}`} />
-          <span className="text-xs font-semibold text-slate-800 truncate leading-tight">{event.title}</span>
+          <span className={`text-xs font-semibold truncate leading-tight ${isOverdue ? 'text-red-800' : 'text-slate-800'}`}>{event.title}</span>
         </div>
 
         {/* Hora + tipo */}
         <div className="flex items-center gap-2 flex-wrap">
           {event.time && (
-            <span className="flex items-center gap-0.5 text-xs text-slate-500">
+            <span className={`flex items-center gap-0.5 text-xs ${isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
               <Clock size={10} className="flex-shrink-0" />
               {event.time}
             </span>
@@ -530,12 +548,22 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
   const isTask = event.type === 'task';
   const task   = event.task;
 
+  // Detección de retraso para visitas Programadas
+  const todayStr  = localDateStr();
+  const nowTime   = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
+  const isOverdue = !isTask && event.visitStatus === 'Programada' && (
+    event.date < todayStr ||
+    (event.date === todayStr && !!event.time && event.time < nowTime)
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
 
         {/* Header */}
-        <div className="px-5 py-4 text-white" style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+        <div className="px-5 py-4 text-white" style={{ background: isOverdue
+          ? 'linear-gradient(135deg, #dc2626, #b91c1c)'
+          : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
           <div className="flex justify-between items-start">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold uppercase tracking-wide opacity-75">
@@ -543,6 +571,16 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
               </p>
               <h3 className="font-bold text-base mt-0.5 truncate">{event.title}</h3>
               <p className="text-xs opacity-80 mt-0.5">{event.subtitle}</p>
+
+              {/* Badge retrasada */}
+              {isOverdue && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-white bg-opacity-25 border border-white border-opacity-40">
+                    <AlertCircle size={12} />
+                    ⚠️ Visita retrasada
+                  </span>
+                </div>
+              )}
 
               {/* Orden de servicio + Tipo instalación */}
               {(task?.serviceOrder || task?.serviceType) && (
@@ -647,6 +685,15 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                   <div>
                     <p className="text-xs text-slate-500 font-semibold uppercase">Teléfono cliente</p>
                     <p className="text-sm font-bold text-slate-800">{task.clientPhone}</p>
+                  </div>
+                </div>
+              )}
+              {task?.clientAddress && (
+                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
+                  <MapPin size={14} className="text-slate-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Dirección</p>
+                    <p className="text-sm font-bold text-slate-800">{task.clientAddress}</p>
                   </div>
                 </div>
               )}
