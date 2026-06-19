@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Phone, Save, CheckCircle, AlertCircle, Upload, Image,
-  Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package, CalendarCheck
+  Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package, CalendarCheck,
+  Mail, Clock, X,
 } from 'lucide-react';
 import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -418,6 +419,205 @@ function TabEntidad({ user }) {
   );
 }
 
+// ─── Sub-menú: Notificaciones ─────────────────────────────────────────────────
+
+function TabNotificaciones({ user }) {
+  const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
+
+  const [horaTech,   setHoraTech]   = useState(7);
+  const [horaAdmin,  setHoraAdmin]  = useState(8);
+  const [horaAlerta, setHoraAlerta] = useState(9);
+  const [ccCorreos,  setCcCorreos]  = useState([]);
+  const [newEmail,  setNewEmail]  = useState('');
+  const [emailErr,  setEmailErr]  = useState('');
+  const [saved,     setSaved]     = useState(false);
+  const [error,     setError]     = useState('');
+
+  useEffect(() => {
+    if (!config) return;
+    setHoraTech(config.horaRecordatorioTecnicos ?? 7);
+    setHoraAdmin(config.horaRecordatorioAdmin   ?? 8);
+    setHoraAlerta(config.horaAlertaAtrasadas    ?? 9);
+    setCcCorreos(config.ccCorreos || []);
+  }, [config]);
+
+  const addEmail = () => {
+    const e = newEmail.trim().toLowerCase();
+    if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
+    if (ccCorreos.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
+    setCcCorreos(prev => [...prev, e]);
+    setNewEmail('');
+    setEmailErr('');
+    setSaved(false);
+  };
+
+  const removeEmail = (email) => {
+    setCcCorreos(prev => prev.filter(e => e !== email));
+    setSaved(false);
+  };
+
+  const handleSave = async () => {
+    setError('');
+    const ok = await saveConfig({
+      horaRecordatorioTecnicos: horaTech,
+      horaRecordatorioAdmin:    horaAdmin,
+      horaAlertaAtrasadas:      horaAlerta,
+      ccCorreos,
+    });
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    else setError('Error al guardar. Verifica tu conexión.');
+  };
+
+  const HORAS = Array.from({ length: 24 }, (_, i) => ({
+    value: i,
+    label: `${String(i).padStart(2, '0')}:00`,
+  }));
+
+  const inp = "w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors bg-white";
+  const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-center">
+        <img src="/logo.png" alt="Acontplus" className="w-12 h-12 mx-auto mb-3 animate-bounce" />
+        <p className="text-sm text-slate-400">Cargando configuración...</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+
+      {/* Horarios de envío */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Clock size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">Horarios de recordatorios</p>
+            <p className="text-xs text-slate-400">Hora Ecuador (UTC-5) en que se envían los emails diarios</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={lbl}>Agenda a técnicos</label>
+              <select value={horaTech}
+                onChange={e => { setHoraTech(Number(e.target.value)); setSaved(false); }}
+                className={`${inp} bg-white`}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
+                {HORAS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Recordatorio al admin</label>
+              <select value={horaAdmin}
+                onChange={e => { setHoraAdmin(Number(e.target.value)); setSaved(false); }}
+                className={`${inp} bg-white`}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
+                {HORAS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Alerta de atrasadas</label>
+              <select value={horaAlerta}
+                onChange={e => { setHoraAlerta(Number(e.target.value)); setSaved(false); }}
+                className={`${inp} bg-white`}
+                onFocus={e => e.target.style.borderColor = '#D61672'}
+                onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
+                {HORAS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
+            <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-600 leading-relaxed">
+              Los recordatorios se envían una vez al día en la hora configurada. Los cambios aplican desde la próxima hora en punto.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* CC para emails del admin */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Mail size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">Copias (CC) en recordatorios al admin</p>
+            <p className="text-xs text-slate-400">Estos correos recibirán copia de cada recordatorio diario</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          {ccCorreos.length > 0 ? (
+            <div className="space-y-2">
+              {ccCorreos.map(email => (
+                <div key={email} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-sm text-slate-700 font-mono">{email}</span>
+                  <button onClick={() => removeEmail(email)}
+                    className="ml-2 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 text-center py-2">Sin correos adicionales configurados</p>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => { setNewEmail(e.target.value); setEmailErr(''); setSaved(false); }}
+              onKeyDown={e => e.key === 'Enter' && addEmail()}
+              placeholder="correo@ejemplo.com"
+              className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
+              onFocus={e => e.target.style.borderColor = '#D61672'}
+              onBlur={e => e.target.style.borderColor  = '#e2e8f0'}
+            />
+            <button onClick={addEmail}
+              className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              Agregar
+            </button>
+          </div>
+          {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center space-x-2 p-3 bg-red-50 rounded-xl border border-red-200">
+          <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+      {saved && (
+        <div className="flex items-center space-x-2 p-3 bg-green-50 rounded-xl border border-green-200">
+          <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+          <p className="text-sm text-green-700 font-medium">Configuración guardada correctamente.</p>
+        </div>
+      )}
+      <div className="flex justify-end pb-2">
+        <button onClick={handleSave} disabled={isSaving}
+          className="flex items-center space-x-2 px-8 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"
+          style={{ background: isSaving ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          {isSaving
+            ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
+            : <><Save size={16} /><span>Guardar configuración</span></>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Sub-menú: Catálogos ──────────────────────────────────────────────────────
 
 function TabCatalogos({ user }) {
@@ -483,8 +683,9 @@ function TabCatalogos({ user }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 const SUB_TABS = [
-  { id: 'entidad',   label: 'Entidad',   icon: <Building2 size={15} /> },
-  { id: 'catalogos', label: 'Catálogos', icon: <Package   size={15} /> },
+  { id: 'entidad',         label: 'Entidad',        icon: <Building2 size={15} /> },
+  { id: 'catalogos',       label: 'Catálogos',      icon: <Package   size={15} /> },
+  { id: 'notificaciones',  label: 'Notificaciones', icon: <Bell      size={15} /> },
 ];
 
 export default function Configuracion({ user }) {
@@ -517,8 +718,9 @@ export default function Configuracion({ user }) {
       </div>
 
       {/* Contenido del sub-menú activo */}
-      {subTab === 'entidad'   && <TabEntidad   user={user} />}
-      {subTab === 'catalogos' && <TabCatalogos user={user} />}
+      {subTab === 'entidad'        && <TabEntidad        user={user} />}
+      {subTab === 'catalogos'      && <TabCatalogos      user={user} />}
+      {subTab === 'notificaciones' && <TabNotificaciones user={user} />}
 
     </div>
   );
