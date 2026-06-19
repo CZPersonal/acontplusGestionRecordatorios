@@ -226,22 +226,27 @@ export function shareVisitWhatsApp(task, visit) {
   window.open(url, '_blank');
 }
 
-// ─── Sub-modal de edición superpuesto (z-60) ───────────────────────────────
-function EditVisitModal({ visit, onSave, onClose, currentUser, tiposParaSelect, tecnicosParaSelect }) {
+// ─── Modal de formulario unificado (nueva visita y edición) ──────────────────
+const URGENCY_CONFIG = {
+  Alta:  { color: '#dc2626', bg: '#fef2f2', border: '#fca5a5', label: '🔴 Alta' },
+  Media: { color: '#d97706', bg: '#fffbeb', border: '#fcd34d', label: '🟡 Media' },
+  Baja:  { color: '#16a34a', bg: '#f0fdf4', border: '#86efac', label: '🟢 Baja' },
+};
+
+function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tecnicosParaSelect }) {
+  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+
   const [formData, setFormData] = useState({
-    scheduledDate: visit.scheduledDate || new Date().toISOString().split('T')[0],
-    scheduledTime: visit.scheduledTime || '',
-    type:          visit.type          || tiposParaSelect[0] || '',
-    urgency:       visit.urgency       || 'Media',
-    observations:  visit.observations  || '',
-    technician:    visit.technician    || currentUser?.email || '',
+    scheduledDate: initial?.scheduledDate || today,
+    scheduledTime: initial?.scheduledTime || '',
+    type:          initial?.type          || tiposParaSelect[0] || '',
+    urgency:       initial?.urgency       || 'Media',
+    observations:  initial?.observations  || '',
+    technician:    initial?.technician    || '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -250,213 +255,175 @@ function EditVisitModal({ visit, onSave, onClose, currentUser, tiposParaSelect, 
     setIsLoading(false);
   };
 
-  const inp = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors bg-white";
-  const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
-  const foc = e => e.target.style.borderColor = '#2563eb';
+  const inp = "w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors bg-white";
+  const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2";
+  const accentColor = isEdit ? '#2563eb' : '#D61672';
+  const foc = e => e.target.style.borderColor = accentColor;
   const blr = e => e.target.style.borderColor = '#e2e8f0';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(15,23,42,0.45)' }} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(3px)' }} onClick={onClose} />
 
-        <div className="px-5 py-4 flex items-center justify-between"
-          style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.2)' }}>
-              <Edit size={15} className="text-white" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
+        style={{ maxHeight: '92vh' }}>
+
+        {/* Header */}
+        <div className="px-6 py-5 flex items-center justify-between flex-shrink-0"
+          style={{ background: isEdit
+            ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
+            : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white bg-opacity-20">
+              {isEdit ? <Edit size={18} className="text-white" /> : <Plus size={18} className="text-white" />}
             </div>
             <div>
-              <p className="text-sm font-bold text-white">Editar visita</p>
-              <p className="text-xs text-white" style={{ opacity: 0.75 }}>
-                {formatDateOnly(visit.scheduledDate)}{visit.scheduledTime ? ' · ' + visit.scheduledTime : ''}
+              <h3 className="text-base font-bold text-white">
+                {isEdit ? 'Editar visita' : 'Nueva visita programada'}
+              </h3>
+              <p className="text-xs text-white opacity-75">
+                {isEdit ? 'Modifica los datos de la visita' : 'Completa la información de la visita'}
               </p>
             </div>
           </div>
           <button onClick={onClose}
-            className="p-1.5 rounded-xl text-white transition-colors"
-            style={{ opacity: 0.8 }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; e.currentTarget.style.opacity = 1; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.opacity = 0.8; }}>
-            <X size={18} />
+            className="p-2 rounded-xl text-white opacity-75 hover:opacity-100 hover:bg-white hover:bg-opacity-20 transition-all">
+            <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        {/* Cuerpo con scroll */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+          <div className="p-6 space-y-6">
+
+            {/* ── Sección 1: Programación ── */}
             <div>
-              <label className={lbl}><Calendar size={11} className="inline mr-1" />Fecha de visita</label>
-              <input type="date" name="scheduledDate" value={formData.scheduledDate}
-                onChange={handleChange} required className={inp} onFocus={foc} onBlur={blr} />
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                  style={{ background: accentColor }}>
+                  <Calendar size={13} className="text-white" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Programación</h4>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Fecha de visita <span className="text-red-400">*</span></label>
+                  <input type="date" value={formData.scheduledDate}
+                    onChange={e => set('scheduledDate', e.target.value)}
+                    required className={inp} onFocus={foc} onBlur={blr} />
+                </div>
+                <div>
+                  <label className={lbl}>Hora</label>
+                  <input type="time" value={formData.scheduledTime}
+                    onChange={e => set('scheduledTime', e.target.value)}
+                    className={inp} onFocus={foc} onBlur={blr} />
+                  <p className="text-xs text-slate-400 mt-1">Opcional — si no se indica se considera todo el día</p>
+                </div>
+              </div>
             </div>
+
+            {/* ── Sección 2: Servicio ── */}
             <div>
-              <label className={lbl}><Clock size={11} className="inline mr-1" />Hora</label>
-              <input type="time" name="scheduledTime" value={formData.scheduledTime}
-                onChange={handleChange} className={inp} onFocus={foc} onBlur={blr} />
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                  style={{ background: accentColor }}>
+                  <Wrench size={13} className="text-white" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Servicio</h4>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={lbl}>Tipo de visita</label>
+                  <select value={formData.type} onChange={e => set('type', e.target.value)}
+                    className={inp} onFocus={foc} onBlur={blr}>
+                    <option value="">— Selecciona un tipo —</option>
+                    {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Técnico asignado</label>
+                  <select value={formData.technician} onChange={e => set('technician', e.target.value)}
+                    className={inp} onFocus={foc} onBlur={blr}>
+                    <option value="">— Selecciona un técnico —</option>
+                    {tecnicosParaSelect.map(t => (
+                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Sección 3: Urgencia ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                  style={{ background: accentColor }}>
+                  <AlertCircle size={13} className="text-white" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Urgencia</h4>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {URGENCIES.map(u => {
+                  const cfg     = URGENCY_CONFIG[u];
+                  const selected = formData.urgency === u;
+                  return (
+                    <button key={u} type="button" onClick={() => set('urgency', u)}
+                      className="py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all"
+                      style={{
+                        borderColor: selected ? cfg.color : '#e2e8f0',
+                        background:  selected ? cfg.bg    : '#fff',
+                        color:       selected ? cfg.color : '#94a3b8',
+                        boxShadow:   selected ? `0 0 0 3px ${cfg.border}` : 'none',
+                      }}>
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Sección 4: Observaciones ── */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+                  style={{ background: accentColor }}>
+                  <FileText size={13} className="text-white" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Observaciones</h4>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+              <textarea value={formData.observations}
+                onChange={e => set('observations', e.target.value)}
+                rows={4}
+                placeholder="Describe el trabajo a realizar, materiales necesarios, acceso al lugar, etc."
+                className={`${inp} resize-none`}
+                onFocus={foc} onBlur={blr} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
-              <select name="type" value={formData.type} onChange={handleChange}
-                className={inp} onFocus={foc} onBlur={blr}>
-                <option value="">— Selecciona un tipo —</option>
-                {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lbl}><AlertCircle size={11} className="inline mr-1" />Urgencia</label>
-              <select name="urgency" value={formData.urgency} onChange={handleChange}
-                className={inp} onFocus={foc} onBlur={blr}>
-                {URGENCIES.map(u => <option key={u}>{u}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className={lbl}><User size={11} className="inline mr-1" />Técnico asignado</label>
-            <select name="technician" value={formData.technician} onChange={handleChange}
-              className={inp} onFocus={foc} onBlur={blr}>
-              <option value="">— Selecciona un técnico —</option>
-              {tecnicosParaSelect.map(t => (
-                <option key={t.id} value={t.nombre}>{t.nombre}{t.email ? ` (${t.email})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={lbl}>Observaciones</label>
-            <textarea name="observations" value={formData.observations} onChange={handleChange}
-              rows={3} placeholder="Descripción del trabajo a realizar..."
-              className={`${inp} resize-none`} onFocus={foc} onBlur={blr} />
-          </div>
-          <div className="flex space-x-2 pt-1">
+
+          {/* Botones fijos abajo */}
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3 flex-shrink-0">
             <button type="submit" disabled={isLoading}
-              className="flex-1 flex items-center justify-center space-x-2 text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-50 transition-all"
-              style={{ background: isLoading ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+              className="flex-1 flex items-center justify-center gap-2 py-3 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"
+              style={{ background: isLoading ? '#94a3b8' : isEdit
+                ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
+                : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
               {isLoading
                 ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
-                : <><Edit size={15} /><span>Guardar cambios</span></>}
+                : isEdit
+                  ? <><Edit size={16} /><span>Guardar cambios</span></>
+                  : <><Plus size={16} /><span>Agregar visita</span></>}
             </button>
             <button type="button" onClick={onClose}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
+              className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
               Cancelar
             </button>
           </div>
         </form>
       </div>
-    </div>
-  );
-}
-
-// ─── Formulario nueva visita ───────────────────────────────────────────────
-function AddVisitForm({ onAdd, onCancel, currentUser, tiposParaSelect, tecnicosParaSelect }) {
-  const [formData, setFormData] = useState({
-    scheduledDate: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
-    scheduledTime: '',
-    type:          tiposParaSelect[0] || '',
-    urgency:       'Media',
-    visitStatus:   'Pendiente',
-    observations:  '',
-    technician:    '',
-  });
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    await onAdd(formData);
-    setIsLoading(false);
-  };
-
-  const inp = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors bg-white";
-  const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
-  const foc = e => e.target.style.borderColor = '#D61672';
-  const blr = e => e.target.style.borderColor = '#e2e8f0';
-
-  return (
-    <div className="bg-white rounded-2xl border-2 border-pink-100 shadow-sm overflow-hidden">
-      <div className="px-4 py-3 flex items-center justify-between"
-        style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Plus size={14} className="text-white" />
-          </div>
-          <p className="text-sm font-bold text-slate-700">Nueva visita programada</p>
-        </div>
-        <button type="button" onClick={onCancel}
-          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-          <X size={16} />
-        </button>
-      </div>
-      <form onSubmit={handleSubmit} className="p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lbl}><Calendar size={11} className="inline mr-1" />Fecha de visita</label>
-            <input type="date" name="scheduledDate" value={formData.scheduledDate}
-              onChange={handleChange} required className={inp} onFocus={foc} onBlur={blr} />
-          </div>
-          <div>
-            <label className={lbl}><Clock size={11} className="inline mr-1" />Hora</label>
-            <input type="time" name="scheduledTime" value={formData.scheduledTime}
-              onChange={handleChange} className={inp} onFocus={foc} onBlur={blr} />
-          </div>
-        </div>
-        {/* Tipo de visita — cargado desde Firestore */}
-        <div>
-          <label className={lbl}><Wrench size={11} className="inline mr-1" />Tipo de visita</label>
-          <select name="type" value={formData.type} onChange={handleChange}
-            className={inp} onFocus={foc} onBlur={blr}>
-            <option value="">— Selecciona un tipo —</option>
-            {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-
-        {/* Técnico — cargado desde Firestore */}
-        <div>
-          <label className={lbl}><User size={11} className="inline mr-1" />Técnico asignado</label>
-          <select name="technician" value={formData.technician} onChange={handleChange}
-            className={inp} onFocus={foc} onBlur={blr}>
-            <option value="">— Selecciona un técnico —</option>
-            {tecnicosParaSelect.map(t => (
-              <option key={t.id} value={t.nombre}>{t.nombre}{t.email ? ` (${t.email})` : ''}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Urgencia */}
-        <div>
-          <label className={lbl}><AlertCircle size={11} className="inline mr-1" />Urgencia</label>
-          <select name="urgency" value={formData.urgency} onChange={handleChange}
-            className={inp} onFocus={foc} onBlur={blr}>
-            {URGENCIES.map(u => <option key={u}>{u}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className={lbl}>Observaciones</label>
-          <textarea name="observations" value={formData.observations} onChange={handleChange}
-            rows={2} placeholder="Descripción del trabajo a realizar..."
-            className={`${inp} resize-none`} onFocus={foc} onBlur={blr} />
-        </div>
-        <div className="flex space-x-2 pt-1">
-          <button type="submit" disabled={isLoading}
-            className="flex-1 flex items-center justify-center space-x-2 text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-50 transition-all"
-            style={{ background: isLoading ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            {isLoading
-              ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
-              : <><Plus size={15} /><span>Agregar visita</span></>}
-          </button>
-          <button type="button" onClick={onCancel}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
-            Cancelar
-          </button>
-        </div>
-      </form>
     </div>
   );
 }
@@ -727,13 +694,13 @@ export default function VisitsModal({ task, user, onClose }) {
       {showTiposForm    && <TiposVisitaForm user={user} onClose={() => setShowTiposForm(false)} />}
       {showTecnicosForm && <TecnicosForm    user={user} onClose={() => setShowTecnicosForm(false)} />}
 
-      {/* Sub-modal de edición */}
-      {editingVisit && (
-        <EditVisitModal
-          visit={editingVisit}
-          onSave={handleSaveEdit}
-          onClose={() => setEditingVisit(null)}
-          currentUser={user}
+      {/* Modal de formulario unificado (nueva visita o edición) */}
+      {(showAddForm || editingVisit) && (
+        <VisitFormModal
+          initial={editingVisit || undefined}
+          isEdit={!!editingVisit}
+          onSave={editingVisit ? handleSaveEdit : handleAdd}
+          onClose={() => { setShowAddForm(false); setEditingVisit(null); }}
           tiposParaSelect={tiposParaSelect}
           tecnicosParaSelect={tecnicosParaSelect}
         />
@@ -850,26 +817,16 @@ export default function VisitsModal({ task, user, onClose }) {
           {/* CUERPO */}
           <div className="flex-1 overflow-y-auto bg-slate-50">
             <div className="px-4 pt-4 pb-3">
-              {!showAddForm ? (
-                <button onClick={() => setShowAddForm(true)}
-                  className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
-                  style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-                  <Plus size={17} /><span>Agregar visita</span>
-                </button>
-              ) : (
-                <AddVisitForm
-                onAdd={handleAdd}
-                onCancel={() => setShowAddForm(false)}
-                currentUser={user}
-                tiposParaSelect={tiposParaSelect}
-                tecnicosParaSelect={tecnicosParaSelect}
-              />
-              )}
+              <button onClick={() => setShowAddForm(true)}
+                className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                <Plus size={17} /><span>Agregar visita</span>
+              </button>
             </div>
 
             <div className="px-4 pb-4 space-y-3">
               {isLoading && <div className="text-center py-4 text-slate-400 text-sm">Guardando...</div>}
-              {sortedVisits.length === 0 && !showAddForm && (
+              {sortedVisits.length === 0 && (
                 <div className="text-center py-12 text-slate-400">
                   <Calendar size={40} className="mx-auto mb-3 opacity-30" />
                   <p className="text-sm font-medium">Sin visitas programadas</p>
