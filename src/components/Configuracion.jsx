@@ -2,12 +2,14 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Phone, Save, CheckCircle, AlertCircle,
-  Upload, Image, Building2, Bell, Info, Users, Copy, PlusCircle
+  Upload, Image, Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package
 } from 'lucide-react';
 import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { useConfiguracion } from '../hooks/useConfiguracion.js';
+import TecnicosForm from './TecnicosForm.jsx';
+import ServiceTypesManager from './ServiceTypesManager.jsx';
 
 function JoinAnotherSection() {
   const user     = useAppStore(s => s.user);
@@ -155,10 +157,12 @@ export default function Configuracion({ user }) {
     whatsappPrefijo: '593',
     logoUrl:         '',
   });
-  const [logoPreview, setLogoPreview] = useState('');
-  const [saved, setSaved]             = useState(false);
-  const [error, setError]             = useState('');
-  const fileInputRef                  = useRef(null);
+  const [logoPreview,      setLogoPreview]      = useState('');
+  const [saved,            setSaved]            = useState(false);
+  const [error,            setError]            = useState('');
+  const [showTecnicos,     setShowTecnicos]     = useState(false);
+  const [showServiceTypes, setShowServiceTypes] = useState(false);
+  const fileInputRef                            = useRef(null);
 
   // Cargar config existente; usa tenantName/tenantRuc como fallback si el doc aún no tiene valor
   useEffect(() => {
@@ -484,6 +488,41 @@ export default function Configuracion({ user }) {
         </div>
       </div>
 
+      {/* ── SECCIÓN: Catálogos ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Package size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">Catálogos</p>
+            <p className="text-xs text-slate-400">Gestiona técnicos y tipos de servicio</p>
+          </div>
+        </div>
+        <div className="p-6 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setShowTecnicos(true)}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-100 group-hover:bg-blue-500 transition-colors">
+              <Wrench size={18} className="text-blue-600 group-hover:text-white transition-colors" />
+            </div>
+            <span className="text-sm font-bold text-slate-700">Técnicos</span>
+          </button>
+          <button
+            onClick={() => setShowServiceTypes(true)}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-pink-400 hover:bg-pink-50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-pink-100 group-hover:bg-pink-500 transition-colors">
+              <Package size={18} className="text-pink-600 group-hover:text-white transition-colors" />
+            </div>
+            <span className="text-sm font-bold text-slate-700">Tipos de servicio</span>
+          </button>
+        </div>
+      </div>
+
       {/* ── Mensajes de estado ── */}
       {error && (
         <div className="flex items-center space-x-2 p-3 bg-red-50 rounded-xl border border-red-200">
@@ -512,6 +551,10 @@ export default function Configuracion({ user }) {
           )}
         </button>
       </div>
+
+      {/* ── Modales de catálogos ── */}
+      {showTecnicos     && <TecnicosForm      user={user} onClose={() => setShowTecnicos(false)} />}
+      {showServiceTypes && <ServiceTypesManager user={user} onClose={() => setShowServiceTypes(false)} />}
 
       {/* ── SECCIÓN: Unirse a otra empresa ── */}
       <JoinAnotherSection />
