@@ -175,8 +175,11 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
 
           {pagination.paginatedItems.map(task => {
             const visit     = task._nextVisit;
-            const isOverdue = visit && visit.scheduledDate < today;
-            const isToday   = visit && visit.scheduledDate === today;
+            const isOverdue = visit && (
+              visit.scheduledDate < today ||
+              (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < currentTime)
+            );
+            const isToday   = visit && visit.scheduledDate === today && !isOverdue;
 
             return (
               <div key={task.id}
