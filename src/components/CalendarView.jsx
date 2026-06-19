@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, Calendar, Clock, User,
   CalendarDays, Plus, X, Phone, MapPin, Wrench,
@@ -541,14 +541,31 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
   );
 }
 
+// ─── Chip de información reutilizable ─────────────────────────────────────────
+
+function InfoChip({ label, value }) {
+  return (
+    <div className="bg-slate-50 rounded-xl p-3">
+      <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-sm font-bold text-slate-800">{value}</p>
+    </div>
+  );
+}
+
 // ─── Modal detalle evento ──────────────────────────────────────────────────────
 
 function EventDetailModal({ event, onClose, onAddVisit }) {
+  // ESC para cerrar
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
   if (!event) return null;
   const isTask = event.type === 'task';
   const task   = event.task;
 
-  // Detección de retraso para visitas Programadas
   const todayStr  = localDateStr();
   const nowTime   = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
   const isOverdue = !isTask && event.visitStatus === 'Programada' && (
@@ -557,44 +574,44 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40"
+      onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden"
+        style={{ maxHeight: '90vh' }}
+        onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="px-5 py-4 text-white" style={{ background: isOverdue
-          ? 'linear-gradient(135deg, #dc2626, #b91c1c)'
-          : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-          <div className="flex justify-between items-start">
+        <div className="px-5 py-4 text-white flex-shrink-0"
+          style={{ background: isOverdue
+            ? 'linear-gradient(135deg, #dc2626, #b91c1c)'
+            : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold uppercase tracking-wide opacity-75">
                 {isTask ? '📋 Tarea' : '📅 Visita programada'}
               </p>
-              <h3 className="font-bold text-base mt-0.5 truncate">{event.title}</h3>
-              <p className="text-xs opacity-80 mt-0.5">{event.subtitle}</p>
+              <h3 className="font-bold text-base mt-0.5 leading-tight">{event.title}</h3>
+              <p className="text-xs opacity-80 mt-0.5 truncate">{event.subtitle}</p>
 
-              {/* Badge retrasada */}
-              {isOverdue && (
-                <div className="mt-2">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-white bg-opacity-25 border border-white border-opacity-40">
-                    <AlertCircle size={12} />
-                    ⚠️ Visita retrasada
-                  </span>
-                </div>
-              )}
-
-              {/* Orden de servicio + Tipo instalación */}
-              {(task?.serviceOrder || task?.serviceType) && (
+              {/* Todos los badges en una sola fila */}
+              {(isOverdue || task?.serviceOrder || task?.serviceType) && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
+                  {isOverdue && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-white bg-opacity-25 border border-white border-opacity-40">
+                      <AlertCircle size={11} />
+                      ⚠️ Retrasada
+                    </span>
+                  )}
                   {task?.serviceOrder && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-bold text-white"
-                      style={{ background: 'rgba(255,255,255,0.25)' }}>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-white bg-opacity-20">
                       <FileText size={10} />
                       OS: {task.serviceOrder}
                     </span>
                   )}
                   {task?.serviceType && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-white"
-                      style={{ background: 'rgba(255,255,255,0.20)' }}>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-white bg-opacity-15">
                       <Package size={10} />
                       {task.serviceType}
                     </span>
@@ -603,119 +620,97 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
               )}
             </div>
             <button onClick={onClose}
-              className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg ml-3 flex-shrink-0">
+              className="p-1.5 text-white opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-20 rounded-lg flex-shrink-0 -mt-0.5">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Cuerpo */}
-        <div className="p-5 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Fecha</p>
-              <p className="text-sm font-bold text-slate-800">{formatDateOnly(event.date)}</p>
-            </div>
-            {event.time && (
-              <div className="bg-slate-50 rounded-xl p-3">
-                <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Hora</p>
-                <p className="text-sm font-bold text-slate-800">{event.time}</p>
-              </div>
-            )}
+        {/* Cuerpo scrollable */}
+        <div className="overflow-y-auto flex-1 p-4 space-y-2.5">
+
+          {/* Fecha + Hora siempre en grid 2 cols */}
+          <div className="grid grid-cols-2 gap-2">
+            <InfoChip label="Fecha" value={formatDateOnly(event.date)} />
+            <InfoChip label="Hora"  value={event.time || '—'} />
           </div>
 
           {isTask && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Estado</p>
-                  <p className="text-sm font-bold text-slate-800">{event.status}</p>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Urgencia</p>
-                  <p className="text-sm font-bold text-slate-800">{event.urgency || '—'}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <InfoChip label="Estado"   value={event.status} />
+                <InfoChip label="Urgencia" value={event.urgency || '—'} />
               </div>
-              {task?.clientPhone && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
-                  <Phone size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Teléfono</p>
-                    <p className="text-sm font-bold text-slate-800">{task.clientPhone}</p>
-                  </div>
+
+              {(task?.clientPhone || task?.clientAddress) && (
+                <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+                  {task.clientPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={13} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-sm text-slate-700 font-medium">{task.clientPhone}</span>
+                    </div>
+                  )}
+                  {task.clientAddress && (
+                    <div className="flex items-start gap-2">
+                      <MapPin size={13} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-slate-700 font-medium leading-snug">{task.clientAddress}</span>
+                    </div>
+                  )}
                 </div>
               )}
-              {task?.clientAddress && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
-                  <MapPin size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Dirección</p>
-                    <p className="text-sm font-bold text-slate-800">{task.clientAddress}</p>
-                  </div>
-                </div>
-              )}
-              {/* ✅ Observaciones eliminadas del cuerpo */}
             </>
           )}
 
           {!isTask && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Estado visita</p>
-                  <p className="text-sm font-bold text-slate-800">{event.visitStatus}</p>
-                </div>
-                <div className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Urgencia</p>
-                  <p className="text-sm font-bold text-slate-800">{event.visit?.urgency || '—'}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <InfoChip label="Estado"   value={event.visitStatus} />
+                <InfoChip label="Urgencia" value={event.visit?.urgency || '—'} />
               </div>
-              {event.visit?.technician && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
-                  <User size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Técnico</p>
-                    <p className="text-sm font-bold text-slate-800">{event.visit.technician}</p>
-                  </div>
+
+              {/* Técnico + teléfono + dirección en una tarjeta compacta */}
+              {(event.visit?.technician || task?.clientPhone || task?.clientAddress) && (
+                <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+                  {event.visit?.technician && (
+                    <div className="flex items-center gap-2">
+                      <User size={13} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-sm text-slate-700 font-medium">{event.visit.technician}</span>
+                    </div>
+                  )}
+                  {task?.clientPhone && (
+                    <div className="flex items-center gap-2">
+                      <Phone size={13} className="text-slate-400 flex-shrink-0" />
+                      <span className="text-sm text-slate-700 font-medium">{task.clientPhone}</span>
+                    </div>
+                  )}
+                  {task?.clientAddress && (
+                    <div className="flex items-start gap-2">
+                      <MapPin size={13} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-slate-700 font-medium leading-snug">{task.clientAddress}</span>
+                    </div>
+                  )}
                 </div>
               )}
-              {task?.clientPhone && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
-                  <Phone size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Teléfono cliente</p>
-                    <p className="text-sm font-bold text-slate-800">{task.clientPhone}</p>
-                  </div>
-                </div>
-              )}
-              {task?.clientAddress && (
-                <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-3">
-                  <MapPin size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-500 font-semibold uppercase">Dirección</p>
-                    <p className="text-sm font-bold text-slate-800">{task.clientAddress}</p>
-                  </div>
-                </div>
-              )}
+
               {event.visit?.observations && (
                 <div className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-xs text-slate-500 font-semibold uppercase mb-1">Observaciones</p>
-                  <p className="text-sm text-slate-700">{event.visit.observations}</p>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Observaciones</p>
+                  <p className="text-sm text-slate-700 leading-snug">{event.visit.observations}</p>
                 </div>
               )}
-              {/* ✅ Observaciones de visita eliminadas del cuerpo */}
+
               {event.visit?.closingObservations && (
                 <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-                  <p className="text-xs text-green-600 font-semibold uppercase mb-1">Cierre</p>
-                  <p className="text-sm text-green-800">{event.visit.closingObservations}</p>
+                  <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Cierre</p>
+                  <p className="text-sm text-green-800 leading-snug">{event.visit.closingObservations}</p>
                 </div>
               )}
             </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-5 pb-5 flex gap-2">
+        {/* Footer fijo */}
+        <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-slate-100">
           {isTask && event.status !== 'Completado' && event.status !== 'Cancelado' && (
             <button
               onClick={() => { onClose(); onAddVisit(event.task, event.date); }}
@@ -727,7 +722,7 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
           )}
           <button onClick={onClose}
             className="flex-1 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-            Cerrar
+            Cerrar  <span className="text-xs text-slate-400 ml-1">(ESC)</span>
           </button>
         </div>
       </div>
