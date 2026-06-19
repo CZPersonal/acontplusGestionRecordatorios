@@ -9,7 +9,7 @@ const { Resend }       = require('resend');
 initializeApp();
 
 const resendApiKey = defineSecret('RESEND_API_KEY');
-const FROM_EMAIL   = process.env.FROM_EMAIL || 'onboarding@resend.dev';
+const FROM_EMAIL   = process.env.FROM_EMAIL || 'Acontplus Recordatorios <noreply@notificaciones.resuelveyaa.com>';
 
 // Fecha de mañana en zona horaria Ecuador (UTC-5)
 function getTomorrowEcuador() {
