@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AlertCircle, Clock, Calendar, Bell, BellOff,
   CheckCircle, Phone, MapPin, X, FileText, User, Wrench, Package
@@ -35,23 +35,32 @@ function enrichTask(task) {
 
 export default function Dashboard({ tasks, onNavigate, notificationPermission, onRequestNotifications, onShowAlerts, user }) {
   const [activeFilter, setActiveFilter] = useState(null);
-  const today = localDateStr();
+  // Tick cada 60 s para que los cálculos de fecha/hora no queden congelados
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const now         = new Date();
+  const today       = localDateStr(now);
+  const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
   const enrichedTasks = tasks
     .filter(t => t.status !== 'Completado' && t.status !== 'Cancelado')
     .map(enrichTask);
 
-  const now         = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-  const isOverdue = (t) => {
-    if (!t._scheduledDate) return false;
-    if (t._scheduledDate < today) return true;
-    if (t._scheduledDate === today && t._nextVisit?.scheduledTime) {
-      return t._nextVisit.scheduledTime < currentTime;
+  // Misma lógica que visitIsOverdue en useNotifications — opera sobre la visita directamente
+  const visitIsOverdue = (visit) => {
+    if (!visit?.scheduledDate) return false;
+    if (visit.scheduledDate < today) return true;
+    if (visit.scheduledDate === today && visit.scheduledTime) {
+      return visit.scheduledTime < currentTime;
     }
     return false;
   };
+
+  const isOverdue = (t) => visitIsOverdue(t._nextVisit);
 
   const tasksWithVisits  = enrichedTasks.filter(t => t._nextVisit !== null);
   const urgentTasksAll   = tasksWithVisits.filter(t => t._urgency === 'Alta');
@@ -175,10 +184,7 @@ export default function Dashboard({ tasks, onNavigate, notificationPermission, o
 
           {pagination.paginatedItems.map(task => {
             const visit     = task._nextVisit;
-            const isOverdue = visit && (
-              visit.scheduledDate < today ||
-              (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < currentTime)
-            );
+            const isOverdue = visitIsOverdue(visit);
             const isToday   = visit && visit.scheduledDate === today && !isOverdue;
 
             return (
