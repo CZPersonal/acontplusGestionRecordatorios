@@ -1,8 +1,7 @@
-// src/components/Configuracion.jsx
 import { useState, useEffect, useRef } from 'react';
 import {
-  Phone, Save, CheckCircle, AlertCircle,
-  Upload, Image, Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package
+  Phone, Save, CheckCircle, AlertCircle, Upload, Image,
+  Building2, Bell, Info, Users, Copy, PlusCircle, Wrench, Package
 } from 'lucide-react';
 import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -11,84 +10,13 @@ import { useConfiguracion } from '../hooks/useConfiguracion.js';
 import TecnicosForm from './TecnicosForm.jsx';
 import ServiceTypesManager from './ServiceTypesManager.jsx';
 
-function JoinAnotherSection() {
-  const user     = useAppStore(s => s.user);
-  const tenantIds = useAppStore(s => s.tenantIds);
-  const [code,    setCode]    = useState('');
-  const [error,   setError]   = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleJoin = async () => {
-    const c = code.trim().toUpperCase();
-    if (c.length < 6) { setError('El código debe tener 6 caracteres.'); return; }
-    setError(''); setSuccess(''); setLoading(true);
-    try {
-      const snap = await getDocs(query(collection(db, 'tenants'), where('joinCode', '==', c)));
-      if (snap.empty) { setError('Código incorrecto. Verifica con el administrador.'); return; }
-      const tenant = snap.docs[0].data();
-      if (tenantIds.includes(tenant.id)) { setError('Ya perteneces a esta empresa.'); return; }
-      await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenant.id) }, { merge: true });
-      const newIds = [...tenantIds, tenant.id];
-      const available = await Promise.all(newIds.map(id => getDoc(doc(db, 'tenants', id))));
-      useAppStore.setState({
-        tenantIds:        newIds,
-        availableTenants: available.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' })),
-      });
-      setSuccess(`Te uniste a "${tenant.name}" correctamente.`);
-      setCode('');
-    } catch (e) {
-      setError('Error al unirse. Intenta de nuevo.');
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
-        style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500">
-          <PlusCircle size={15} className="text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-bold text-slate-700">Unirse a otra empresa</p>
-          <p className="text-xs text-slate-400">Ingresa el código de invitación de la empresa</p>
-        </div>
-      </div>
-      <div className="px-6 py-5 space-y-3">
-        <input
-          type="text"
-          value={code}
-          onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 6)); setError(''); setSuccess(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleJoin()}
-          placeholder="ABC123"
-          maxLength={6}
-          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest text-center uppercase focus:outline-none transition-colors"
-          onFocus={e => e.target.style.borderColor = '#16a34a'}
-          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-        />
-        {error   && <p className="text-xs text-red-500">{error}</p>}
-        {success && <p className="text-xs text-green-600 font-medium">{success}</p>}
-        <button
-          onClick={handleJoin}
-          disabled={loading || code.length < 6}
-          className="w-full py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 transition-all"
-          style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)' }}
-        >
-          {loading ? 'Verificando...' : 'Unirse a la empresa'}
-        </button>
-      </div>
-    </div>
-  );
-}
+// ─── Sub-componentes de Entidad ───────────────────────────────────────────────
 
 function JoinCodeSection() {
-  const tenantId   = useAppStore(s => s.tenantId);
-  const [code,     setCode]    = useState('');
-  const [copied,   setCopied]  = useState(false);
-  const [loading,  setLoading] = useState(true);
+  const tenantId  = useAppStore(s => s.tenantId);
+  const [code,    setCode]   = useState('');
+  const [copied,  setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -144,27 +72,95 @@ function JoinCodeSection() {
   );
 }
 
-export default function Configuracion({ user }) {
+function JoinAnotherSection() {
+  const user      = useAppStore(s => s.user);
+  const tenantIds = useAppStore(s => s.tenantIds);
+  const [code,    setCode]    = useState('');
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleJoin = async () => {
+    const c = code.trim().toUpperCase();
+    if (c.length < 6) { setError('El código debe tener 6 caracteres.'); return; }
+    setError(''); setSuccess(''); setLoading(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'tenants'), where('joinCode', '==', c)));
+      if (snap.empty) { setError('Código incorrecto. Verifica con el administrador.'); return; }
+      const tenant = snap.docs[0].data();
+      if (tenantIds.includes(tenant.id)) { setError('Ya perteneces a esta empresa.'); return; }
+      await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenant.id) }, { merge: true });
+      const newIds   = [...tenantIds, tenant.id];
+      const tDocs    = await Promise.all(newIds.map(id => getDoc(doc(db, 'tenants', id))));
+      useAppStore.setState({
+        tenantIds:        newIds,
+        availableTenants: tDocs.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' })),
+      });
+      setSuccess(`Te uniste a "${tenant.name}" correctamente.`);
+      setCode('');
+    } catch (e) {
+      setError('Error al unirse. Intenta de nuevo.');
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+        style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500">
+          <PlusCircle size={15} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-700">Unirse a otra empresa</p>
+          <p className="text-xs text-slate-400">Ingresa el código de invitación de la empresa</p>
+        </div>
+      </div>
+      <div className="px-6 py-5 space-y-3">
+        <input
+          type="text"
+          value={code}
+          onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 6)); setError(''); setSuccess(''); }}
+          onKeyDown={e => e.key === 'Enter' && handleJoin()}
+          placeholder="ABC123"
+          maxLength={6}
+          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest text-center uppercase focus:outline-none transition-colors"
+          onFocus={e => e.target.style.borderColor = '#16a34a'}
+          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+        />
+        {error   && <p className="text-xs text-red-500">{error}</p>}
+        {success && <p className="text-xs text-green-600 font-medium">{success}</p>}
+        <button
+          onClick={handleJoin}
+          disabled={loading || code.length < 6}
+          className="w-full py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 transition-all"
+          style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)' }}
+        >
+          {loading ? 'Verificando...' : 'Unirse a la empresa'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-menú: Entidad ────────────────────────────────────────────────────────
+
+function TabEntidad({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
   const tenantName = useAppStore(s => s.tenantName);
   const tenantRuc  = useAppStore(s => s.tenantRuc);
 
-  const [form, setForm]         = useState({
-    empresaNombre:   '',
-    ruc:             '',
-    empresaSlogan:   '',
-    whatsappNumero:  '',
-    whatsappPrefijo: '593',
-    logoUrl:         '',
+  const [form, setForm] = useState({
+    empresaNombre: '', ruc: '', empresaSlogan: '',
+    whatsappNumero: '', whatsappPrefijo: '593', logoUrl: '',
   });
-  const [logoPreview,      setLogoPreview]      = useState('');
-  const [saved,            setSaved]            = useState(false);
-  const [error,            setError]            = useState('');
-  const [showTecnicos,     setShowTecnicos]     = useState(false);
-  const [showServiceTypes, setShowServiceTypes] = useState(false);
-  const fileInputRef                            = useRef(null);
+  const [logoPreview, setLogoPreview] = useState('');
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState('');
+  const fileInputRef                  = useRef(null);
 
-  // Cargar config existente; usa tenantName/tenantRuc como fallback si el doc aún no tiene valor
   useEffect(() => {
     setForm({
       empresaNombre:   config?.empresaNombre   || tenantName || '',
@@ -179,29 +175,18 @@ export default function Configuracion({ user }) {
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
-    setSaved(false);
-    setError('');
+    setSaved(false); setError('');
   };
 
-  // Convertir imagen a base64 para guardarla en Firestore
   const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 500 * 1024) {
-      setError('El logotipo no debe superar los 500 KB. Reduce el tamaño de la imagen.');
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      setError('Solo se permiten archivos de imagen (PNG, JPG, SVG, WebP).');
-      return;
-    }
-
+    if (file.size > 500 * 1024) { setError('El logotipo no debe superar los 500 KB.'); return; }
+    if (!file.type.startsWith('image/')) { setError('Solo se permiten archivos de imagen (PNG, JPG, SVG, WebP).'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const base64 = ev.target.result;
-      setLogoPreview(base64);
-      setForm(prev => ({ ...prev, logoUrl: base64 }));
+      setLogoPreview(ev.target.result);
+      setForm(prev => ({ ...prev, logoUrl: ev.target.result }));
       setError('');
     };
     reader.readAsDataURL(file);
@@ -213,7 +198,6 @@ export default function Configuracion({ user }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Validar y formatear número WhatsApp
   const getWhatsAppFull = () => {
     const raw = form.whatsappNumero.replace(/\D/g, '');
     if (!raw) return '';
@@ -221,50 +205,32 @@ export default function Configuracion({ user }) {
     return `+${form.whatsappPrefijo}${num}`;
   };
 
-  const validate = () => {
+  const handleSave = async () => {
     const raw = form.whatsappNumero.replace(/\D/g, '');
     if (raw && raw.replace(/^0/, '').length < 7) {
-      setError('El número de teléfono debe tener al menos 7 dígitos.');
-      return false;
+      setError('El número de teléfono debe tener al menos 7 dígitos.'); return;
     }
-    return true;
-  };
-
-  const handleSave = async () => {
-    if (!validate()) return;
     const ok = await saveConfig(form);
-    if (ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } else {
-      setError('Error al guardar. Verifica tu conexión.');
-    }
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
+    else setError('Error al guardar. Verifica tu conexión.');
   };
 
   const inp = "w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors bg-white";
   const lbl = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <img src="/logo.png" alt="Acontplus" className="w-12 h-12 mx-auto mb-3 animate-bounce" />
-          <p className="text-sm text-slate-400">Cargando configuración...</p>
-        </div>
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-center">
+        <img src="/logo.png" alt="Acontplus" className="w-12 h-12 mx-auto mb-3 animate-bounce" />
+        <p className="text-sm text-slate-400">Cargando configuración...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="space-y-6">
 
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Configuración</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Personaliza tu empresa y datos de notificaciones</p>
-      </div>
-
-      {/* ── SECCIÓN: Datos de la empresa ── */}
+      {/* Datos de la empresa */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
@@ -277,49 +243,33 @@ export default function Configuracion({ user }) {
             <p className="text-xs text-slate-400">Se muestran en el encabezado y documentos</p>
           </div>
         </div>
-
         <div className="p-6 space-y-4">
           <div>
             <label className={lbl}>Nombre de la empresa</label>
-            <input
-              type="text"
-              value={form.empresaNombre}
-              onChange={handleChange('empresaNombre')}
-              placeholder="Ej: Mi Empresa S.A."
-              className={inp}
+            <input type="text" value={form.empresaNombre} onChange={handleChange('empresaNombre')}
+              placeholder="Ej: Mi Empresa S.A." className={inp}
               onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
           </div>
           <div>
             <label className={lbl}>RUC</label>
-            <input
-              type="text"
-              value={form.ruc}
+            <input type="text" value={form.ruc}
               onChange={e => setForm(prev => ({ ...prev, ruc: e.target.value.replace(/\D/g, '').slice(0, 13) }))}
-              placeholder="0000000000001"
-              maxLength={13}
-              className={`${inp} font-mono`}
+              placeholder="0000000000001" maxLength={13} className={`${inp} font-mono`}
               onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
           </div>
           <div>
             <label className={lbl}>Slogan / descripción corta</label>
-            <input
-              type="text"
-              value={form.empresaSlogan}
-              onChange={handleChange('empresaSlogan')}
-              placeholder="Ej: Facturar nunca fue tan fácil"
-              className={inp}
+            <input type="text" value={form.empresaSlogan} onChange={handleChange('empresaSlogan')}
+              placeholder="Ej: Facturar nunca fue tan fácil" className={inp}
               onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
           </div>
         </div>
       </div>
 
-      {/* ── SECCIÓN: Logotipo ── */}
+      {/* Logotipo */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
@@ -332,53 +282,31 @@ export default function Configuracion({ user }) {
             <p className="text-xs text-slate-400">PNG, JPG o SVG · Máximo 500 KB</p>
           </div>
         </div>
-
         <div className="p-6">
-          {/* Preview del logo */}
           <div className="flex items-start space-x-6">
             <div className="flex-shrink-0">
               <div className={`w-28 h-28 rounded-2xl border-2 flex items-center justify-center overflow-hidden transition-all ${
-                logoPreview ? 'border-pink-200 bg-white' : 'border-dashed border-slate-200 bg-slate-50'
-              }`}>
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-2" />
-                ) : (
-                  <div className="text-center text-slate-300">
-                    <Image size={32} className="mx-auto mb-1" />
-                    <p className="text-[10px]">Sin logo</p>
-                  </div>
-                )}
+                logoPreview ? 'border-pink-200 bg-white' : 'border-dashed border-slate-200 bg-slate-50'}`}>
+                {logoPreview
+                  ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-2" />
+                  : <div className="text-center text-slate-300"><Image size={32} className="mx-auto mb-1" /><p className="text-[10px]">Sin logo</p></div>}
               </div>
               <p className="text-[10px] text-slate-400 text-center mt-1.5">Vista previa</p>
             </div>
-
             <div className="flex-1 space-y-3">
-              {/* Botón subir */}
               <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  className="hidden"
-                  id="logo-upload"
-                />
-                <label
-                  htmlFor="logo-upload"
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="logo-upload" />
+                <label htmlFor="logo-upload"
                   className="flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all w-full justify-center border-2 border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-500 hover:text-pink-600">
-                  <Upload size={16} />
-                  <span>Seleccionar imagen</span>
+                  <Upload size={16} /><span>Seleccionar imagen</span>
                 </label>
               </div>
-
               {logoPreview && (
-                <button
-                  onClick={handleRemoveLogo}
+                <button onClick={handleRemoveLogo}
                   className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 border border-red-200 transition-colors">
                   Quitar logo
                 </button>
               )}
-
               <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
                 <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-600 leading-relaxed">
@@ -387,28 +315,18 @@ export default function Configuracion({ user }) {
               </div>
             </div>
           </div>
-
-          {/* URL externa (alternativa) */}
           <div className="mt-4 pt-4 border-t border-slate-100">
             <label className={lbl}>O ingresar URL de imagen externa</label>
-            <input
-              type="url"
-              value={form.logoUrl?.startsWith('http') ? form.logoUrl : ''}
-              onChange={(e) => {
-                const url = e.target.value;
-                setForm(prev => ({ ...prev, logoUrl: url }));
-                setLogoPreview(url);
-              }}
-              placeholder="https://ejemplo.com/logo.png"
-              className={inp}
+            <input type="url" value={form.logoUrl?.startsWith('http') ? form.logoUrl : ''}
+              onChange={e => { setForm(prev => ({ ...prev, logoUrl: e.target.value })); setLogoPreview(e.target.value); }}
+              placeholder="https://ejemplo.com/logo.png" className={inp}
               onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-            />
+              onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
           </div>
         </div>
       </div>
 
-      {/* ── SECCIÓN: Notificaciones WhatsApp ── */}
+      {/* WhatsApp */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
           style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
@@ -420,15 +338,11 @@ export default function Configuracion({ user }) {
             <p className="text-xs text-slate-400">Se usará para enviar alertas y fichas de visita</p>
           </div>
         </div>
-
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-3 gap-3">
-            {/* Prefijo de país */}
             <div>
               <label className={lbl}>País</label>
-              <select
-                value={form.whatsappPrefijo}
-                onChange={handleChange('whatsappPrefijo')}
+              <select value={form.whatsappPrefijo} onChange={handleChange('whatsappPrefijo')}
                 className={`${inp} bg-white`}
                 onFocus={e => e.target.style.borderColor = '#16a34a'}
                 onBlur={e => e.target.style.borderColor = '#e2e8f0'}>
@@ -442,23 +356,14 @@ export default function Configuracion({ user }) {
                 <option value="34">🇪🇸 +34 España</option>
               </select>
             </div>
-
-            {/* Número */}
             <div className="col-span-2">
               <label className={lbl}>Número de teléfono</label>
-              <input
-                type="tel"
-                value={form.whatsappNumero}
-                onChange={handleChange('whatsappNumero')}
-                placeholder="Ej: 0987654321"
-                className={`${inp} font-mono`}
+              <input type="tel" value={form.whatsappNumero} onChange={handleChange('whatsappNumero')}
+                placeholder="Ej: 0987654321" className={`${inp} font-mono`}
                 onFocus={e => e.target.style.borderColor = '#16a34a'}
-                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-              />
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
             </div>
           </div>
-
-          {/* Preview del número completo */}
           {form.whatsappNumero && (
             <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-xl border border-green-200">
               <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
@@ -468,17 +373,12 @@ export default function Configuracion({ user }) {
                 <p className="text-xs text-green-600 font-medium">Número completo para WhatsApp:</p>
                 <p className="text-sm font-bold text-green-800 font-mono">{getWhatsAppFull()}</p>
               </div>
-              <a
-                href={`https://wa.me/${getWhatsAppFull().replace('+', '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <a href={`https://wa.me/${getWhatsAppFull().replace('+', '')}`} target="_blank" rel="noopener noreferrer"
                 className="ml-auto text-xs font-semibold text-green-600 hover:text-green-700 underline flex-shrink-0">
                 Probar →
               </a>
             </div>
           )}
-
-          {/* Nota informativa */}
           <div className="flex items-start space-x-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
             <Bell size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700 leading-relaxed">
@@ -488,42 +388,7 @@ export default function Configuracion({ user }) {
         </div>
       </div>
 
-      {/* ── SECCIÓN: Catálogos ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
-          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Package size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-700">Catálogos</p>
-            <p className="text-xs text-slate-400">Gestiona técnicos y tipos de servicio</p>
-          </div>
-        </div>
-        <div className="p-6 grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setShowTecnicos(true)}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-100 group-hover:bg-blue-500 transition-colors">
-              <Wrench size={18} className="text-blue-600 group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-bold text-slate-700">Técnicos</span>
-          </button>
-          <button
-            onClick={() => setShowServiceTypes(true)}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-slate-200 hover:border-pink-400 hover:bg-pink-50 transition-all group"
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-pink-100 group-hover:bg-pink-500 transition-colors">
-              <Package size={18} className="text-pink-600 group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-bold text-slate-700">Tipos de servicio</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Mensajes de estado ── */}
+      {/* Mensajes y botón guardar */}
       {error && (
         <div className="flex items-center space-x-2 p-3 bg-red-50 rounded-xl border border-red-200">
           <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
@@ -536,31 +401,114 @@ export default function Configuracion({ user }) {
           <p className="text-sm text-green-700 font-medium">Configuración guardada correctamente.</p>
         </div>
       )}
-
-      {/* ── Botón guardar ── */}
       <div className="flex justify-end pb-2">
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
+        <button onClick={handleSave} disabled={isSaving}
           className="flex items-center space-x-2 px-8 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"
           style={{ background: isSaving ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-          {isSaving ? (
-            <><span className="animate-spin">⏳</span><span>Guardando...</span></>
-          ) : (
-            <><Save size={16} /><span>Guardar configuración</span></>
-          )}
+          {isSaving
+            ? <><span className="animate-spin">⏳</span><span>Guardando...</span></>
+            : <><Save size={16} /><span>Guardar configuración</span></>}
         </button>
       </div>
 
-      {/* ── Modales de catálogos ── */}
-      {showTecnicos     && <TecnicosForm      user={user} onClose={() => setShowTecnicos(false)} />}
-      {showServiceTypes && <ServiceTypesManager user={user} onClose={() => setShowServiceTypes(false)} />}
-
-      {/* ── SECCIÓN: Unirse a otra empresa ── */}
       <JoinAnotherSection />
-
-      {/* ── SECCIÓN: Código de invitación ── */}
       <JoinCodeSection />
+    </div>
+  );
+}
+
+// ─── Sub-menú: Catálogos ──────────────────────────────────────────────────────
+
+function TabCatalogos({ user }) {
+  const [showTecnicos,     setShowTecnicos]     = useState(false);
+  const [showServiceTypes, setShowServiceTypes] = useState(false);
+
+  const cards = [
+    {
+      label: 'Técnicos',
+      description: 'Agrega y gestiona los técnicos del equipo',
+      icon: <Wrench size={22} />,
+      color: '#2563eb',
+      bg: '#dbeafe',
+      onClick: () => setShowTecnicos(true),
+    },
+    {
+      label: 'Tipos de servicio',
+      description: 'Define los tipos de servicio que ofrece la empresa',
+      icon: <Package size={22} />,
+      color: '#D61672',
+      bg: '#fce7f3',
+      onClick: () => setShowServiceTypes(true),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {cards.map(c => (
+          <button key={c.label} onClick={c.onClick}
+            className="flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-slate-200 hover:border-opacity-80 hover:shadow-md transition-all text-left group"
+            style={{ '--hover-color': c.color }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = c.color}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+          >
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+              style={{ background: c.bg, color: c.color }}>
+              {c.icon}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800">{c.label}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{c.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {showTecnicos     && <TecnicosForm       user={user} onClose={() => setShowTecnicos(false)} />}
+      {showServiceTypes && <ServiceTypesManager user={user} onClose={() => setShowServiceTypes(false)} />}
+    </div>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+const SUB_TABS = [
+  { id: 'entidad',   label: 'Entidad',   icon: <Building2 size={15} /> },
+  { id: 'catalogos', label: 'Catálogos', icon: <Package   size={15} /> },
+];
+
+export default function Configuracion({ user }) {
+  const [subTab, setSubTab] = useState('entidad');
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">Configuración</h2>
+        <p className="text-sm text-slate-500 mt-0.5">Administra tu empresa, catálogos y más</p>
+      </div>
+
+      {/* Sub-navegación */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        {SUB_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              subTab === t.id
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Contenido del sub-menú activo */}
+      {subTab === 'entidad'   && <TabEntidad   user={user} />}
+      {subTab === 'catalogos' && <TabCatalogos user={user} />}
 
     </div>
   );
