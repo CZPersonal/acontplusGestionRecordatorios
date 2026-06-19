@@ -466,17 +466,33 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
       .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   };
 
-  // Calcular altura mínima basada en el día con más eventos
-  const maxEvents = Math.max(...weekDays.map(d => getEventsForDay(d).length), 1);
+  // Desktop: altura mínima de columna según día más cargado
+  const maxEvents    = Math.max(...weekDays.map(d => getEventsForDay(d).length), 1);
   const colMinHeight = Math.max(160, maxEvents * 82 + 40);
+
+  // Móvil: día seleccionado (default = hoy si está en la semana, si no el primero)
+  const todayIdx = weekDays.findIndex(d => localDateStr(d) === todayStr);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(todayIdx >= 0 ? todayIdx : 0);
+
+  // Resetear selección al navegar a otra semana
+  useEffect(() => {
+    const idx = weekDays.findIndex(d => localDateStr(d) === todayStr);
+    setSelectedDayIdx(idx >= 0 ? idx : 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month, day]);
+
+  const selectedDate    = weekDays[selectedDayIdx];
+  const selectedDateStr = localDateStr(selectedDate);
+  const selectedEvents  = getEventsForDay(selectedDate);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      {/* Cabecera días */}
-      <div className="grid grid-cols-7 border-b border-slate-200">
+
+      {/* ── CABECERA DESKTOP: grid 7 columnas ── */}
+      <div className="hidden md:grid grid-cols-7 border-b border-slate-200">
         {weekDays.map((date, idx) => {
-          const dateStr = localDateStr(date);
-          const isToday = dateStr === todayStr;
+          const dateStr       = localDateStr(date);
+          const isToday       = dateStr === todayStr;
           const dayEventCount = getEventsForDay(date).length;
           return (
             <div key={idx}
@@ -487,7 +503,6 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
                 style={isToday ? { background: '#D61672' } : {}}>
                 {date.getDate()}
               </div>
-              {/* Contador de eventos */}
               {dayEventCount > 0 && (
                 <span className="inline-block mt-0.5 text-xs font-medium text-slate-400">
                   {dayEventCount} ev.
@@ -498,36 +513,63 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
         })}
       </div>
 
-      {/* Cuerpo columnas */}
-      <div className="grid grid-cols-7" style={{ minHeight: colMinHeight }}>
+      {/* ── CABECERA MÓVIL: carrusel selector de día ── */}
+      <div className="md:hidden border-b border-slate-200 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1 px-2 py-2 min-w-max">
+          {weekDays.map((date, idx) => {
+            const dateStr       = localDateStr(date);
+            const isToday       = dateStr === todayStr;
+            const isSelected    = idx === selectedDayIdx;
+            const dayEventCount = getEventsForDay(date).length;
+            return (
+              <button
+                key={idx}
+                onClick={() => setSelectedDayIdx(idx)}
+                className={`flex flex-col items-center px-3 py-1.5 rounded-xl transition-colors min-w-[44px] ${
+                  !isSelected && !isToday ? 'hover:bg-slate-50' : ''
+                } ${!isSelected && isToday ? 'bg-pink-50' : ''}`}
+                style={isSelected ? { background: 'linear-gradient(135deg, #D61672, #e11d48)' } : {}}>
+                <span className={`text-xs font-bold uppercase tracking-wide ${isSelected ? 'text-white opacity-80' : 'text-slate-500'}`}>
+                  {DAYS[date.getDay()]}
+                </span>
+                <span className={`text-base font-bold mt-0.5 w-7 h-7 flex items-center justify-center rounded-full
+                  ${isSelected ? 'text-white' : isToday ? 'text-white' : 'text-slate-700'}`}
+                  style={isToday && !isSelected ? { background: '#D61672' } : {}}>
+                  {date.getDate()}
+                </span>
+                {/* Indicador: número si hay eventos, invisible si no hay */}
+                <span className={`mt-0.5 min-w-[18px] text-xs font-bold px-1 rounded-full leading-none h-4 flex items-center justify-center ${
+                  dayEventCount > 0
+                    ? isSelected ? 'bg-white text-pink-600' : 'bg-pink-100 text-pink-600'
+                    : 'opacity-0'
+                }`}>
+                  {dayEventCount}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── CUERPO DESKTOP: 7 columnas ── */}
+      <div className="hidden md:grid grid-cols-7" style={{ minHeight: colMinHeight }}>
         {weekDays.map((date, idx) => {
           const dayEvents = getEventsForDay(date);
           const dateStr   = localDateStr(date);
           const isToday   = dateStr === todayStr;
-
           return (
             <div key={idx}
               className={`border-r border-slate-100 last:border-r-0 p-1.5
                 ${isToday ? 'bg-pink-50 bg-opacity-40' : ''}`}>
-
-              {/* Botón rápido agregar visita al día */}
               <button
                 onClick={() => onAddVisitToDay(dateStr)}
                 className="w-full mb-1.5 flex items-center justify-center gap-0.5 py-0.5 rounded text-xs text-slate-300 hover:text-pink-500 hover:bg-pink-50 transition-colors"
                 title={`Agregar visita el ${formatDateOnly(dateStr)}`}>
                 <Plus size={11} />
               </button>
-
-              {/* Tarjetas de eventos */}
               {dayEvents.map(event => (
-                <WeekEventCard
-                  key={event.id}
-                  event={event}
-                  onClick={onEventClick}
-                  onAddVisit={onAddVisitToTask}
-                />
+                <WeekEventCard key={event.id} event={event} onClick={onEventClick} onAddVisit={onAddVisitToTask} />
               ))}
-
               {dayEvents.length === 0 && (
                 <div className="flex items-center justify-center" style={{ minHeight: 60 }}>
                   <span className="text-slate-200 text-xs select-none">—</span>
@@ -536,6 +578,41 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
             </div>
           );
         })}
+      </div>
+
+      {/* ── CUERPO MÓVIL: lista del día seleccionado ── */}
+      <div className="md:hidden">
+        {/* Sub-cabecera: fecha + botón agregar */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+          <p className="text-sm font-bold text-slate-700">{formatDateOnly(selectedDateStr)}</p>
+          <button
+            onClick={() => onAddVisitToDay(selectedDateStr)}
+            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-colors"
+            style={{ color: '#D61672', borderColor: '#fda4af' }}>
+            <Plus size={13} />
+            Agregar visita
+          </button>
+        </div>
+
+        {/* Tarjetas a ancho completo */}
+        <div className="p-3 space-y-2">
+          {selectedEvents.length > 0 ? (
+            selectedEvents.map(event => (
+              <WeekEventCard key={event.id} event={event} onClick={onEventClick} onAddVisit={onAddVisitToTask} />
+            ))
+          ) : (
+            <div className="py-10 text-center">
+              <CalendarDays size={32} className="mx-auto mb-2 text-slate-200" />
+              <p className="text-sm text-slate-400 font-medium">Sin eventos este día</p>
+              <button
+                onClick={() => onAddVisitToDay(selectedDateStr)}
+                className="mt-3 text-xs font-semibold px-4 py-2 rounded-xl text-white"
+                style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                + Agregar visita
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
