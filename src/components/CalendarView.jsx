@@ -595,23 +595,28 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
               <h3 className="font-bold text-base mt-0.5 leading-tight">{event.title}</h3>
               <p className="text-xs opacity-80 mt-0.5 truncate">{event.subtitle}</p>
 
-              {/* Todos los badges en una sola fila */}
-              {(isOverdue || task?.serviceOrder || task?.serviceType) && (
+              {/* Badges del header */}
+              {(isOverdue || (isTask && (task?.serviceOrder || task?.serviceType))) && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
+                  {/* Solo visitas retrasadas */}
                   {isOverdue && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-white bg-opacity-25 border border-white border-opacity-40">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-white border border-white border-opacity-40"
+                      style={{ background: 'rgba(255,255,255,0.25)' }}>
                       <AlertCircle size={11} />
                       ⚠️ Retrasada
                     </span>
                   )}
-                  {task?.serviceOrder && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-white bg-opacity-20">
+                  {/* Solo tareas: OS y tipo */}
+                  {isTask && task?.serviceOrder && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-bold text-white"
+                      style={{ background: 'rgba(255,255,255,0.25)' }}>
                       <FileText size={10} />
                       OS: {task.serviceOrder}
                     </span>
                   )}
-                  {task?.serviceType && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-white bg-opacity-15">
+                  {isTask && task?.serviceType && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold text-white"
+                      style={{ background: 'rgba(255,255,255,0.20)' }}>
                       <Package size={10} />
                       {task.serviceType}
                     </span>
