@@ -34,8 +34,9 @@ export function useVisits(task, user) {
       urgency:       visitData.urgency       || 'Media',
       visitStatus:   visitData.visitStatus   || 'Pendiente',
       observations:  visitData.observations  || '',
-      technician:    visitData.technician    || user.email,
-      status:        'Programada',
+      technician:      visitData.technician      || user.email,
+      technicianEmail: visitData.technicianEmail || '',
+      status:          'Programada',
       createdBy:     user.email,
       createdAt:     new Date().toISOString(),
       completedAt:   null,
@@ -67,8 +68,9 @@ export function useVisits(task, user) {
               type:          visitData.type          || v.type,
               urgency:       visitData.urgency       || v.urgency,
               observations:  visitData.observations  ?? v.observations,
-              technician:    visitData.technician    || v.technician,
-              updatedAt:     new Date().toISOString(),
+              technician:      visitData.technician      || v.technician,
+              technicianEmail: visitData.technicianEmail !== undefined ? visitData.technicianEmail : (v.technicianEmail || ''),
+              updatedAt:       new Date().toISOString(),
               updatedBy:     user.email,
             }
           : v

@@ -237,12 +237,13 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   const [formData, setFormData] = useState({
-    scheduledDate: initial?.scheduledDate || today,
-    scheduledTime: initial?.scheduledTime || '',
-    type:          initial?.type          || tiposParaSelect[0] || '',
-    urgency:       initial?.urgency       || 'Media',
-    observations:  initial?.observations  || '',
-    technician:    initial?.technician    || '',
+    scheduledDate:   initial?.scheduledDate   || today,
+    scheduledTime:   initial?.scheduledTime   || '',
+    type:            initial?.type            || tiposParaSelect[0] || '',
+    urgency:         initial?.urgency         || 'Media',
+    observations:    initial?.observations    || '',
+    technician:      initial?.technician      || '',
+    technicianEmail: initial?.technicianEmail || '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -344,8 +345,12 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
                 </div>
                 <div>
                   <label className={lbl}>Técnico asignado</label>
-                  <select value={formData.technician} onChange={e => set('technician', e.target.value)}
-                    className={inp} onFocus={foc} onBlur={blr}>
+                  <select value={formData.technician} onChange={e => {
+                    const nombre = e.target.value;
+                    const found = tecnicosParaSelect.find(t => t.nombre === nombre);
+                    set('technician', nombre);
+                    set('technicianEmail', found?.email || '');
+                  }} className={inp} onFocus={foc} onBlur={blr}>
                     <option value="">— Selecciona un técnico —</option>
                     {tecnicosParaSelect.map(t => (
                       <option key={t.id} value={t.nombre}>{t.nombre}</option>

@@ -221,7 +221,8 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
     const visit = event.data.data();
 
     if (visit.status !== 'Programada') return;
-    if (!visit.technician || !visit.technician.includes('@')) {
+    const emailDestino = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+    if (!emailDestino) {
       console.log(`notifyTechnicianOnVisit: sin email de técnico en ${event.params.visitId}`);
       return;
     }
@@ -236,7 +237,7 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
 
     await resend.emails.send({
       from:    FROM_EMAIL,
-      to:      [visit.technician],
+      to:      [emailDestino],
       subject: `Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;">
@@ -275,7 +276,7 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
       `,
     });
 
-    console.log(`notifyTechnicianOnVisit: email enviado a ${visit.technician} — tarea ${event.params.taskId}`);
+    console.log(`notifyTechnicianOnVisit: email enviado a ${emailDestino} — tarea ${event.params.taskId}`);
   }
 );
 
@@ -327,15 +328,16 @@ exports.sendTechnicianDailyAgenda = onSchedule(
       const agendaByTech = {};
       const loaders = visitDocs.map(async (visitDoc) => {
         const visit = visitDoc.data();
-        if (!visit.technician || !visit.technician.includes('@')) return;
+        const emailTecnico = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+        if (!emailTecnico) return;
 
         const taskRef  = visitDoc.ref.parent.parent;
         const taskSnap = await taskRef.get();
         if (!taskSnap.exists) return;
         const task = taskSnap.data();
 
-        if (!agendaByTech[visit.technician]) agendaByTech[visit.technician] = [];
-        agendaByTech[visit.technician].push({ visit, task });
+        if (!agendaByTech[emailTecnico]) agendaByTech[emailTecnico] = [];
+        agendaByTech[emailTecnico].push({ visit, task });
       });
 
       await Promise.allSettled(loaders);
