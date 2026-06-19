@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, setDoc, getDocs, query, collection, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, query, collection, where, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { Building2, Users, Copy, Check } from 'lucide-react';
@@ -34,9 +34,9 @@ export default function TenantSetup() {
         adminUid:  user.uid,
         createdAt: new Date().toISOString(),
       });
-      await setDoc(doc(db, 'users', user.uid), { tenantId, email: user.email }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenantId), email: user.email }, { merge: true });
       setCreated({ tenantId, joinCode: code });
-      useAppStore.setState({ tenantId, tenantName: name.trim(), tenantRuc: ruc.trim() });
+      useAppStore.setState({ tenantId, tenantIds: [tenantId], tenantName: name.trim(), tenantRuc: ruc.trim() });
     } catch (e) {
       setError('Error al crear la empresa. Intenta de nuevo.');
       console.error(e);
@@ -55,8 +55,8 @@ export default function TenantSetup() {
       );
       if (snap.empty) { setError('Código incorrecto. Verifica con el administrador.'); return; }
       const tenant = snap.docs[0].data();
-      await setDoc(doc(db, 'users', user.uid), { tenantId: tenant.id, email: user.email }, { merge: true });
-      useAppStore.setState({ tenantId: tenant.id, tenantName: tenant.name });
+      await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenant.id), email: user.email }, { merge: true });
+      useAppStore.setState({ tenantId: tenant.id, tenantIds: [tenant.id], tenantName: tenant.name });
     } catch (e) {
       setError('Error al unirse. Intenta de nuevo.');
       console.error(e);

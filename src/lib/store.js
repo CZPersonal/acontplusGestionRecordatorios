@@ -10,9 +10,11 @@ export const useAppStore = create((set, get) => ({
   isAuthLoading: true,
 
   // ─── Tenant (poblado en App.jsx tras auth) ────────────────────────────────
-  tenantId:   null,   // UUID del tenant; null = aún sin empresa configurada
-  tenantName: '',
-  tenantRuc:  '',
+  tenantId:         null,   // UUID del tenant activo
+  tenantName:       '',
+  tenantRuc:        '',
+  tenantIds:        [],     // array de todos los tenants a los que pertenece el usuario
+  availableTenants: [],     // [{ id, name, ruc }] para el selector de empresa
 
   // ─── Network ──────────────────────────────────────────────────────────────
   isOnline: navigator.onLine,

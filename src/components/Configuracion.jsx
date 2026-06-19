@@ -2,12 +2,85 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Phone, Save, CheckCircle, AlertCircle,
-  Upload, Image, Building2, Bell, Info, Users, Copy
+  Upload, Image, Building2, Bell, Info, Users, Copy, PlusCircle
 } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { useConfiguracion } from '../hooks/useConfiguracion.js';
+
+function JoinAnotherSection() {
+  const user     = useAppStore(s => s.user);
+  const tenantIds = useAppStore(s => s.tenantIds);
+  const [code,    setCode]    = useState('');
+  const [error,   setError]   = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleJoin = async () => {
+    const c = code.trim().toUpperCase();
+    if (c.length < 6) { setError('El código debe tener 6 caracteres.'); return; }
+    setError(''); setSuccess(''); setLoading(true);
+    try {
+      const snap = await getDocs(query(collection(db, 'tenants'), where('joinCode', '==', c)));
+      if (snap.empty) { setError('Código incorrecto. Verifica con el administrador.'); return; }
+      const tenant = snap.docs[0].data();
+      if (tenantIds.includes(tenant.id)) { setError('Ya perteneces a esta empresa.'); return; }
+      await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenant.id) }, { merge: true });
+      const newIds = [...tenantIds, tenant.id];
+      const available = await Promise.all(newIds.map(id => getDoc(doc(db, 'tenants', id))));
+      useAppStore.setState({
+        tenantIds:        newIds,
+        availableTenants: available.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' })),
+      });
+      setSuccess(`Te uniste a "${tenant.name}" correctamente.`);
+      setCode('');
+    } catch (e) {
+      setError('Error al unirse. Intenta de nuevo.');
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+        style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500">
+          <PlusCircle size={15} className="text-white" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-700">Unirse a otra empresa</p>
+          <p className="text-xs text-slate-400">Ingresa el código de invitación de la empresa</p>
+        </div>
+      </div>
+      <div className="px-6 py-5 space-y-3">
+        <input
+          type="text"
+          value={code}
+          onChange={e => { setCode(e.target.value.toUpperCase().slice(0, 6)); setError(''); setSuccess(''); }}
+          onKeyDown={e => e.key === 'Enter' && handleJoin()}
+          placeholder="ABC123"
+          maxLength={6}
+          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm font-mono tracking-widest text-center uppercase focus:outline-none transition-colors"
+          onFocus={e => e.target.style.borderColor = '#16a34a'}
+          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+        />
+        {error   && <p className="text-xs text-red-500">{error}</p>}
+        {success && <p className="text-xs text-green-600 font-medium">{success}</p>}
+        <button
+          onClick={handleJoin}
+          disabled={loading || code.length < 6}
+          className="w-full py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50 transition-all"
+          style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)' }}
+        >
+          {loading ? 'Verificando...' : 'Unirse a la empresa'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function JoinCodeSection() {
   const tenantId   = useAppStore(s => s.tenantId);
@@ -439,6 +512,9 @@ export default function Configuracion({ user }) {
           )}
         </button>
       </div>
+
+      {/* ── SECCIÓN: Unirse a otra empresa ── */}
+      <JoinAnotherSection />
 
       {/* ── SECCIÓN: Código de invitación ── */}
       <JoinCodeSection />

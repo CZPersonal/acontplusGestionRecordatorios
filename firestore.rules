@@ -29,14 +29,11 @@ service cloud.firestore {
       allow read: if request.auth != null;  // list para búsqueda por joinCode
     }
 
-    // ─── Helper: obtiene el tenantId del usuario autenticado ─────────────────
-    function userTenantId() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId;
-    }
-
     // ─── Helper: el usuario es miembro del tenant solicitado ─────────────────
+    // Soporta tanto tenantIds (array, nuevo) como tenantId (string, migración)
     function isMember(tid) {
-      return userTenantId() == tid;
+      let data = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return (data.get('tenantIds', []).hasAny([tid])) || (data.get('tenantId', '') == tid);
     }
 
     // ─── Datos del tenant: colecciones y subcolecciones ──────────────────────
