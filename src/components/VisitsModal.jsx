@@ -263,11 +263,15 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
   const blr = e => e.target.style.borderColor = '#e2e8f0';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0" style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(3px)' }} onClick={onClose} />
+    <div className="fixed inset-0 z-[60] flex">
+      {/* Backdrop */}
+      <div className="flex-1 min-w-0"
+        style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(3px)' }}
+        onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
-        style={{ maxHeight: '92vh' }}>
+      {/* Drawer panel */}
+      <div className="relative bg-white shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: '100%', maxWidth: '560px' }}>
 
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0"
@@ -275,39 +279,43 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
             ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
             : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white bg-opacity-20">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.2)' }}>
               {isEdit ? <Edit size={18} className="text-white" /> : <Plus size={18} className="text-white" />}
             </div>
             <div>
               <h3 className="text-base font-bold text-white">
                 {isEdit ? 'Editar visita' : 'Nueva visita programada'}
               </h3>
-              <p className="text-xs text-white opacity-75">
+              <p className="text-xs text-white" style={{ opacity: 0.75 }}>
                 {isEdit ? 'Modifica los datos de la visita' : 'Completa la información de la visita'}
               </p>
             </div>
           </div>
           <button onClick={onClose}
-            className="p-2 rounded-xl text-white opacity-75 hover:opacity-100 hover:bg-white hover:bg-opacity-20 transition-all">
+            className="p-2 rounded-xl text-white transition-all"
+            style={{ opacity: 0.75 }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.background = 'transparent'; }}>
             <X size={20} />
           </button>
         </div>
 
         {/* Cuerpo con scroll */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+          <div className="p-7 space-y-8">
 
             {/* ── Sección 1: Programación ── */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
                   style={{ background: accentColor }}>
-                  <Calendar size={13} className="text-white" />
+                  <Calendar size={14} className="text-white" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Programación</h4>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-5">
                 <div>
                   <label className={lbl}>Fecha de visita <span className="text-red-400">*</span></label>
                   <input type="date" value={formData.scheduledDate}
@@ -319,22 +327,22 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
                   <input type="time" value={formData.scheduledTime}
                     onChange={e => set('scheduledTime', e.target.value)}
                     className={inp} onFocus={foc} onBlur={blr} />
-                  <p className="text-xs text-slate-400 mt-1">Opcional — si no se indica se considera todo el día</p>
+                  <p className="text-xs text-slate-400 mt-1.5">Opcional — si no se indica se considera todo el día</p>
                 </div>
               </div>
             </div>
 
             {/* ── Sección 2: Servicio ── */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
                   style={{ background: accentColor }}>
-                  <Wrench size={13} className="text-white" />
+                  <Wrench size={14} className="text-white" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Servicio</h4>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-5">
                 <div>
                   <label className={lbl}>Tipo de visita</label>
                   <select value={formData.type} onChange={e => set('type', e.target.value)}
@@ -362,21 +370,21 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
 
             {/* ── Sección 3: Urgencia ── */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
                   style={{ background: accentColor }}>
-                  <AlertCircle size={13} className="text-white" />
+                  <AlertCircle size={14} className="text-white" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Urgencia</h4>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-4">
                 {URGENCIES.map(u => {
-                  const cfg     = URGENCY_CONFIG[u];
+                  const cfg      = URGENCY_CONFIG[u];
                   const selected = formData.urgency === u;
                   return (
                     <button key={u} type="button" onClick={() => set('urgency', u)}
-                      className="py-3 px-4 rounded-xl border-2 font-bold text-sm transition-all"
+                      className="py-4 px-4 rounded-xl border-2 font-bold text-sm transition-all"
                       style={{
                         borderColor: selected ? cfg.color : '#e2e8f0',
                         background:  selected ? cfg.bg    : '#fff',
@@ -392,17 +400,17 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
 
             {/* ── Sección 4: Observaciones ── */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center"
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
                   style={{ background: accentColor }}>
-                  <FileText size={13} className="text-white" />
+                  <FileText size={14} className="text-white" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Observaciones</h4>
                 <div className="flex-1 h-px bg-slate-200" />
               </div>
               <textarea value={formData.observations}
                 onChange={e => set('observations', e.target.value)}
-                rows={4}
+                rows={6}
                 placeholder="Describe el trabajo a realizar, materiales necesarios, acceso al lugar, etc."
                 className={`${inp} resize-none`}
                 onFocus={foc} onBlur={blr} />
@@ -410,9 +418,9 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
           </div>
 
           {/* Botones fijos abajo */}
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex gap-3 flex-shrink-0">
+          <div className="px-7 py-5 border-t border-slate-100 bg-slate-50 flex gap-3 flex-shrink-0">
             <button type="submit" disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"
               style={{ background: isLoading ? '#94a3b8' : isEdit
                 ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
                 : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
@@ -423,7 +431,7 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
                   : <><Plus size={16} /><span>Agregar visita</span></>}
             </button>
             <button type="button" onClick={onClose}
-              className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
+              className="px-6 py-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm font-semibold rounded-xl transition-colors">
               Cancelar
             </button>
           </div>
