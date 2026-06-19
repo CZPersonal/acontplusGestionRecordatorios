@@ -8,8 +8,13 @@ const { Resend }       = require('resend');
 
 initializeApp();
 
-const resendApiKey = defineSecret('RESEND_API_KEY');
-const FROM_EMAIL   = process.env.FROM_EMAIL || 'Acontplus Recordatorios <noreply@notificaciones.resuelveyaa.com>';
+const resendApiKey   = defineSecret('RESEND_API_KEY');
+const FROM_ADDRESS   = process.env.FROM_ADDRESS || 'noreply@notificaciones.resuelveyaa.com';
+
+function getFromEmail(empresaNombre) {
+  const nombre = (empresaNombre || 'Acontplus').trim();
+  return `${nombre} Recordatorios <${FROM_ADDRESS}>`;
+}
 
 // Fecha de mañana en zona horaria Ecuador (UTC-5)
 function getTomorrowEcuador() {
@@ -104,7 +109,7 @@ exports.sendDailyReminders = onSchedule(
         const cc = ccCorreos.filter(e => e !== to);
 
         await resend.emails.send({
-          from:    FROM_EMAIL,
+          from:    getFromEmail(config.empresaNombre),
           to:      [to],
           ...(cc.length > 0 ? { cc } : {}),
           subject: `Recordatorio: visita mañana con ${task.clientName}`,
@@ -227,16 +232,19 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
       return;
     }
 
+    const db       = getFirestore();
     const taskRef  = event.data.ref.parent.parent;
     const taskSnap = await taskRef.get();
     if (!taskSnap.exists) return;
-    const task   = taskSnap.data();
-    const resend = new Resend(resendApiKey.value());
+    const task      = taskSnap.data();
+    const configSnap = await db.doc(`tenants/${event.params.tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
 
     const urgencyLabel = { Alta: '🔴 Alta', Media: '🟡 Media', Baja: '🟢 Baja' }[visit.urgency] || '';
 
     await resend.emails.send({
-      from:    FROM_EMAIL,
+      from:    getFromEmail(config.empresaNombre),
       to:      [emailDestino],
       subject: `Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
       html: `
@@ -376,7 +384,7 @@ exports.sendTechnicianDailyAgenda = onSchedule(
         }).join('');
 
         await resend.emails.send({
-          from:    FROM_EMAIL,
+          from:    getFromEmail(config.empresaNombre),
           to:      [techEmail],
           subject: `Tu agenda para mañana — ${count} visita${count !== 1 ? 's' : ''} asignada${count !== 1 ? 's' : ''}`,
           html: `
@@ -436,7 +444,7 @@ exports.notifyVisitCompleted = onDocumentUpdated(
     const resend = new Resend(resendApiKey.value());
 
     await resend.emails.send({
-      from:    FROM_EMAIL,
+      from:    getFromEmail(config.empresaNombre),
       to:      [to],
       ...(cc.length > 0 ? { cc } : {}),
       subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
@@ -582,7 +590,7 @@ exports.sendOverdueAlert = onSchedule(
         `).join('');
 
         await resend.emails.send({
-          from:    FROM_EMAIL,
+          from:    getFromEmail(config.empresaNombre),
           to:      [adminEmail],
           ...(cc.length > 0 ? { cc } : {}),
           subject: `⚠️ ${count} visita${count !== 1 ? 's' : ''} atrasada${count !== 1 ? 's' : ''} sin realizar`,
