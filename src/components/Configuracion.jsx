@@ -424,7 +424,6 @@ function TabEntidad({ user }) {
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
-  const [recordatoriosActivo, setRecordatoriosActivo] = useState(true);
   const [agendaHoy,    setAgendaHoy]    = useState({ activo: false, hora: 7,  destinatarios: [] });
   const [agendaMañana, setAgendaMañana] = useState({ activo: false, hora: 20, destinatarios: [] });
   const [incluirAtrasadas, setIncluirAtrasadas] = useState(false);
@@ -442,7 +441,6 @@ function TabNotificaciones({ user }) {
 
   useEffect(() => {
     if (!config) return;
-    setRecordatoriosActivo(config.recordatoriosActivo !== false);
     setAgendaHoy(prev => ({ ...prev, ...(config.agendaHoy || {}) }));
     setAgendaMañana(prev => ({ ...prev, ...(config.agendaMañana || {}) }));
     setIncluirAtrasadas(!!config.incluirAtrasadas);
@@ -469,7 +467,6 @@ function TabNotificaciones({ user }) {
   const handleSave = async () => {
     setError('');
     const ok = await saveConfig({
-      recordatoriosActivo,
       agendaHoy,
       agendaMañana,
       incluirAtrasadas,
@@ -534,30 +531,6 @@ function TabNotificaciones({ user }) {
 
   return (
     <div className="space-y-6">
-
-      {/* Toggle maestro */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between"
-          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-              <Bell size={15} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-700">Recordatorios diarios</p>
-              <p className="text-xs text-slate-400">Activa o desactiva todos los recordatorios diarios</p>
-            </div>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <div className={`relative w-11 h-6 rounded-full transition-colors ${recordatoriosActivo ? 'bg-pink-500' : 'bg-slate-300'}`}
-              onClick={() => { setRecordatoriosActivo(p => !p); setSaved(false); }}>
-              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recordatoriosActivo ? 'translate-x-5' : ''}`} />
-            </div>
-            <span className="text-xs font-semibold text-slate-600">{recordatoriosActivo ? 'Activos' : 'Inactivos'}</span>
-          </label>
-        </div>
-      </div>
 
       {/* Agenda del día actual */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

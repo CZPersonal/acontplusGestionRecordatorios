@@ -394,7 +394,6 @@ exports.sendTechnicianDailyAgenda = onSchedule(
 
     const tenantJobs = [...allTenantIds].map(async (tenantId) => {
       const config = await getTenantConfig(db, tenantId, configCache);
-      if (config.recordatoriosActivo === false) return;
 
       const cfgHoy    = config.agendaHoy    || {};
       const cfgMañana = config.agendaMañana || {};
