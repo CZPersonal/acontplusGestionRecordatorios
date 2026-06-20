@@ -564,7 +564,108 @@ exports.notifyVisitCompleted = onDocumentUpdated(
   }
 );
 
-// ─── 6. Notificaciones de pre-visita y retraso (cada 5 min) ──────────────────
+// ─── 6. Notificación de visita modificada ────────────────────────────────────
+// Dispara cuando se actualiza una visita y algún campo relevante cambia.
+// No actúa si el cambio es el cierre (status → Realizada), eso lo maneja notifyVisitCompleted.
+// Destinatarios: técnico actual, técnico anterior (si fue reasignada), creador de la tarea.
+exports.notifyVisitUpdated = onDocumentUpdated(
+  {
+    document: 'tenants/{tenantId}/water_filter_tasks/{taskId}/visits/{visitId}',
+    region:   'us-central1',
+    secrets:  [resendApiKey],
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    // Si el status cambia A 'Realizada', notifyVisitCompleted lo maneja
+    if (before.status !== 'Realizada' && after.status === 'Realizada') return;
+
+    const WATCHED = ['scheduledDate', 'scheduledTime', 'technician', 'technicianEmail', 'urgency', 'type', 'observations', 'status'];
+    const LABELS  = { scheduledDate: 'Fecha', scheduledTime: 'Hora', technician: 'Técnico', technicianEmail: 'Email técnico', urgency: 'Urgencia', type: 'Tipo de servicio', observations: 'Observaciones', status: 'Estado' };
+
+    const changes = WATCHED.filter(f => (before[f] ?? '') !== (after[f] ?? ''));
+    if (changes.length === 0) return;
+
+    const db       = getFirestore();
+    const tenantId = event.params.tenantId;
+    const taskSnap = await event.data.after.ref.parent.parent.get();
+    if (!taskSnap.exists) return;
+    const task = taskSnap.data();
+
+    const configSnap = await db.doc(`tenants/${tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
+
+    const changeRows = changes.map(f => `
+      <tr style="border-top:1px solid #f1f5f9;">
+        <td style="padding:7px 10px;color:#64748b;font-size:13px;width:140px;">${escHtml(LABELS[f] || f)}</td>
+        <td style="padding:7px 10px;color:#dc2626;font-size:13px;text-decoration:line-through;">${escHtml(String(before[f] ?? '—'))}</td>
+        <td style="padding:7px 10px;color:#16a34a;font-size:13px;font-weight:600;">${escHtml(String(after[f] ?? '—'))}</td>
+      </tr>`).join('');
+
+    const buildHtml = (intro) => `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;">
+        <h2 style="color:#D61672;">✏️ Visita modificada</h2>
+        <p style="color:#555;margin-bottom:16px;">${intro}</p>
+        <table style="border-collapse:collapse;width:100%;margin-bottom:20px;">
+          <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
+              <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
+          ${task.clientAddress ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td><td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+          ${after.scheduledDate ? `<tr><td style="padding:6px 0;color:#888;">Fecha</td><td style="padding:6px 0;">${escHtml(after.scheduledDate)}</td></tr>` : ''}
+          ${after.scheduledTime ? `<tr><td style="padding:6px 0;color:#888;">Hora</td><td style="padding:6px 0;">${escHtml(after.scheduledTime)}</td></tr>` : ''}
+          ${task.serviceOrder ? `<tr><td style="padding:6px 0;color:#888;">Orden</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
+        </table>
+        <p style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Cambios realizados</p>
+        <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;">
+          <tr style="background:#f1f5f9;">
+            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Campo</th>
+            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Anterior</th>
+            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Nuevo</th>
+          </tr>
+          ${changeRows}
+        </table>
+        <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+        <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
+      </div>`;
+
+    const subject = `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`;
+
+    const newTechEmail = after.technicianEmail  || (after.technician?.includes('@')  ? after.technician  : null);
+    const oldTechEmail = before.technicianEmail || (before.technician?.includes('@') ? before.technician : null);
+    const techCambiado = oldTechEmail && oldTechEmail !== newTechEmail;
+
+    const sends = [];
+
+    // Técnico anterior: correo de reasignación
+    if (techCambiado) {
+      sends.push(resend.emails.send({
+        from:    getFromEmail(config.empresaNombre),
+        to:      [oldTechEmail],
+        subject: `ℹ️ Visita reasignada: ${task.clientName} — ${after.scheduledDate || ''}`,
+        html:    buildHtml(`Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`),
+      }));
+    }
+
+    // Técnico actual + creador (sin duplicados)
+    const dest = new Set();
+    if (newTechEmail) dest.add(newTechEmail);
+    if (task.createdBy?.includes('@')) dest.add(task.createdBy);
+    if (dest.size > 0) {
+      sends.push(resend.emails.send({
+        from:    getFromEmail(config.empresaNombre),
+        to:      [...dest],
+        subject,
+        html:    buildHtml('Se realizaron cambios en la siguiente visita.'),
+      }));
+    }
+
+    await Promise.allSettled(sends);
+    console.log(`notifyVisitUpdated: ${sends.length} email(s) — visita ${event.params.visitId} — cambios: ${changes.join(', ')}`);
+  }
+);
+
+// ─── 7. Notificaciones de pre-visita y retraso (cada 5 min) ──────────────────
 // Corre cada 5 minutos. Para cada visita 'Programada' de hoy con hora configurada:
 //   - Pre-visita: envía N minutos antes con link de confirmación de asistencia.
 //   - Retraso: envía cuando llevan M minutos sin registrarse.
