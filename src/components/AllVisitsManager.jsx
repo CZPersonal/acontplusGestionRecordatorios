@@ -11,8 +11,26 @@ import { formatDateOnly } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ChevronDown, ChevronUp,
-  ClipboardList,
+  ClipboardList, MapPin, Phone, CreditCard, Wrench, FileText,
 } from 'lucide-react';
+
+// ─── Campo con etiqueta para la grilla de tarea ──────────────────────────────
+function Field({ label, value, mono = false, icon: Icon }) {
+  if (!value) return (
+    <div className="min-w-0">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-xs text-slate-300 italic">—</p>
+    </div>
+  );
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
+        {Icon && <Icon size={10} className="opacity-60" />}{label}
+      </p>
+      <p className={`text-sm text-slate-800 font-medium truncate ${mono ? 'font-mono' : ''}`}>{value}</p>
+    </div>
+  );
+}
 
 // ─── Helpers de estilo ───────────────────────────────────────────────────────
 
@@ -21,6 +39,20 @@ const TASK_STATUS_COLORS = {
   'En Proceso': 'bg-blue-100  text-blue-700  border-blue-200',
   'Completado': 'bg-green-100 text-green-700 border-green-200',
   'Cancelado':  'bg-slate-100 text-slate-500 border-slate-200',
+};
+
+const TASK_HEADER_GRADIENT = {
+  'Pendiente':  'linear-gradient(135deg, #b45309, #92400e)',
+  'En Proceso': 'linear-gradient(135deg, #1d4ed8, #1e40af)',
+  'Completado': 'linear-gradient(135deg, #15803d, #166534)',
+  'Cancelado':  'linear-gradient(135deg, #64748b, #475569)',
+};
+
+const VISIT_STATUS_BORDER = {
+  Programada: '#3b82f6',
+  Realizada:  '#16a34a',
+  Cancelada:  '#f59e0b',
+  Anulada:    '#ef4444',
 };
 
 const VISIT_STATUS_COLORS = {
@@ -517,187 +549,207 @@ export default function AllVisitsManager({ user }) {
             {groupedTasks.map(({ task, visits, totalVisits }) => {
               const isCollapsed  = !!collapsed[task.id];
               const taskComplete = task.status === 'Completado';
-              const taskColor    = TASK_STATUS_COLORS[task.status] || TASK_STATUS_COLORS['Pendiente'];
+              const headerBg     = TASK_HEADER_GRADIENT[task.status] || TASK_HEADER_GRADIENT['Pendiente'];
 
               return (
                 <div key={task.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-                  {/* ── Encabezado de tarea ── */}
-                  <div className={`p-4 ${taskComplete ? 'bg-green-50/40' : 'bg-slate-50/60'}`}>
+                  {/* ══ ÁREA DE TAREA ════════════════════════════════════════ */}
 
-                    {/* Fila superior: badges + botones */}
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-
-                        {/* Badges */}
-                        <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${taskColor}`}>
-                            {task.status}
-                          </span>
-                          {task.urgency && (
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${URGENCY_COLORS[task.urgency] || ''}`}>
-                              {task.urgency}
-                            </span>
-                          )}
-                          {task.serviceOrder && (
-                            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700">
-                              OS: {task.serviceOrder}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Datos del cliente */}
-                        <div className="font-bold text-slate-800 text-sm leading-snug mb-1.5">
-                          {task.clientName}
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
-                          {task.identification && <span className="font-mono">🪪 {task.identification}</span>}
-                          {task.clientPhone    && <span>📞 {task.clientPhone}</span>}
-                          {task.clientAddress  && <span>📍 {task.clientAddress}</span>}
-                          {task.serviceType    && <span>🔧 {task.serviceType}</span>}
-                        </div>
-                        {task.description && (
-                          <p className="text-xs text-slate-400 mt-1.5 italic line-clamp-2">
-                            📝 {task.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Botones de tarea */}
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          <button onClick={() => onEditTask(task)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
-                            <Edit2 size={12} /> Editar
-                          </button>
-                          <button
-                            onClick={() => handleComplete(task.id)}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                              taskComplete
-                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                : 'bg-green-100 text-green-700 hover:bg-green-200'
-                            }`}>
-                            <CheckCircle2 size={12} />
-                            {taskComplete ? 'Reabrir' : 'Completar'}
-                          </button>
-                          <button onClick={() => setDeleteTaskId(task.id)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
-                            <Trash2 size={12} /> Eliminar
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button onClick={() => setAddVisitTask(task)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-colors"
-                            style={{ background: '#D61672' }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#b91260'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#D61672'}>
-                            <Plus size={12} /> Nueva visita
-                          </button>
-                          <button onClick={() => setCollapsed(p => ({ ...p, [task.id]: !p[task.id] }))}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                            title={isCollapsed ? 'Mostrar visitas' : 'Ocultar visitas'}>
-                            {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-                            {visits.length < totalVisits
-                              ? `${visits.length}/${totalVisits}`
-                              : totalVisits} visita{totalVisits !== 1 ? 's' : ''}
-                          </button>
-                        </div>
-                      </div>
+                  {/* Barra de título con gradiente */}
+                  <div className="px-5 py-3 flex items-center justify-between gap-4"
+                    style={{ background: headerBg }}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      {task.serviceOrder && (
+                        <span className="flex-shrink-0 text-xs font-mono font-bold px-2.5 py-1 rounded-lg"
+                          style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>
+                          OS: {task.serviceOrder}
+                        </span>
+                      )}
+                      <span className="font-bold text-white text-base truncate">{task.clientName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {task.urgency && (
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${URGENCY_COLORS[task.urgency] || ''}`}>
+                          {task.urgency}
+                        </span>
+                      )}
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                        style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                        {task.status}
+                      </span>
                     </div>
                   </div>
 
-                  {/* ── Lista de visitas ── */}
+                  {/* Grilla de campos con etiquetas */}
+                  <div className="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 bg-slate-50/60">
+                    <Field label="Cédula / RUC" value={task.identification} mono icon={CreditCard} />
+                    <Field label="Teléfono"     value={task.clientPhone}    icon={Phone} />
+                    <Field label="Dirección"    value={task.clientAddress}  icon={MapPin} />
+                    <Field label="Tipo Servicio" value={task.serviceType}   icon={Wrench} />
+                    {task.description && (
+                      <div className="col-span-2 md:col-span-4">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5 flex items-center gap-1">
+                          <FileText size={10} className="opacity-60" /> Descripción
+                        </p>
+                        <p className="text-sm text-slate-600 italic line-clamp-2">{task.description}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Franja de botones de tarea */}
+                  <div className="px-5 py-2.5 flex items-center justify-between gap-3 bg-slate-100 border-t border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Tarea:</span>
+                      <button onClick={() => onEditTask(task)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm transition-colors">
+                        <Edit2 size={12} /> Editar
+                      </button>
+                      <button onClick={() => handleComplete(task.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors ${
+                          taskComplete
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
+                            : 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200'
+                        }`}>
+                        <CheckCircle2 size={12} />
+                        {taskComplete ? 'Reabrir' : 'Completar'}
+                      </button>
+                      <button onClick={() => setDeleteTaskId(task.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-red-600 border border-red-200 hover:bg-red-50 shadow-sm transition-colors">
+                        <Trash2 size={12} /> Eliminar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setAddVisitTask(task)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-colors"
+                        style={{ background: '#D61672' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#b91260'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#D61672'}>
+                        <Plus size={12} /> Nueva visita
+                      </button>
+                      <button onClick={() => setCollapsed(p => ({ ...p, [task.id]: !p[task.id] }))}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-500 border border-slate-300 hover:bg-slate-50 shadow-sm transition-colors">
+                        {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                        {visits.length < totalVisits ? `${visits.length}/${totalVisits}` : totalVisits} visita{totalVisits !== 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ══ ÁREA DE VISITAS ══════════════════════════════════════ */}
                   {!isCollapsed && (
-                    <div>
+                    <div className="border-t-2 border-slate-200">
+
+                      {/* Separador con etiqueta */}
+                      <div className="flex items-center gap-3 px-5 py-2 bg-slate-50">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Visitas</span>
+                        <div className="flex-1 h-px bg-slate-200" />
+                        <span className="text-xs text-slate-400">{totalVisits} en total</span>
+                      </div>
+
                       {visits.length === 0 ? (
-                        <div className="py-5 text-center text-xs text-slate-400 italic border-t border-slate-100">
+                        <div className="py-6 text-center text-xs text-slate-400 italic">
                           Sin visitas que coincidan con los filtros actuales
                         </div>
                       ) : (
-                        <div className="divide-y divide-slate-50">
+                        <div className="divide-y divide-slate-100">
                           {visits.map(visit => {
-                            const isOverdue = visit.status === 'Programada' && visit.scheduledDate < today;
-                            const busy      = loadingVisit === visit.id;
+                            const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < today;
+                            const busy         = loadingVisit === visit.id;
+                            const borderColor  = VISIT_STATUS_BORDER[visit.status] || '#cbd5e1';
 
                             return (
                               <div key={visit.id}
-                                className={`px-4 py-3 flex items-start gap-3 hover:bg-slate-50/70 transition-colors ${
-                                  isOverdue ? 'border-l-4 border-red-400' : 'border-l-4 border-transparent'
-                                }`}>
+                                className="flex items-stretch hover:bg-slate-50/80 transition-colors"
+                                style={{ borderLeft: `4px solid ${borderColor}` }}>
 
-                                {/* Número + fecha */}
-                                <div className="flex-shrink-0 text-center w-[52px]">
-                                  <div className="text-xs font-bold bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5 mb-1 inline-block">
+                                {/* Columna izquierda: número + fecha */}
+                                <div className="flex-shrink-0 w-24 flex flex-col items-center justify-center px-3 py-4 bg-slate-50/60 border-r border-slate-100 text-center gap-1">
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600 shadow-sm">
                                     #{visit.visitNumber}
-                                  </div>
-                                  <div className="text-xs font-semibold text-slate-700 leading-none">
+                                  </span>
+                                  <span className="text-xs font-semibold text-slate-700 leading-tight">
                                     {formatDateOnly(visit.scheduledDate)}
-                                  </div>
+                                  </span>
                                   {visit.scheduledTime && (
-                                    <div className="text-xs text-slate-400 mt-0.5">{visit.scheduledTime}</div>
+                                    <span className="text-xs text-slate-400">{visit.scheduledTime}</span>
                                   )}
                                 </div>
 
-                                {/* Info de visita */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || 'bg-slate-100 text-slate-500'}`}>
+                                {/* Columna central: info de visita */}
+                                <div className="flex-1 min-w-0 px-4 py-3">
+                                  {/* Fila 1: estado + urgencia + alerta */}
+                                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || 'bg-slate-100 text-slate-500'}`}>
                                       {visit.status}
                                     </span>
+                                    {visit.urgency && (
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${URGENCY_COLORS[visit.urgency] || ''}`}>
+                                        {visit.urgency}
+                                      </span>
+                                    )}
                                     {isOverdue && (
-                                      <span className="text-xs font-bold text-red-600">⚠️ Atrasada</span>
+                                      <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                        ⚠️ Atrasada
+                                      </span>
                                     )}
                                   </div>
-                                  <div className="flex flex-wrap gap-x-3 text-xs text-slate-500">
-                                    {visit.technician && <span>👷 {visit.technician}</span>}
-                                    {visit.type       && <span>🔧 {visit.type}</span>}
+                                  {/* Fila 2: técnico + tipo */}
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-1.5">
+                                    {visit.technician && (
+                                      <div>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Técnico</p>
+                                        <p className="text-xs font-medium text-slate-700">👷 {visit.technician}</p>
+                                      </div>
+                                    )}
+                                    {visit.type && (
+                                      <div>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Tipo</p>
+                                        <p className="text-xs font-medium text-slate-700">🔧 {visit.type}</p>
+                                      </div>
+                                    )}
                                   </div>
                                   {visit.observations && (
-                                    <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs">
-                                      📝 {visit.observations}
-                                    </p>
+                                    <p className="text-xs text-slate-400 italic truncate">📝 {visit.observations}</p>
                                   )}
                                   {visit.closingObservations && (
-                                    <p className="text-xs text-green-600 mt-0.5 italic truncate max-w-xs">
-                                      ✅ {visit.closingObservations}
-                                    </p>
+                                    <p className="text-xs text-green-600 italic truncate">✅ {visit.closingObservations}</p>
                                   )}
                                 </div>
 
-                                {/* Botones de acción de visita */}
-                                <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
+                                {/* Columna derecha: botones de acción de visita */}
+                                <div className="flex-shrink-0 flex flex-col items-stretch gap-1.5 justify-center px-3 py-3 bg-slate-50 border-l border-slate-100 min-w-[110px]">
+                                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center mb-0.5">Visita</p>
                                   {visit.status === 'Programada' && (<>
                                     <button disabled={busy}
                                       onClick={() => setCompleteModal({ task, visit })}
-                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 transition-colors">
-                                      <CheckCircle2 size={12} /> Realizada
+                                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 transition-colors w-full">
+                                      <CheckCircle2 size={11} /> Realizada
                                     </button>
                                     <button disabled={busy}
                                       onClick={() => doCancelVisit(task, visit)}
-                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 transition-colors">
-                                      <XCircle size={12} /> Cancelar
+                                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 transition-colors w-full">
+                                      <XCircle size={11} /> Cancelar
                                     </button>
                                     <button disabled={busy}
                                       onClick={() => setAnnulConfirm({ task, visit })}
-                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-40 transition-colors">
-                                      <Ban size={12} /> Anular
+                                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-40 transition-colors w-full">
+                                      <Ban size={11} /> Anular
                                     </button>
                                   </>)}
                                   {(visit.status === 'Realizada' || visit.status === 'Cancelada') && (
                                     <button disabled={busy}
                                       onClick={() => doRevertVisit(task, visit)}
-                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors">
-                                      <RotateCcw size={12} /> Revertir
+                                      className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 text-slate-600 hover:bg-slate-300 disabled:opacity-40 transition-colors w-full">
+                                      <RotateCcw size={11} /> Revertir
                                     </button>
                                   )}
                                   <button
                                     onClick={() => setEditVisitData({ task, visit })}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-                                    style={{ color: '#D61672', borderColor: '#fce7f3' }}
+                                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors w-full"
+                                    style={{ color: '#D61672', borderColor: '#fce7f3', background: 'white' }}
                                     onMouseEnter={e => e.currentTarget.style.background = '#fdf2f8'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                    title="Editar datos de esta visita">
-                                    <Edit2 size={12} /> Editar
+                                    onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                    <Edit2 size={11} /> Editar
                                   </button>
                                 </div>
                               </div>
