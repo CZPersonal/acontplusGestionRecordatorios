@@ -170,7 +170,6 @@ export default function AllVisitsManager({ user }) {
     const hasVisitFilter = filterStatus || filterTechnician || filterUrgency || filterDateFrom || filterDateTo;
 
     return tasks
-      .filter(task => (task.visits || []).length > 0)
       .map(task => {
         // Asignar números secuenciales por orden de creación
         const byCreation = [...(task.visits || [])].sort(
@@ -192,6 +191,7 @@ export default function AllVisitsManager({ user }) {
       })
       .filter(({ task, visits }) => {
         if (filterTaskStatus && task.status !== filterTaskStatus) return false;
+        // Con filtros de visita activos, solo mostrar tareas con visitas que coincidan
         if (hasVisitFilter && visits.length === 0) return false;
         if (q) {
           const taskMatch =
@@ -219,7 +219,8 @@ export default function AllVisitsManager({ user }) {
   const stats = useMemo(() => {
     const all = tasks.flatMap(t => t.visits || []);
     return {
-      grupos:     groupedTasks.length,
+      tareas:     groupedTasks.length,
+      sinVisitas: groupedTasks.filter(({ task }) => (task.visits || []).length === 0).length,
       programada: all.filter(v => v.status === 'Programada').length,
       realizada:  all.filter(v => v.status === 'Realizada').length,
       cancelada:  all.filter(v => v.status === 'Cancelada' || v.status === 'Anulada').length,
@@ -335,7 +336,9 @@ export default function AllVisitsManager({ user }) {
             <div>
               <h2 className="text-base font-bold text-slate-800">Gestión de Visitas</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {stats.grupos} órdenes · {stats.programada} programadas · {stats.realizada} realizadas · {stats.cancelada} canceladas/anuladas
+                {stats.tareas} órdenes
+                {stats.sinVisitas > 0 && ` · ${stats.sinVisitas} sin visitas`}
+                {' · '}{stats.programada} programadas · {stats.realizada} realizadas · {stats.cancelada} canceladas/anuladas
               </p>
             </div>
             <button onClick={onNewTask}
