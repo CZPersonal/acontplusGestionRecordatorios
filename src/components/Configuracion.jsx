@@ -424,19 +424,18 @@ function TabEntidad({ user }) {
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
-  const [recordatoriosActivo,  setRecordatoriosActivo]  = useState(true);
-  const [horaTech,             setHoraTech]             = useState(7);
-  const [horaAlerta,           setHoraAlerta]           = useState(9);
-  const [ccCorreos,            setCcCorreos]            = useState([]);
-  const [destinatariosAgenda,  setDestinatariosAgenda]  = useState([]);
-  const [destinatariosAtrasadas, setDestinatariosAtrasadas] = useState([]);
+  const [recordatoriosActivo, setRecordatoriosActivo] = useState(true);
+  const [agendaHoy,    setAgendaHoy]    = useState({ activo: false, hora: 7,  destinatarios: [] });
+  const [agendaMañana, setAgendaMañana] = useState({ activo: false, hora: 20, destinatarios: [] });
+  const [incluirAtrasadas, setIncluirAtrasadas] = useState(false);
+  const [ccCorreos,    setCcCorreos]    = useState([]);
 
-  const [newCc,       setNewCc]       = useState('');
-  const [newAgenda,   setNewAgenda]   = useState('');
-  const [newAtrasada, setNewAtrasada] = useState('');
-  const [emailErr,    setEmailErr]    = useState('');
-  const [saved,       setSaved]       = useState(false);
-  const [error,       setError]       = useState('');
+  const [newAgendaHoy,    setNewAgendaHoy]    = useState('');
+  const [newAgendaMañana, setNewAgendaMañana] = useState('');
+  const [newCc,           setNewCc]           = useState('');
+  const [emailErr,        setEmailErr]        = useState('');
+  const [saved,           setSaved]           = useState(false);
+  const [error,           setError]           = useState('');
 
   const [notifPre,    setNotifPre]    = useState({ activo: false, minutosAntes: 30,   destinatarios: ['tecnico'] });
   const [notifRetard, setNotifRetard] = useState({ activo: false, minutosRetraso: 30, destinatarios: ['admin']   });
@@ -444,11 +443,10 @@ function TabNotificaciones({ user }) {
   useEffect(() => {
     if (!config) return;
     setRecordatoriosActivo(config.recordatoriosActivo !== false);
-    setHoraTech(config.horaRecordatorioTecnicos ?? 7);
-    setHoraAlerta(config.horaAlertaAtrasadas    ?? 9);
+    setAgendaHoy(prev => ({ ...prev, ...(config.agendaHoy || {}) }));
+    setAgendaMañana(prev => ({ ...prev, ...(config.agendaMañana || {}) }));
+    setIncluirAtrasadas(!!config.incluirAtrasadas);
     setCcCorreos(config.ccCorreos || []);
-    setDestinatariosAgenda(config.destinatariosAgenda   || []);
-    setDestinatariosAtrasadas(config.destinatariosAtrasadas || []);
     if (config.notifPrevisita) setNotifPre(prev => ({ ...prev, ...config.notifPrevisita }));
     if (config.notifRetraso)   setNotifRetard(prev => ({ ...prev, ...config.notifRetraso }));
   }, [config]);
@@ -472,11 +470,10 @@ function TabNotificaciones({ user }) {
     setError('');
     const ok = await saveConfig({
       recordatoriosActivo,
-      horaRecordatorioTecnicos: horaTech,
-      horaAlertaAtrasadas:      horaAlerta,
+      agendaHoy,
+      agendaMañana,
+      incluirAtrasadas,
       ccCorreos,
-      destinatariosAgenda,
-      destinatariosAtrasadas,
       notifPrevisita: notifPre,
       notifRetraso:   notifRetard,
     });
@@ -562,25 +559,34 @@ function TabNotificaciones({ user }) {
         </div>
       </div>
 
-      {/* Horarios de envío */}
+      {/* Agenda del día actual */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Clock size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-700">Horarios de envío</p>
-            <p className="text-xs text-slate-400">Hora Ecuador (UTC-5) en que se envían los emails diarios</p>
-          </div>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Clock size={15} className="text-white" />
+            </div>
             <div>
-              <label className={lbl}>Agenda a técnicos y destinatarios</label>
-              <select value={horaTech}
-                onChange={e => { setHoraTech(Number(e.target.value)); setSaved(false); }}
+              <p className="text-sm font-bold text-slate-700">Agenda del día actual</p>
+              <p className="text-xs text-slate-400">Envía las visitas programadas para hoy</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${agendaHoy.activo ? 'bg-pink-500' : 'bg-slate-300'}`}
+              onClick={() => { setAgendaHoy(p => ({ ...p, activo: !p.activo })); setSaved(false); }}>
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${agendaHoy.activo ? 'translate-x-5' : ''}`} />
+            </div>
+            <span className="text-xs font-semibold text-slate-600">{agendaHoy.activo ? 'Activa' : 'Inactiva'}</span>
+          </label>
+        </div>
+        {agendaHoy.activo && (
+          <div className="p-6 space-y-5">
+            <div>
+              <label className={lbl}>Hora de envío (Ecuador UTC-5)</label>
+              <select value={agendaHoy.hora}
+                onChange={e => { setAgendaHoy(p => ({ ...p, hora: Number(e.target.value) })); setSaved(false); }}
                 className={`${inp} bg-white`}
                 onFocus={e => e.target.style.borderColor = '#D61672'}
                 onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
@@ -588,67 +594,95 @@ function TabNotificaciones({ user }) {
               </select>
             </div>
             <div>
-              <label className={lbl}>Alerta de atrasadas</label>
-              <select value={horaAlerta}
-                onChange={e => { setHoraAlerta(Number(e.target.value)); setSaved(false); }}
+              <label className={lbl}>Destinatarios adicionales</label>
+              <p className="text-xs text-slate-400 mb-3">Reciben la agenda completa de todos los técnicos</p>
+              <EmailList
+                list={agendaHoy.destinatarios}
+                onRemove={email => { setAgendaHoy(p => ({ ...p, destinatarios: p.destinatarios.filter(e => e !== email) })); setSaved(false); }}
+                value={newAgendaHoy} onChange={setNewAgendaHoy}
+                onAdd={() => {
+                  const e = newAgendaHoy.trim().toLowerCase();
+                  if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
+                  if (agendaHoy.destinatarios.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
+                  setAgendaHoy(p => ({ ...p, destinatarios: [...p.destinatarios, e] }));
+                  setNewAgendaHoy(''); setEmailErr(''); setSaved(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Agenda del día siguiente */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Clock size={15} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-700">Agenda del día siguiente</p>
+              <p className="text-xs text-slate-400">Envía las visitas programadas para mañana</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${agendaMañana.activo ? 'bg-pink-500' : 'bg-slate-300'}`}
+              onClick={() => { setAgendaMañana(p => ({ ...p, activo: !p.activo })); setSaved(false); }}>
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${agendaMañana.activo ? 'translate-x-5' : ''}`} />
+            </div>
+            <span className="text-xs font-semibold text-slate-600">{agendaMañana.activo ? 'Activa' : 'Inactiva'}</span>
+          </label>
+        </div>
+        {agendaMañana.activo && (
+          <div className="p-6 space-y-5">
+            <div>
+              <label className={lbl}>Hora de envío (Ecuador UTC-5)</label>
+              <select value={agendaMañana.hora}
+                onChange={e => { setAgendaMañana(p => ({ ...p, hora: Number(e.target.value) })); setSaved(false); }}
                 className={`${inp} bg-white`}
                 onFocus={e => e.target.style.borderColor = '#D61672'}
                 onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
                 {HORAS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
               </select>
             </div>
+            <div>
+              <label className={lbl}>Destinatarios adicionales</label>
+              <p className="text-xs text-slate-400 mb-3">Reciben la agenda completa de todos los técnicos</p>
+              <EmailList
+                list={agendaMañana.destinatarios}
+                onRemove={email => { setAgendaMañana(p => ({ ...p, destinatarios: p.destinatarios.filter(e => e !== email) })); setSaved(false); }}
+                value={newAgendaMañana} onChange={setNewAgendaMañana}
+                onAdd={() => {
+                  const e = newAgendaMañana.trim().toLowerCase();
+                  if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
+                  if (agendaMañana.destinatarios.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
+                  setAgendaMañana(p => ({ ...p, destinatarios: [...p.destinatarios, e] }));
+                  setNewAgendaMañana(''); setEmailErr(''); setSaved(false);
+                }}
+              />
+            </div>
           </div>
-          <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
-            <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-600 leading-relaxed">
-              Los recordatorios se envían una vez al día en la hora configurada. Los cambios aplican desde la próxima hora en punto.
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Destinatarios agenda completa */}
+      {/* Incluir visitas atrasadas */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+        <div className="px-6 py-4"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Mail size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-700">Destinatarios — Agenda diaria completa</p>
-            <p className="text-xs text-slate-400">Reciben el resumen de todas las visitas del día siguiente</p>
-          </div>
-        </div>
-        <div className="p-6">
-          <EmailList
-            list={destinatariosAgenda}
-            onRemove={e => removeFromList(setDestinatariosAgenda, e)}
-            value={newAgenda} onChange={setNewAgenda}
-            onAdd={() => addToList(destinatariosAgenda, setDestinatariosAgenda, newAgenda, setNewAgenda)}
-          />
-        </div>
-      </div>
-
-      {/* Destinatarios alerta de atrasadas */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
-          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500">
-            <Bell size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-700">Destinatarios — Alerta de visitas atrasadas</p>
-            <p className="text-xs text-slate-400">Reciben la alerta diaria de visitas con fecha vencida</p>
-          </div>
-        </div>
-        <div className="p-6">
-          <EmailList
-            list={destinatariosAtrasadas}
-            onRemove={e => removeFromList(setDestinatariosAtrasadas, e)}
-            value={newAtrasada} onChange={setNewAtrasada}
-            onAdd={() => addToList(destinatariosAtrasadas, setDestinatariosAtrasadas, newAtrasada, setNewAtrasada)}
-          />
+          <label className="flex items-start gap-4 cursor-pointer">
+            <input type="checkbox" checked={incluirAtrasadas}
+              onChange={e => { setIncluirAtrasadas(e.target.checked); setSaved(false); }}
+              className="mt-0.5 w-4 h-4 rounded accent-pink-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-slate-700">Incluir visitas atrasadas en la agenda</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Si está activo, al final de cada agenda se lista las visitas con fecha vencida.
+                Los técnicos solo ven sus propias visitas atrasadas.
+              </p>
+            </div>
+          </label>
         </div>
       </div>
 
