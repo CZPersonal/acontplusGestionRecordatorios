@@ -128,111 +128,8 @@ async function getTenantConfig(db, tenantId, configCache) {
   return configCache[tenantId];
 }
 
-// ─── 1. Recordatorios diarios de visitas por email (admin) ───────────────────
-// Se ejecuta cada hora en zona horaria Ecuador.
-// Solo envía en la hora configurada en Firestore (horaRecordatorioAdmin, default 8).
-// Incluye CC a los correos adicionales configurados en ccCorreos.
-exports.sendDailyReminders = onSchedule(
-  {
-    schedule:  'every 1 hours',
-    timeZone:  'America/Guayaquil',
-    secrets:   [resendApiKey],
-    region:    'us-central1',
-  },
-  async () => {
-    const db          = getFirestore();
-    const resend      = new Resend(resendApiKey.value());
-    const tomorrowStr = getTomorrowEcuador();
-    const currentHour = getCurrentHourEcuador();
-
-    const snap = await db
-      .collectionGroup('visits')
-      .where('scheduledDate', '==', tomorrowStr)
-      .where('status', '==', 'Programada')
-      .get();
-
-    if (snap.empty) {
-      console.log(`sendDailyReminders: sin visitas para ${tomorrowStr}`);
-      return;
-    }
-
-    // Agrupar por tenant para leer config de cada uno una sola vez
-    const byTenant = {};
-    snap.docs.forEach(visitDoc => {
-      const tenantId = visitDoc.ref.path.split('/')[1];
-      if (!byTenant[tenantId]) byTenant[tenantId] = [];
-      byTenant[tenantId].push(visitDoc);
-    });
-
-    const configCache = {};
-    let totalSent = 0;
-
-    const tenantJobs = Object.entries(byTenant).map(async ([tenantId, visitDocs]) => {
-      const config    = await getTenantConfig(db, tenantId, configCache);
-      const horaAdmin = config.horaRecordatorioAdmin ?? 8;
-      if (currentHour !== horaAdmin) return;
-
-      const ccCorreos = (config.ccCorreos || []).filter(e => e && e.includes('@'));
-
-      const sends = visitDocs.map(async (visitDoc) => {
-        const visit    = visitDoc.data();
-        const taskRef  = visitDoc.ref.parent.parent;
-        const taskSnap = await taskRef.get();
-        if (!taskSnap.exists) return;
-        const task = taskSnap.data();
-
-        const to = task.createdBy;
-        if (!to || !to.includes('@')) return;
-
-        const cc = ccCorreos.filter(e => e !== to);
-
-        await resend.emails.send({
-          from:    getFromEmail(config.empresaNombre),
-          to:      [to],
-          ...(cc.length > 0 ? { cc } : {}),
-          subject: `Recordatorio: visita mañana con ${task.clientName}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-              <h2 style="color:#D61672;">Recordatorio de visita</h2>
-              <table style="border-collapse:collapse;width:100%;">
-                <tr><td style="padding:6px 0;color:#555;">Cliente</td>
-                    <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-                ${task.identification
-                  ? `<tr><td style="padding:6px 0;color:#555;">Cédula/RUC</td>
-                         <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
-                ${task.clientPhone
-                  ? `<tr><td style="padding:6px 0;color:#555;">Teléfono</td>
-                         <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
-                <tr><td style="padding:6px 0;color:#555;">Fecha</td>
-                    <td style="padding:6px 0;">${escHtml(visit.scheduledDate)}</td></tr>
-                ${visit.scheduledTime
-                  ? `<tr><td style="padding:6px 0;color:#555;">Hora</td>
-                         <td style="padding:6px 0;">${escHtml(visit.scheduledTime)}</td></tr>` : ''}
-                ${visit.technician
-                  ? `<tr><td style="padding:6px 0;color:#555;">Técnico</td>
-                         <td style="padding:6px 0;">${escHtml(visit.technician)}</td></tr>` : ''}
-                ${task.serviceOrder
-                  ? `<tr><td style="padding:6px 0;color:#555;">Orden</td>
-                         <td style="padding:6px 0;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-                ${visit.observations
-                  ? `<tr><td style="padding:6px 0;color:#555;">Observaciones</td>
-                         <td style="padding:6px 0;">${escHtml(visit.observations)}</td></tr>` : ''}
-              </table>
-              <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-              <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-            </div>
-          `,
-        });
-        totalSent++;
-      });
-
-      await Promise.allSettled(sends);
-    });
-
-    await Promise.allSettled(tenantJobs);
-    console.log(`sendDailyReminders: ${totalSent} enviados — ${tomorrowStr} — hora ${currentHour}h Ecuador`);
-  }
-);
+// sendDailyReminders eliminado: fusionado en sendTechnicianDailyAgenda
+// (destinatariosAgenda reciben ahora el resumen completo de visitas del día siguiente)
 
 // ─── 2. Notificación push al crear una visita urgente ─────────────────────────
 // Dispara cuando se crea cualquier documento en una subcollección 'visits'.
@@ -378,10 +275,11 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
   }
 );
 
-// ─── 4. Agenda diaria de visitas por técnico ─────────────────────────────────
-// Se ejecuta cada hora en zona horaria Ecuador.
-// Solo envía en la hora configurada en Firestore (horaRecordatorioTecnicos, default 7).
-// Agrupa las visitas de mañana por técnico y envía UN solo email por técnico.
+// ─── 4. Agenda diaria de visitas ─────────────────────────────────────────────
+// Se ejecuta cada hora en zona horaria Ecuador (hora configurada en horaRecordatorioTecnicos).
+// Solo actúa si recordatoriosActivo !== false.
+// - Por técnico: un email con sus visitas asignadas para mañana.
+// - Destinatarios adicionales (destinatariosAgenda): un email con TODAS las visitas.
 exports.sendTechnicianDailyAgenda = onSchedule(
   {
     schedule: 'every 1 hours',
@@ -406,7 +304,6 @@ exports.sendTechnicianDailyAgenda = onSchedule(
       return;
     }
 
-    // Agrupar por tenant para leer config de cada uno una sola vez
     const byTenant = {};
     snap.docs.forEach(visitDoc => {
       const tenantId = visitDoc.ref.path.split('/')[1];
@@ -417,65 +314,65 @@ exports.sendTechnicianDailyAgenda = onSchedule(
     const configCache = {};
     let totalSent = 0;
 
+    const buildAgendaRow = (visit, task) => {
+      const urgencyColor = { Alta: '#dc2626', Media: '#d97706', Baja: '#16a34a' }[visit.urgency] || '#64748b';
+      return `
+        <tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:10px 8px;vertical-align:top;color:#D61672;font-weight:bold;white-space:nowrap;width:64px;">
+            ${escHtml(visit.scheduledTime || '—')}
+          </td>
+          <td style="padding:10px 8px;vertical-align:top;">
+            <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
+            ${task.clientAddress  ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+            ${task.identification ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
+            ${task.clientPhone    ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
+            ${visit.technician    ? `<span style="color:#64748b;font-size:13px;">👷 ${escHtml(visit.technician)}</span>` : ''}
+            ${visit.type          ? `<span style="color:#64748b;font-size:13px;margin-left:${visit.technician ? '8' : '0'}px;">${escHtml(visit.type)}</span>` : ''}
+            ${visit.urgency       ? `<span style="color:${urgencyColor};font-size:12px;font-weight:bold;margin-left:8px;">● ${escHtml(visit.urgency)}</span>` : ''}
+            ${visit.observations  ? `<br><span style="color:#94a3b8;font-size:12px;font-style:italic;">📝 ${escHtml(visit.observations)}</span>` : ''}
+          </td>
+        </tr>
+      `;
+    };
+
     const tenantJobs = Object.entries(byTenant).map(async ([tenantId, visitDocs]) => {
       const config   = await getTenantConfig(db, tenantId, configCache);
+      if (config.recordatoriosActivo === false) return;
       const horaTech = config.horaRecordatorioTecnicos ?? 7;
       if (currentHour !== horaTech) return;
 
-      // Construir agenda agrupada por email de técnico
       const agendaByTech = {};
-      const loaders = visitDocs.map(async (visitDoc) => {
-        const visit = visitDoc.data();
-        const emailTecnico = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
-        if (!emailTecnico) return;
+      const allEntries   = [];
 
+      const loaders = visitDocs.map(async (visitDoc) => {
+        const visit    = visitDoc.data();
         const taskRef  = visitDoc.ref.parent.parent;
         const taskSnap = await taskRef.get();
         if (!taskSnap.exists) return;
         const task = taskSnap.data();
 
-        if (!agendaByTech[emailTecnico]) agendaByTech[emailTecnico] = [];
-        agendaByTech[emailTecnico].push({ visit, task });
+        allEntries.push({ visit, task });
+
+        const emailTecnico = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+        if (emailTecnico) {
+          if (!agendaByTech[emailTecnico]) agendaByTech[emailTecnico] = [];
+          agendaByTech[emailTecnico].push({ visit, task });
+        }
       });
 
       await Promise.allSettled(loaders);
 
-      const techEmails = Object.keys(agendaByTech);
-      if (techEmails.length === 0) return;
+      const sortByTime = (a, b) => {
+        if (!a.visit.scheduledTime) return 1;
+        if (!b.visit.scheduledTime) return -1;
+        return a.visit.scheduledTime.localeCompare(b.visit.scheduledTime);
+      };
 
-      const sends = techEmails.map(async (techEmail) => {
-        const entries = agendaByTech[techEmail].sort((a, b) => {
-          if (!a.visit.scheduledTime) return 1;
-          if (!b.visit.scheduledTime) return -1;
-          return a.visit.scheduledTime.localeCompare(b.visit.scheduledTime);
-        });
-
-        const count = entries.length;
-        const rows  = entries.map(({ visit, task }) => {
-          const urgencyColor = { Alta: '#dc2626', Media: '#d97706', Baja: '#16a34a' }[visit.urgency] || '#64748b';
-          return `
-            <tr style="border-top:1px solid #f1f5f9;">
-              <td style="padding:10px 8px;vertical-align:top;color:#D61672;font-weight:bold;white-space:nowrap;width:64px;">
-                ${escHtml(visit.scheduledTime || '—')}
-              </td>
-              <td style="padding:10px 8px;vertical-align:top;">
-                <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
-                ${task.clientAddress
-                  ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
-                ${task.identification
-                  ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
-                ${task.clientPhone
-                  ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
-                ${visit.type
-                  ? `<span style="color:#64748b;font-size:13px;">${escHtml(visit.type)}</span>` : ''}
-                ${visit.urgency
-                  ? `<span style="color:${urgencyColor};font-size:12px;font-weight:bold;margin-left:${visit.type ? '8' : '0'}px;">● ${escHtml(visit.urgency)}</span>` : ''}
-                ${visit.observations
-                  ? `<br><span style="color:#94a3b8;font-size:12px;font-style:italic;">📝 ${escHtml(visit.observations)}</span>` : ''}
-              </td>
-            </tr>
-          `;
-        }).join('');
+      // Email por técnico (agenda personal)
+      const techSends = Object.entries(agendaByTech).map(async ([techEmail, entries]) => {
+        const sorted = entries.sort(sortByTime);
+        const count  = sorted.length;
+        const rows   = sorted.map(({ visit, task }) => buildAgendaRow(visit, task)).join('');
 
         await resend.emails.send({
           from:    getFromEmail(config.empresaNombre),
@@ -485,9 +382,7 @@ exports.sendTechnicianDailyAgenda = onSchedule(
             <div style="font-family:sans-serif;max-width:520px;margin:auto;">
               <h2 style="color:#D61672;">Tu agenda para mañana</h2>
               <p style="color:#555;">${escHtml(tomorrowStr)} · ${count} visita${count !== 1 ? 's' : ''} programada${count !== 1 ? 's' : ''}</p>
-              <table style="border-collapse:collapse;width:100%;">
-                ${rows}
-              </table>
+              <table style="border-collapse:collapse;width:100%;">${rows}</table>
               <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
               <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
             </div>
@@ -496,11 +391,35 @@ exports.sendTechnicianDailyAgenda = onSchedule(
         totalSent++;
       });
 
-      await Promise.allSettled(sends);
+      await Promise.allSettled(techSends);
+
+      // Email de agenda completa a destinatariosAgenda
+      const destAgenda = (config.destinatariosAgenda || []).filter(e => e && e.includes('@'));
+      if (destAgenda.length > 0 && allEntries.length > 0) {
+        const sorted = allEntries.sort(sortByTime);
+        const count  = sorted.length;
+        const rows   = sorted.map(({ visit, task }) => buildAgendaRow(visit, task)).join('');
+
+        await resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      destAgenda,
+          subject: `Agenda completa mañana — ${count} visita${count !== 1 ? 's' : ''} programada${count !== 1 ? 's' : ''}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:520px;margin:auto;">
+              <h2 style="color:#D61672;">Agenda completa para mañana</h2>
+              <p style="color:#555;">${escHtml(tomorrowStr)} · ${count} visita${count !== 1 ? 's' : ''} programada${count !== 1 ? 's' : ''}</p>
+              <table style="border-collapse:collapse;width:100%;">${rows}</table>
+              <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+              <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
+            </div>
+          `,
+        });
+        totalSent++;
+      }
     });
 
     await Promise.allSettled(tenantJobs);
-    console.log(`sendTechnicianDailyAgenda: ${totalSent} técnico(s) notificados — ${tomorrowStr} — hora ${currentHour}h Ecuador`);
+    console.log(`sendTechnicianDailyAgenda: ${totalSent} email(s) enviados — ${tomorrowStr} — hora ${currentHour}h Ecuador`);
   }
 );
 
@@ -639,88 +558,67 @@ exports.sendOverdueAlert = onSchedule(
 
     const tenantJobs = Object.entries(byTenant).map(async ([tenantId, visitDocs]) => {
       const config     = await getTenantConfig(db, tenantId, configCache);
+      if (config.recordatoriosActivo === false) return;
       const horaAlerta = config.horaAlertaAtrasadas ?? 9;
       if (currentHour !== horaAlerta) return;
 
-      const ccCorreos = (config.ccCorreos || []).filter(e => e && e.includes('@'));
+      const destAtrasadas = (config.destinatariosAtrasadas || []).filter(e => e && e.includes('@'));
+      if (destAtrasadas.length === 0) return;
 
-      // Cargar tareas padre y agrupar por admin
-      const byAdmin = {};
+      // Cargar tareas y construir lista unificada de visitas atrasadas
+      const entries = [];
       const loaders = visitDocs.map(async (visitDoc) => {
         const visit    = visitDoc.data();
         const taskRef  = visitDoc.ref.parent.parent;
         const taskSnap = await taskRef.get();
         if (!taskSnap.exists) return;
-        const task  = taskSnap.data();
-        const admin = task.createdBy;
-        if (!admin || !admin.includes('@')) return;
-
-        if (!byAdmin[admin]) byAdmin[admin] = [];
-        byAdmin[admin].push({ visit, task });
+        entries.push({ visit, task: taskSnap.data() });
       });
 
       await Promise.allSettled(loaders);
+      if (entries.length === 0) return;
 
-      const adminEmails = Object.keys(byAdmin);
-      if (adminEmails.length === 0) return;
+      const sorted = entries.sort((a, b) =>
+        (a.visit.scheduledDate || '').localeCompare(b.visit.scheduledDate || '')
+      );
+      const count = sorted.length;
 
-      const sends = adminEmails.map(async (adminEmail) => {
-        // Ordenar por fecha ascendente (las más atrasadas primero)
-        const entries = byAdmin[adminEmail].sort((a, b) =>
-          (a.visit.scheduledDate || '').localeCompare(b.visit.scheduledDate || '')
-        );
+      const rows = sorted.map(({ visit, task }) => `
+        <tr style="border-top:1px solid #f1f5f9;">
+          <td style="padding:10px 8px;vertical-align:top;color:#dc2626;font-weight:bold;white-space:nowrap;width:96px;">
+            ${escHtml(visit.scheduledDate)}
+          </td>
+          <td style="padding:10px 8px;vertical-align:top;">
+            <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
+            ${task.clientAddress  ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+            ${task.identification ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
+            ${task.clientPhone    ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
+            ${visit.type          ? `<span style="color:#64748b;font-size:13px;">${escHtml(visit.type)}</span>` : ''}
+            ${visit.technician    ? `<span style="color:#64748b;font-size:13px;margin-left:${visit.type ? '8' : '0'}px;">👷 ${escHtml(visit.technician)}</span>` : ''}
+            ${visit.observations  ? `<br><span style="color:#94a3b8;font-size:12px;font-style:italic;">📝 ${escHtml(visit.observations)}</span>` : ''}
+          </td>
+        </tr>
+      `).join('');
 
-        const count = entries.length;
-        const cc    = ccCorreos.filter(e => e !== adminEmail);
-
-        const rows = entries.map(({ visit, task }) => `
-          <tr style="border-top:1px solid #f1f5f9;">
-            <td style="padding:10px 8px;vertical-align:top;color:#dc2626;font-weight:bold;white-space:nowrap;width:96px;">
-              ${escHtml(visit.scheduledDate)}
-            </td>
-            <td style="padding:10px 8px;vertical-align:top;">
-              <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
-              ${task.clientAddress
-                ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
-              ${task.identification
-                ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
-              ${task.clientPhone
-                ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
-              ${visit.type
-                ? `<span style="color:#64748b;font-size:13px;">${escHtml(visit.type)}</span>` : ''}
-              ${visit.technician
-                ? `<span style="color:#64748b;font-size:13px;margin-left:${visit.type ? '8' : '0'}px;">👷 ${escHtml(visit.technician)}</span>` : ''}
-              ${visit.observations
-                ? `<br><span style="color:#94a3b8;font-size:12px;font-style:italic;">📝 ${escHtml(visit.observations)}</span>` : ''}
-            </td>
-          </tr>
-        `).join('');
-
-        await resend.emails.send({
-          from:    getFromEmail(config.empresaNombre),
-          to:      [adminEmail],
-          ...(cc.length > 0 ? { cc } : {}),
-          subject: `⚠️ ${count} visita${count !== 1 ? 's' : ''} atrasada${count !== 1 ? 's' : ''} sin realizar`,
-          html: `
-            <div style="font-family:sans-serif;max-width:520px;margin:auto;">
-              <h2 style="color:#dc2626;">⚠️ Visitas atrasadas</h2>
-              <p style="color:#555;">${count} visita${count !== 1 ? 's' : ''} con fecha vencida al ${escHtml(todayStr)}.</p>
-              <table style="border-collapse:collapse;width:100%;">
-                ${rows}
-              </table>
-              <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-              <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-            </div>
-          `,
-        });
-        totalSent++;
+      await resend.emails.send({
+        from:    getFromEmail(config.empresaNombre),
+        to:      destAtrasadas,
+        subject: `⚠️ ${count} visita${count !== 1 ? 's' : ''} atrasada${count !== 1 ? 's' : ''} sin realizar`,
+        html: `
+          <div style="font-family:sans-serif;max-width:520px;margin:auto;">
+            <h2 style="color:#dc2626;">⚠️ Visitas atrasadas</h2>
+            <p style="color:#555;">${count} visita${count !== 1 ? 's' : ''} con fecha vencida al ${escHtml(todayStr)}.</p>
+            <table style="border-collapse:collapse;width:100%;">${rows}</table>
+            <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+            <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
+          </div>
+        `,
       });
-
-      await Promise.allSettled(sends);
+      totalSent++;
     });
 
     await Promise.allSettled(tenantJobs);
-    console.log(`sendOverdueAlert: ${totalSent} admin(s) notificados — hora ${currentHour}h Ecuador`);
+    console.log(`sendOverdueAlert: ${totalSent} email(s) enviados — hora ${currentHour}h Ecuador`);
   }
 );
 

@@ -424,50 +424,59 @@ function TabEntidad({ user }) {
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
-  const [horaTech,   setHoraTech]   = useState(7);
-  const [horaAdmin,  setHoraAdmin]  = useState(8);
-  const [horaAlerta, setHoraAlerta] = useState(9);
-  const [ccCorreos,  setCcCorreos]  = useState([]);
-  const [newEmail,  setNewEmail]  = useState('');
-  const [emailErr,  setEmailErr]  = useState('');
-  const [saved,     setSaved]     = useState(false);
-  const [error,     setError]     = useState('');
+  const [recordatoriosActivo,  setRecordatoriosActivo]  = useState(true);
+  const [horaTech,             setHoraTech]             = useState(7);
+  const [horaAlerta,           setHoraAlerta]           = useState(9);
+  const [ccCorreos,            setCcCorreos]            = useState([]);
+  const [destinatariosAgenda,  setDestinatariosAgenda]  = useState([]);
+  const [destinatariosAtrasadas, setDestinatariosAtrasadas] = useState([]);
+
+  const [newCc,       setNewCc]       = useState('');
+  const [newAgenda,   setNewAgenda]   = useState('');
+  const [newAtrasada, setNewAtrasada] = useState('');
+  const [emailErr,    setEmailErr]    = useState('');
+  const [saved,       setSaved]       = useState(false);
+  const [error,       setError]       = useState('');
 
   const [notifPre,    setNotifPre]    = useState({ activo: false, minutosAntes: 30,   destinatarios: ['tecnico'] });
   const [notifRetard, setNotifRetard] = useState({ activo: false, minutosRetraso: 30, destinatarios: ['admin']   });
 
   useEffect(() => {
     if (!config) return;
+    setRecordatoriosActivo(config.recordatoriosActivo !== false);
     setHoraTech(config.horaRecordatorioTecnicos ?? 7);
-    setHoraAdmin(config.horaRecordatorioAdmin   ?? 8);
     setHoraAlerta(config.horaAlertaAtrasadas    ?? 9);
     setCcCorreos(config.ccCorreos || []);
+    setDestinatariosAgenda(config.destinatariosAgenda   || []);
+    setDestinatariosAtrasadas(config.destinatariosAtrasadas || []);
     if (config.notifPrevisita) setNotifPre(prev => ({ ...prev, ...config.notifPrevisita }));
     if (config.notifRetraso)   setNotifRetard(prev => ({ ...prev, ...config.notifRetraso }));
   }, [config]);
 
-  const addEmail = () => {
-    const e = newEmail.trim().toLowerCase();
+  const addToList = (list, setList, val, setVal) => {
+    const e = val.trim().toLowerCase();
     if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
-    if (ccCorreos.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
-    setCcCorreos(prev => [...prev, e]);
-    setNewEmail('');
+    if (list.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
+    setList(prev => [...prev, e]);
+    setVal('');
     setEmailErr('');
     setSaved(false);
   };
 
-  const removeEmail = (email) => {
-    setCcCorreos(prev => prev.filter(e => e !== email));
+  const removeFromList = (setList, email) => {
+    setList(prev => prev.filter(e => e !== email));
     setSaved(false);
   };
 
   const handleSave = async () => {
     setError('');
     const ok = await saveConfig({
+      recordatoriosActivo,
       horaRecordatorioTecnicos: horaTech,
-      horaRecordatorioAdmin:    horaAdmin,
       horaAlertaAtrasadas:      horaAlerta,
       ccCorreos,
+      destinatariosAgenda,
+      destinatariosAtrasadas,
       notifPrevisita: notifPre,
       notifRetraso:   notifRetard,
     });
@@ -492,8 +501,66 @@ function TabNotificaciones({ user }) {
     </div>
   );
 
+  const EmailList = ({ list, onRemove, value, onChange, onAdd, placeholder }) => (
+    <div className="space-y-3">
+      {list.length > 0 ? (
+        <div className="space-y-2">
+          {list.map(email => (
+            <div key={email} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-sm text-slate-700 font-mono">{email}</span>
+              <button onClick={() => onRemove(email)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 text-center py-1">Sin correos configurados</p>
+      )}
+      <div className="flex gap-2">
+        <input type="email" value={value}
+          onChange={e => { onChange(e.target.value); setEmailErr(''); setSaved(false); }}
+          onKeyDown={e => e.key === 'Enter' && onAdd()}
+          placeholder={placeholder || 'correo@ejemplo.com'}
+          className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
+          onFocus={e => e.target.style.borderColor = '#D61672'}
+          onBlur={e => e.target.style.borderColor  = '#e2e8f0'} />
+        <button onClick={onAdd}
+          className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          Agregar
+        </button>
+      </div>
+      {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+
+      {/* Toggle maestro */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Bell size={15} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-700">Recordatorios diarios</p>
+              <p className="text-xs text-slate-400">Activa o desactiva todos los recordatorios diarios</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${recordatoriosActivo ? 'bg-pink-500' : 'bg-slate-300'}`}
+              onClick={() => { setRecordatoriosActivo(p => !p); setSaved(false); }}>
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recordatoriosActivo ? 'translate-x-5' : ''}`} />
+            </div>
+            <span className="text-xs font-semibold text-slate-600">{recordatoriosActivo ? 'Activos' : 'Inactivos'}</span>
+          </label>
+        </div>
+      </div>
 
       {/* Horarios de envío */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -504,26 +571,16 @@ function TabNotificaciones({ user }) {
             <Clock size={15} className="text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-700">Horarios de recordatorios</p>
+            <p className="text-sm font-bold text-slate-700">Horarios de envío</p>
             <p className="text-xs text-slate-400">Hora Ecuador (UTC-5) en que se envían los emails diarios</p>
           </div>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={lbl}>Agenda a técnicos</label>
+              <label className={lbl}>Agenda a técnicos y destinatarios</label>
               <select value={horaTech}
                 onChange={e => { setHoraTech(Number(e.target.value)); setSaved(false); }}
-                className={`${inp} bg-white`}
-                onFocus={e => e.target.style.borderColor = '#D61672'}
-                onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
-                {HORAS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={lbl}>Recordatorio al admin</label>
-              <select value={horaAdmin}
-                onChange={e => { setHoraAdmin(Number(e.target.value)); setSaved(false); }}
                 className={`${inp} bg-white`}
                 onFocus={e => e.target.style.borderColor = '#D61672'}
                 onBlur={e => e.target.style.borderColor  = '#e2e8f0'}>
@@ -550,7 +607,7 @@ function TabNotificaciones({ user }) {
         </div>
       </div>
 
-      {/* CC para emails del admin */}
+      {/* Destinatarios agenda completa */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
@@ -559,44 +616,62 @@ function TabNotificaciones({ user }) {
             <Mail size={15} className="text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-700">Copias (CC) en recordatorios al admin</p>
-            <p className="text-xs text-slate-400">Estos correos recibirán copia de cada recordatorio diario</p>
+            <p className="text-sm font-bold text-slate-700">Destinatarios — Agenda diaria completa</p>
+            <p className="text-xs text-slate-400">Reciben el resumen de todas las visitas del día siguiente</p>
           </div>
         </div>
-        <div className="p-6 space-y-4">
-          {ccCorreos.length > 0 ? (
-            <div className="space-y-2">
-              {ccCorreos.map(email => (
-                <div key={email} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-sm text-slate-700 font-mono">{email}</span>
-                  <button onClick={() => removeEmail(email)}
-                    className="ml-2 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-slate-400 text-center py-2">Sin correos adicionales configurados</p>
-          )}
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={newEmail}
-              onChange={e => { setNewEmail(e.target.value); setEmailErr(''); setSaved(false); }}
-              onKeyDown={e => e.key === 'Enter' && addEmail()}
-              placeholder="correo@ejemplo.com"
-              className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
-              onFocus={e => e.target.style.borderColor = '#D61672'}
-              onBlur={e => e.target.style.borderColor  = '#e2e8f0'}
-            />
-            <button onClick={addEmail}
-              className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-              Agregar
-            </button>
+        <div className="p-6">
+          <EmailList
+            list={destinatariosAgenda}
+            onRemove={e => removeFromList(setDestinatariosAgenda, e)}
+            value={newAgenda} onChange={setNewAgenda}
+            onAdd={() => addToList(destinatariosAgenda, setDestinatariosAgenda, newAgenda, setNewAgenda)}
+          />
+        </div>
+      </div>
+
+      {/* Destinatarios alerta de atrasadas */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500">
+            <Bell size={15} className="text-white" />
           </div>
-          {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+          <div>
+            <p className="text-sm font-bold text-slate-700">Destinatarios — Alerta de visitas atrasadas</p>
+            <p className="text-xs text-slate-400">Reciben la alerta diaria de visitas con fecha vencida</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <EmailList
+            list={destinatariosAtrasadas}
+            onRemove={e => removeFromList(setDestinatariosAtrasadas, e)}
+            value={newAtrasada} onChange={setNewAtrasada}
+            onAdd={() => addToList(destinatariosAtrasadas, setDestinatariosAtrasadas, newAtrasada, setNewAtrasada)}
+          />
+        </div>
+      </div>
+
+      {/* CC para confirmación de visita completada */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Mail size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">Copias (CC) — Confirmación de visita realizada</p>
+            <p className="text-xs text-slate-400">Estos correos reciben copia cuando se completa una visita</p>
+          </div>
+        </div>
+        <div className="p-6">
+          <EmailList
+            list={ccCorreos}
+            onRemove={e => removeFromList(setCcCorreos, e)}
+            value={newCc} onChange={setNewCc}
+            onAdd={() => addToList(ccCorreos, setCcCorreos, newCc, setNewCc)}
+          />
         </div>
       </div>
 
