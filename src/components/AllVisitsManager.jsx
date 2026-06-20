@@ -5,6 +5,7 @@ import { getVisitsRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { useTecnicos } from '../hooks/useTecnicos';
 import VisitsModal from './VisitsModal.jsx';
+import VisitsReport from './VisitsReport.jsx';
 import { formatDateOnly } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
@@ -134,14 +135,18 @@ function CompleteVisitModal({ visit, task, user, onClose }) {
 // ─── Componente principal ────────────────────────────────────────────────────
 
 export default function AllVisitsManager({ user }) {
-  const tasks          = useAppStore(s => s.tasks);
-  const addToast       = useAppStore(s => s.addToast);
-  const handleEdit     = useAppStore(s => s.handleEdit);
-  const handleDelete   = useAppStore(s => s.handleDelete);
-  const handleComplete = useAppStore(s => s.handleComplete);
-  const setEditingTask = useAppStore(s => s.setEditingTask);
-  const setActiveTab   = useAppStore(s => s.setActiveTab);
-  const { tecnicos }   = useTecnicos(user);
+  const tasks               = useAppStore(s => s.tasks);
+  const addToast            = useAppStore(s => s.addToast);
+  const handleEdit          = useAppStore(s => s.handleEdit);
+  const handleDelete        = useAppStore(s => s.handleDelete);
+  const handleComplete      = useAppStore(s => s.handleComplete);
+  const setEditingTask      = useAppStore(s => s.setEditingTask);
+  const setActiveTab        = useAppStore(s => s.setActiveTab);
+  const getActiveColumns    = useAppStore(s => s.getActiveColumns);
+  const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
+  const { tecnicos }        = useTecnicos(user);
+
+  const [innerTab, setInnerTab] = useState('gestion'); // 'gestion' | 'historial'
 
   // Filtros
   const [filterTaskStatus, setFilterTaskStatus] = useState('');
@@ -288,6 +293,31 @@ export default function AllVisitsManager({ user }) {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
+  const TAB = 'px-4 py-2 text-sm font-semibold rounded-lg transition-colors';
+  const ACTIVE_TAB = `${TAB} text-white shadow-sm`;
+  const IDLE_TAB = `${TAB} text-slate-500 hover:text-slate-700 hover:bg-slate-100`;
+
+  if (innerTab === 'historial') {
+    return (
+      <div className="space-y-4">
+        {/* Selector de pestañas */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-3 py-2 flex items-center gap-2">
+          <button onClick={() => setInnerTab('gestion')} className={IDLE_TAB}>
+            Gestión
+          </button>
+          <button className={ACTIVE_TAB} style={{ background: '#D61672' }}>
+            Historial
+          </button>
+        </div>
+        <VisitsReport
+          tasks={tasks}
+          exportConfig={getActiveColumns('visits')}
+          onOpenConfig={() => setShowExportConfig(true)}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Modal VisitsModal para agregar / editar visitas */}
@@ -335,6 +365,16 @@ export default function AllVisitsManager({ user }) {
       )}
 
       <div className="space-y-4">
+
+        {/* ── Pestañas ── */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-3 py-2 flex items-center gap-2">
+          <button className={ACTIVE_TAB} style={{ background: '#D61672' }}>
+            Gestión
+          </button>
+          <button onClick={() => setInnerTab('historial')} className={IDLE_TAB}>
+            Historial
+          </button>
+        </div>
 
         {/* ── Header ── */}
         <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
