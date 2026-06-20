@@ -226,9 +226,10 @@ export default function AllVisitsManager({ user }) {
                           )}
                         </div>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
-                          {v.task.clientPhone && <span>📞 {v.task.clientPhone}</span>}
-                          {v.technician      && <span>👷 {v.technician}</span>}
-                          {v.type            && <span>🔧 {v.type}</span>}
+                          {v.task.identification && <span>🪪 {v.task.identification}</span>}
+                          {v.task.clientPhone    && <span>📞 {v.task.clientPhone}</span>}
+                          {v.technician          && <span>👷 {v.technician}</span>}
+                          {v.type                && <span>🔧 {v.type}</span>}
                         </div>
                         {v.observations && (
                           <p className="text-xs text-slate-400 mt-1 italic truncate max-w-md">

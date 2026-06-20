@@ -772,6 +772,12 @@ export default function VisitsModal({ task, user, onClose }) {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
+                {task.identification && (
+                  <div className="flex items-center space-x-1.5 rounded-lg px-3 py-1.5"
+                    style={{ background: 'rgba(255,255,255,0.16)' }}>
+                    <span className="text-xs text-white">🪪 {task.identification}</span>
+                  </div>
+                )}
                 {task.clientPhone && (
                   <div className="flex items-center space-x-1.5 rounded-lg px-3 py-1.5"
                     style={{ background: 'rgba(255,255,255,0.16)' }}>

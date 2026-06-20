@@ -119,6 +119,9 @@ exports.sendDailyReminders = onSchedule(
               <table style="border-collapse:collapse;width:100%;">
                 <tr><td style="padding:6px 0;color:#555;">Cliente</td>
                     <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
+                ${task.identification
+                  ? `<tr><td style="padding:6px 0;color:#555;">Cédula/RUC</td>
+                         <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
                 ${task.clientPhone
                   ? `<tr><td style="padding:6px 0;color:#555;">Teléfono</td>
                          <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
@@ -260,6 +263,9 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
             ${task.clientAddress
               ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
                      <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+            ${task.identification
+              ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td>
+                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
             ${task.clientPhone
               ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
                      <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
@@ -378,6 +384,8 @@ exports.sendTechnicianDailyAgenda = onSchedule(
                 <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
                 ${task.clientAddress
                   ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+                ${task.identification
+                  ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
                 ${task.clientPhone
                   ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
                 ${visit.type
@@ -466,6 +474,9 @@ exports.notifyVisitCompleted = onDocumentUpdated(
             ${task.clientAddress
               ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
                      <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+            ${task.identification
+              ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td>
+                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
             ${task.clientPhone
               ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
                      <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
@@ -593,6 +604,8 @@ exports.sendOverdueAlert = onSchedule(
               <strong style="color:#1e293b;">${escHtml(task.clientName)}</strong><br>
               ${task.clientAddress
                 ? `<span style="color:#64748b;font-size:13px;">📍 ${escHtml(task.clientAddress)}</span><br>` : ''}
+              ${task.identification
+                ? `<span style="color:#64748b;font-size:13px;">🪪 ${escHtml(task.identification)}</span><br>` : ''}
               ${task.clientPhone
                 ? `<span style="color:#64748b;font-size:13px;">📞 ${escHtml(task.clientPhone)}</span><br>` : ''}
               ${visit.type
