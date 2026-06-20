@@ -13,6 +13,7 @@ import ClientsManager from './ClientsManager.jsx';
 import Toast from './Toast.jsx';
 import CalendarView from './CalendarView.jsx';
 import Configuracion from './Configuracion.jsx';
+import AllVisitsManager from './AllVisitsManager.jsx';
 import {
   Home, Wrench, FileText, Bell, BellOff,
   Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings
@@ -80,7 +81,7 @@ export default function AppRouter() {
           <NavItem icon={<Users />}        label="Clientes"   isActive={activeTab === 'clients'}       onClick={() => setActiveTab('clients')} />
           <NavItem icon={<CalendarDays />} label="Calendario" isActive={activeTab === 'calendar'}      onClick={() => setActiveTab('calendar')} />
           <NavItem icon={<FileText />}     label="Reportes"   isActive={activeTab === 'reports'}       onClick={() => setActiveTab('reports')} />
-          <NavItem icon={<ClipboardList />}label="Visitas"    isActive={activeTab === 'visits-report'} onClick={() => setActiveTab('visits-report')} />
+          <NavItem icon={<ClipboardList />}label="Visitas"    isActive={activeTab === 'all-visits'}    onClick={() => setActiveTab('all-visits')} />
           <NavItem icon={<Wallet />}       label="Cobros"     isActive={activeTab === 'billing'}       onClick={() => setActiveTab('billing')} />
           <NavItem icon={<Settings />}     label="Config."    isActive={activeTab === 'config'}        onClick={() => setActiveTab('config')} />
 
@@ -204,6 +205,9 @@ export default function AppRouter() {
             exportConfig={getActiveColumns('visits')}
             onOpenConfig={() => setShowExportConfig(true)}
           />
+        )}
+        {activeTab === 'all-visits' && (
+          <AllVisitsManager user={user} />
         )}
         {activeTab === 'billing' && (
           <BillingReport
