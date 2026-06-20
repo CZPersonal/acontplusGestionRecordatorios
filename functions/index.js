@@ -768,7 +768,7 @@ exports.checkVisitNotifications = onSchedule(
 
       const minutosAntes   = preConfig.minutosAntes     ?? 30;
       const minutosRetraso = overdueConfig.minutosRetraso ?? 30;
-      const baseUrl        = 'https://gestorrecordatorios.web.app';
+      const baseUrl        = 'https://us-central1-gestorrecordatorios.cloudfunctions.net';
 
       const jobs = visitDocs.map(async (visitDoc) => {
         const visit    = visitDoc.data();
@@ -794,7 +794,7 @@ exports.checkVisitNotifications = onSchedule(
           const diff = visitMin - nowMin;
           if (diff >= (minutosAntes - 2) && diff <= (minutosAntes + 3)) {
             const token      = generateConfirmToken(tenantId, taskId, visitId, confirmSecret.value());
-            const confirmUrl = `${baseUrl}/confirmar?t=${encodeURIComponent(token)}`;
+            const confirmUrl = `${baseUrl}/confirmVisitAttendance?t=${encodeURIComponent(token)}`;
 
             const htmlBody = `
               <div style="font-family:sans-serif;max-width:480px;margin:auto;">
@@ -907,6 +907,7 @@ exports.confirmVisitAttendance = onRequest(
   {
     region:  'us-central1',
     secrets: [confirmSecret],
+    invoker: 'public',
   },
   async (req, res) => {
     const token = req.query.t;
