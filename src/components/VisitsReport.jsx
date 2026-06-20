@@ -20,8 +20,14 @@ const formatDateTime = (isoString) => {
 function flattenVisits(tasks) {
   const rows = [];
   tasks.forEach(task => {
+    const sortedByCreation = [...(task.visits || [])].sort(
+      (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+    );
+    const numberMap = Object.fromEntries(sortedByCreation.map((v, i) => [v.id, i + 1]));
+
     (task.visits || []).forEach(visit => {
       rows.push({
+        visitNumber:          numberMap[visit.id] || '',
         visitId:              visit.id,
         scheduledDate:        visit.scheduledDate        || '',
         scheduledTime:        visit.scheduledTime        || '',
@@ -373,6 +379,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">#</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Fecha</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Hora</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Cliente</th>
@@ -397,6 +404,13 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                           isOverdue ? 'border-l-4 border-red-400' :
                           isToday   ? 'border-l-4 border-blue-400' : ''
                         }`}>
+
+                        {/* # */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            #{row.visitNumber}
+                          </span>
+                        </td>
 
                         {/* Fecha */}
                         <td className="px-4 py-3 whitespace-nowrap">
