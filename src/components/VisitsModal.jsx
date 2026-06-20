@@ -442,7 +442,7 @@ function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tec
 }
 
 // ─── Item de visita ────────────────────────────────────────────────────────
-function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdit }) {
+function VisitItem({ visit, task, visitNumber, onComplete, onCancel, onRevert, onAnnul, onEdit }) {
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [closingObs,    setClosingObs]    = useState('');
   const [isLoading,     setIsLoading]     = useState(false);
@@ -493,6 +493,11 @@ function VisitItem({ visit, task, onComplete, onCancel, onRevert, onAnnul, onEdi
 
           {/* Badges de estado + urgencia + Retrasada/Hoy */}
           <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
+            {visitNumber && (
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-slate-100 text-slate-500">
+                #{visitNumber}
+              </span>
+            )}
             <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${statusStyle}`}>
               {visit.status}
             </span>
@@ -681,8 +686,15 @@ export default function VisitsModal({ task, user, onClose }) {
   const sortedVisits = [...visits].sort((a, b) => {
     const da = new Date(a.scheduledDate + 'T' + (a.scheduledTime || '00:00'));
     const db = new Date(b.scheduledDate + 'T' + (b.scheduledTime || '00:00'));
-    return da - db; // ascendente: fecha menor (más cercana) primero
+    return da - db;
   });
+
+  // Número secuencial por orden de creación (independiente del orden de visualización)
+  const visitNumberMap = Object.fromEntries(
+    [...visits]
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0))
+      .map((v, i) => [v.id, i + 1])
+  );
 
   const pendingCount   = visits.filter(v => v.status === 'Programada').length;
   const completedCount = visits.filter(v => v.status === 'Realizada').length;
@@ -857,6 +869,7 @@ export default function VisitsModal({ task, user, onClose }) {
                   key={visit.id}
                   visit={visit}
                   task={task}
+                  visitNumber={visitNumberMap[visit.id]}
                   onComplete={completeVisit}
                   onCancel={cancelVisit}
                   onRevert={revertVisit}

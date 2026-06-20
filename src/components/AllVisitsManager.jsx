@@ -33,9 +33,12 @@ export default function AllVisitsManager({ user }) {
   const [selectedTask,     setSelectedTask]     = useState(null);
 
   const allVisits = useMemo(() =>
-    tasks.flatMap(task =>
-      (task.visits || []).map(visit => ({ ...visit, task }))
-    ), [tasks]);
+    tasks.flatMap(task => {
+      const sorted = [...(task.visits || [])].sort(
+        (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+      );
+      return sorted.map((visit, i) => ({ ...visit, task, visitNumber: i + 1 }));
+    }), [tasks]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -208,6 +211,9 @@ export default function AllVisitsManager({ user }) {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0">
+                            #{v.visitNumber}
+                          </span>
                           <span className="font-semibold text-slate-800 text-sm truncate">
                             {v.task.clientName}
                           </span>
