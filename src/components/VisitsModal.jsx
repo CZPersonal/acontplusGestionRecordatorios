@@ -663,7 +663,7 @@ function VisitItem({ visit, task, visitNumber, onComplete, onCancel, onRevert, o
 }
 
 // ─── Modal principal centrado ──────────────────────────────────────────────
-export default function VisitsModal({ task, user, onClose }) {
+export default function VisitsModal({ task, user, onClose, autoAddForm = false }) {
   // ── Hooks de catálogos ──────────────────────────────────────────────────
   const { tiposParaSelect }   = useTiposVisita(user);
   const { tecnicos }          = useTecnicos(user);
@@ -679,7 +679,7 @@ export default function VisitsModal({ task, user, onClose }) {
     cancelVisit, revertVisit, annulVisit,
   } = useVisits(task, user);
 
-  const [showAddForm,  setShowAddForm]  = useState(false);
+  const [showAddForm,  setShowAddForm]  = useState(autoAddForm);
   const [editingVisit, setEditingVisit] = useState(null);
 
   // ── CAMBIO 3: orden ASCENDENTE — más cercana a hoy primero ────────────────

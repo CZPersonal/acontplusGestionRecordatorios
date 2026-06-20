@@ -153,7 +153,8 @@ export default function AllVisitsManager({ user }) {
   const [search,           setSearch]           = useState('');
 
   // Estado de UI
-  const [visitsModalTask,  setVisitsModalTask]  = useState(null);
+  const [visitsModalTask,  setVisitsModalTask]  = useState(null); // { task, autoAdd }
+
   const [collapsed,        setCollapsed]        = useState({});
   const [loadingVisit,     setLoadingVisit]     = useState(null);
   const [completeModal,    setCompleteModal]    = useState(null); // { task, visit }
@@ -291,7 +292,12 @@ export default function AllVisitsManager({ user }) {
     <>
       {/* Modal VisitsModal para agregar / editar visitas */}
       {visitsModalTask && (
-        <VisitsModal task={visitsModalTask} user={user} onClose={() => setVisitsModalTask(null)} />
+        <VisitsModal
+          task={visitsModalTask.task}
+          user={user}
+          autoAddForm={visitsModalTask.autoAdd}
+          onClose={() => setVisitsModalTask(null)}
+        />
       )}
 
       {/* Modal completar visita */}
@@ -489,7 +495,7 @@ export default function AllVisitsManager({ user }) {
                           </button>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => setVisitsModalTask(task)}
+                          <button onClick={() => setVisitsModalTask({ task, autoAdd: true })}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-colors"
                             style={{ background: '#D61672' }}
                             onMouseEnter={e => e.currentTarget.style.background = '#b91260'}
@@ -594,7 +600,7 @@ export default function AllVisitsManager({ user }) {
                                     </button>
                                   )}
                                   <button
-                                    onClick={() => setVisitsModalTask(task)}
+                                    onClick={() => setVisitsModalTask({ task, autoAdd: false })}
                                     className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
                                     style={{ color: '#D61672', borderColor: '#fce7f3' }}
                                     onMouseEnter={e => e.currentTarget.style.background = '#fdf2f8'}
