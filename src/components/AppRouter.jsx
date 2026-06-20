@@ -76,14 +76,13 @@ export default function AppRouter() {
             </div>
           </div>
 
-          <NavItem icon={<Home />}         label="Panel"      isActive={activeTab === 'dashboard'}     onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<Wrench />}       label="Tareas"     isActive={activeTab === 'list'}          onClick={() => setActiveTab('list')} />
-          <NavItem icon={<Users />}        label="Clientes"   isActive={activeTab === 'clients'}       onClick={() => setActiveTab('clients')} />
-          <NavItem icon={<CalendarDays />} label="Calendario" isActive={activeTab === 'calendar'}      onClick={() => setActiveTab('calendar')} />
-          <NavItem icon={<FileText />}     label="Reportes"   isActive={activeTab === 'reports'}       onClick={() => setActiveTab('reports')} />
-          <NavItem icon={<ClipboardList />}label="Visitas"    isActive={activeTab === 'all-visits'}    onClick={() => setActiveTab('all-visits')} />
-          <NavItem icon={<Wallet />}       label="Cobros"     isActive={activeTab === 'billing'}       onClick={() => setActiveTab('billing')} />
-          <NavItem icon={<Settings />}     label="Config."    isActive={activeTab === 'config'}        onClick={() => setActiveTab('config')} />
+          <NavItem icon={<Home />}         label="Panel"          isActive={activeTab === 'dashboard'}  onClick={() => setActiveTab('dashboard')} />
+          <NavItem icon={<Users />}        label="Clientes"       isActive={activeTab === 'clients'}    onClick={() => setActiveTab('clients')} />
+          <NavItem icon={<CalendarDays />} label="Calendario"     isActive={activeTab === 'calendar'}   onClick={() => setActiveTab('calendar')} />
+          <NavItem icon={<FileText />}     label="Reportes"       isActive={activeTab === 'reports'}    onClick={() => setActiveTab('reports')} />
+          <NavItem icon={<ClipboardList />}label="Tareas - Visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
+          <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}    onClick={() => setActiveTab('billing')} />
+          <NavItem icon={<Settings />}     label="Config."        isActive={activeTab === 'config'}     onClick={() => setActiveTab('config')} />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -154,16 +153,6 @@ export default function AppRouter() {
             notificationPermission={notificationPermission}
             onRequestNotifications={requestNotifications}
             onShowAlerts={showAlerts}
-            user={user}
-          />
-        )}
-        {activeTab === 'list' && (
-          <TaskList
-            tasks={tasks}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onComplete={handleComplete}
-            onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
             user={user}
           />
         )}

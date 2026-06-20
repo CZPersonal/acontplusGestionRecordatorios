@@ -4,7 +4,8 @@ import { db } from '../lib/firebase';
 import { getVisitsRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { useTecnicos } from '../hooks/useTecnicos';
-import VisitsModal from './VisitsModal.jsx';
+import { useTiposVisita } from '../hooks/useTiposVisita';
+import { VisitFormModal } from './VisitsModal.jsx';
 import VisitsReport from './VisitsReport.jsx';
 import { formatDateOnly } from '../utils/dates.js';
 import {
@@ -144,7 +145,8 @@ export default function AllVisitsManager({ user }) {
   const setActiveTab        = useAppStore(s => s.setActiveTab);
   const getActiveColumns    = useAppStore(s => s.getActiveColumns);
   const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
-  const { tecnicos }        = useTecnicos(user);
+  const { tecnicos }         = useTecnicos(user);
+  const { tiposParaSelect }  = useTiposVisita(user);
 
   const [innerTab, setInnerTab] = useState('gestion'); // 'gestion' | 'historial'
 
@@ -157,8 +159,9 @@ export default function AllVisitsManager({ user }) {
   const [filterDateTo,     setFilterDateTo]     = useState('');
   const [search,           setSearch]           = useState('');
 
-  // Estado de UI
-  const [visitsModalTask,  setVisitsModalTask]  = useState(null); // { task, autoAdd }
+  // Estado de UI — formularios de visita
+  const [addVisitTask,  setAddVisitTask]  = useState(null); // task | null
+  const [editVisitData, setEditVisitData] = useState(null); // { task, visit } | null
 
   const [collapsed,        setCollapsed]        = useState({});
   const [loadingVisit,     setLoadingVisit]     = useState(null);
@@ -320,13 +323,61 @@ export default function AllVisitsManager({ user }) {
 
   return (
     <>
-      {/* Modal VisitsModal para agregar / editar visitas */}
-      {visitsModalTask && (
-        <VisitsModal
-          task={visitsModalTask.task}
-          user={user}
-          autoAddForm={visitsModalTask.autoAdd}
-          onClose={() => setVisitsModalTask(null)}
+      {/* Formulario nueva visita */}
+      {addVisitTask && (
+        <VisitFormModal
+          isEdit={false}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicos}
+          onClose={() => setAddVisitTask(null)}
+          onSave={async (formData) => {
+            const newVisit = {
+              id:                  crypto.randomUUID(),
+              scheduledDate:       formData.scheduledDate,
+              scheduledTime:       formData.scheduledTime       || '',
+              type:                formData.type                || '',
+              urgency:             formData.urgency             || 'Media',
+              observations:        formData.observations        || '',
+              technician:          formData.technician          || user.email,
+              technicianEmail:     formData.technicianEmail     || '',
+              status:              'Programada',
+              createdBy:           user.email,
+              createdAt:           new Date().toISOString(),
+              completedAt:         null,
+              completedBy:         null,
+              closingObservations: '',
+            };
+            try {
+              await saveTaskVisits(addVisitTask.id, [...(addVisitTask.visits || []), newVisit]);
+              setAddVisitTask(null);
+            } catch {
+              addToast({ type: 'error', title: '❌ Error', body: 'No se pudo guardar la visita.' });
+            }
+          }}
+        />
+      )}
+
+      {/* Formulario editar visita */}
+      {editVisitData && (
+        <VisitFormModal
+          isEdit={true}
+          initial={editVisitData.visit}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicos}
+          onClose={() => setEditVisitData(null)}
+          onSave={async (formData) => {
+            const updated = (editVisitData.task.visits || []).map(v =>
+              v.id === editVisitData.visit.id
+                ? { ...v, ...formData, updatedAt: new Date().toISOString(), updatedBy: user.email }
+                : v
+            );
+            try {
+              await saveTaskVisits(editVisitData.task.id, updated);
+              setEditVisitData(null);
+            } catch {
+              addToast({ type: 'error', title: '❌ Error', body: 'No se pudo actualizar la visita.' });
+            }
+          }}
         />
       )}
 
@@ -535,7 +586,7 @@ export default function AllVisitsManager({ user }) {
                           </button>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => setVisitsModalTask({ task, autoAdd: true })}
+                          <button onClick={() => setAddVisitTask(task)}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white transition-colors"
                             style={{ background: '#D61672' }}
                             onMouseEnter={e => e.currentTarget.style.background = '#b91260'}
@@ -640,7 +691,7 @@ export default function AllVisitsManager({ user }) {
                                     </button>
                                   )}
                                   <button
-                                    onClick={() => setVisitsModalTask({ task, autoAdd: false })}
+                                    onClick={() => setEditVisitData({ task, visit })}
                                     className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
                                     style={{ color: '#D61672', borderColor: '#fce7f3' }}
                                     onMouseEnter={e => e.currentTarget.style.background = '#fdf2f8'}

@@ -233,7 +233,7 @@ const URGENCY_CONFIG = {
   Baja:  { color: '#16a34a', bg: '#f0fdf4', border: '#86efac', label: '🟢 Baja' },
 };
 
-function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tecnicosParaSelect }) {
+export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tecnicosParaSelect }) {
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   const [formData, setFormData] = useState({
