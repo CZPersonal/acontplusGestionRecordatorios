@@ -687,6 +687,11 @@ export default function AllVisitsManager({ user }) {
                                         {visit.urgency}
                                       </span>
                                     )}
+                                    {visit.technicianConfirmed && (
+                                      <span className="text-xs font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                                        ✅ Confirmada
+                                      </span>
+                                    )}
                                     {isOverdue && (
                                       <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                                         ⚠️ Atrasada

@@ -15,6 +15,13 @@
     ],
     "rewrites": [
       {
+        "source": "/confirmar",
+        "run": {
+          "serviceId": "confirmvisitattendance",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

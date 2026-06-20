@@ -433,12 +433,17 @@ function TabNotificaciones({ user }) {
   const [saved,     setSaved]     = useState(false);
   const [error,     setError]     = useState('');
 
+  const [notifPre,    setNotifPre]    = useState({ activo: false, minutosAntes: 30,   destinatarios: ['tecnico'] });
+  const [notifRetard, setNotifRetard] = useState({ activo: false, minutosRetraso: 30, destinatarios: ['admin']   });
+
   useEffect(() => {
     if (!config) return;
     setHoraTech(config.horaRecordatorioTecnicos ?? 7);
     setHoraAdmin(config.horaRecordatorioAdmin   ?? 8);
     setHoraAlerta(config.horaAlertaAtrasadas    ?? 9);
     setCcCorreos(config.ccCorreos || []);
+    if (config.notifPrevisita) setNotifPre(prev => ({ ...prev, ...config.notifPrevisita }));
+    if (config.notifRetraso)   setNotifRetard(prev => ({ ...prev, ...config.notifRetraso }));
   }, [config]);
 
   const addEmail = () => {
@@ -463,6 +468,8 @@ function TabNotificaciones({ user }) {
       horaRecordatorioAdmin:    horaAdmin,
       horaAlertaAtrasadas:      horaAlerta,
       ccCorreos,
+      notifPrevisita: notifPre,
+      notifRetraso:   notifRetard,
     });
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
     else setError('Error al guardar. Verifica tu conexión.');
@@ -591,6 +598,134 @@ function TabNotificaciones({ user }) {
           </div>
           {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
         </div>
+      </div>
+
+      {/* Notificación pre-visita */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Bell size={15} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-700">Notificación pre-visita</p>
+              <p className="text-xs text-slate-400">Avisa minutos antes de la hora programada de la visita</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${notifPre.activo ? 'bg-pink-500' : 'bg-slate-300'}`}
+              onClick={() => { setNotifPre(p => ({ ...p, activo: !p.activo })); setSaved(false); }}>
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifPre.activo ? 'translate-x-5' : ''}`} />
+            </div>
+            <span className="text-xs font-semibold text-slate-600">{notifPre.activo ? 'Activo' : 'Inactivo'}</span>
+          </label>
+        </div>
+        {notifPre.activo && (
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={lbl}>Minutos antes</label>
+                <input type="number" min={5} max={120}
+                  value={notifPre.minutosAntes}
+                  onChange={e => { setNotifPre(p => ({ ...p, minutosAntes: Number(e.target.value) })); setSaved(false); }}
+                  className={`${inp} font-mono`}
+                  onFocus={e => e.target.style.borderColor = '#D61672'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label className={lbl}>Destinatarios</label>
+                <div className="flex flex-col gap-2 mt-1">
+                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '👤 Admin' }].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox"
+                        checked={notifPre.destinatarios.includes(key)}
+                        onChange={e => {
+                          setNotifPre(p => ({
+                            ...p,
+                            destinatarios: e.target.checked
+                              ? [...p.destinatarios, key]
+                              : p.destinatarios.filter(d => d !== key),
+                          }));
+                          setSaved(false);
+                        }}
+                        className="w-4 h-4 rounded accent-pink-600" />
+                      <span className="text-sm text-slate-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
+              <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-600 leading-relaxed">
+                El técnico recibirá un botón <strong>«Confirmar mi asistencia»</strong> en el email.
+                Al hacer clic queda registrado en la visita.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Notificación de retraso */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500">
+              <Clock size={15} className="text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-700">Notificación de retraso</p>
+              <p className="text-xs text-slate-400">Alerta cuando la visita lleva X minutos sin registrarse</p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${notifRetard.activo ? 'bg-red-500' : 'bg-slate-300'}`}
+              onClick={() => { setNotifRetard(p => ({ ...p, activo: !p.activo })); setSaved(false); }}>
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${notifRetard.activo ? 'translate-x-5' : ''}`} />
+            </div>
+            <span className="text-xs font-semibold text-slate-600">{notifRetard.activo ? 'Activo' : 'Inactivo'}</span>
+          </label>
+        </div>
+        {notifRetard.activo && (
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={lbl}>Minutos de retraso</label>
+                <input type="number" min={5} max={240}
+                  value={notifRetard.minutosRetraso}
+                  onChange={e => { setNotifRetard(p => ({ ...p, minutosRetraso: Number(e.target.value) })); setSaved(false); }}
+                  className={`${inp} font-mono`}
+                  onFocus={e => e.target.style.borderColor = '#dc2626'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label className={lbl}>Destinatarios</label>
+                <div className="flex flex-col gap-2 mt-1">
+                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '👤 Admin' }].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input type="checkbox"
+                        checked={notifRetard.destinatarios.includes(key)}
+                        onChange={e => {
+                          setNotifRetard(p => ({
+                            ...p,
+                            destinatarios: e.target.checked
+                              ? [...p.destinatarios, key]
+                              : p.destinatarios.filter(d => d !== key),
+                          }));
+                          setSaved(false);
+                        }}
+                        className="w-4 h-4 rounded accent-red-600" />
+                      <span className="text-sm text-slate-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
