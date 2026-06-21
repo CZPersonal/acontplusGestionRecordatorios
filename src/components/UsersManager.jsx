@@ -107,10 +107,9 @@ export default function UsersManager({ onClose }) {
 
                   <select
                     value={member.role || 'admin'}
-                    disabled={saving === member.uid || isMe}
+                    disabled={saving === member.uid}
                     onChange={e => handleRoleChange(member.uid, e.target.value)}
                     className="text-xs font-semibold border-2 border-slate-200 rounded-lg px-2 py-1.5 bg-white disabled:opacity-50 focus:outline-none focus:border-blue-400"
-                    title={isMe ? 'No puedes cambiar tu propio rol' : ''}
                   >
                     <option value="admin">Admin</option>
                     <option value="tecnico">Técnico</option>
