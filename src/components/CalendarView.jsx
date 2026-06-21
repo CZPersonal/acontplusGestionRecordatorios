@@ -1021,8 +1021,20 @@ export default function CalendarView({ tasks, user, onNewTask }) {
   const [selectedEvent,   setSelectedEvent]   = useState(null);
   const [addVisitContext, setAddVisitContext]  = useState(null);
   const [dayPickerDate,   setDayPickerDate]   = useState(null);
+  const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas'
 
   const events = useMemo(() => getCalendarEvents(tasks), [tasks]);
+
+  const filteredEvents = useMemo(() => {
+    if (visitFilter === 'todas') return events;
+    return events.filter(e => {
+      if (e.type === 'task') return true;
+      const isConfirmed = e.visit?.confirmed || e.visit?.technicianConfirmed;
+      if (visitFilter === 'programadas') return !isConfirmed;
+      if (visitFilter === 'confirmadas') return !!isConfirmed;
+      return true;
+    });
+  }, [events, visitFilter]);
 
   const navigate = (dir) => {
     setCurrentDate(prev => {
@@ -1112,16 +1124,40 @@ export default function CalendarView({ tasks, user, onNewTask }) {
         </div>
       </div>
 
-      {/* Título periodo + botón nueva tarea */}
-      <div className="flex items-center justify-between">
+      {/* Título periodo + filtro + botón nueva tarea */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h3 className="text-lg font-bold text-slate-700 capitalize">{title}</h3>
-        {(viewMode === 'week' || viewMode === 'day') && (
-          <button onClick={onNewTask}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Plus size={13} />Nueva tarea
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtro visitas */}
+          <div className="flex bg-slate-100 rounded-xl p-1">
+            {[
+              { id: 'todas',       label: 'Todas' },
+              { id: 'programadas', label: 'Programadas' },
+              { id: 'confirmadas', label: 'Confirmadas' },
+            ].map(f => (
+              <button key={f.id} onClick={() => setVisitFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  visitFilter === f.id
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {f.label}
+                {visitFilter === f.id && filteredEvents.filter(e => e.type === 'visit').length > 0 && (
+                  <span className="ml-1.5 text-xs font-bold px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-600">
+                    {filteredEvents.filter(e => e.type === 'visit').length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          {(viewMode === 'week' || viewMode === 'day') && (
+            <button onClick={onNewTask}
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+              <Plus size={13} />Nueva tarea
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Vista */}
@@ -1129,7 +1165,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
         <MonthView
           year={currentDate.year}
           month={currentDate.month}
-          events={events}
+          events={filteredEvents}
           onEventClick={setSelectedEvent}
           onAddVisitToTask={handleAddVisitToTask}
         />
@@ -1139,7 +1175,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
           year={currentDate.year}
           month={currentDate.month}
           day={currentDate.day}
-          events={events}
+          events={filteredEvents}
           onEventClick={setSelectedEvent}
           onAddVisitToTask={handleAddVisitToTask}
           onAddVisitToDay={handleAddVisitToDay}
@@ -1150,7 +1186,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
           year={currentDate.year}
           month={currentDate.month}
           day={currentDate.day}
-          events={events}
+          events={filteredEvents}
           onEventClick={setSelectedEvent}
           onAddVisitToTask={handleAddVisitToTask}
           onAddVisitToDay={handleAddVisitToDay}

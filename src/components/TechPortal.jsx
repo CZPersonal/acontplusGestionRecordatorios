@@ -397,6 +397,7 @@ export default function TechPortal({ user }) {
 
   const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana'
   const [calDate,         setCalDate]         = useState(today);
+  const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas'
   const [confirming,      setConfirming]      = useState(null);
   const [completingVisit, setCompletingVisit] = useState(null);
   const [refreshing,      setRefreshing]      = useState(false);
@@ -407,7 +408,7 @@ export default function TechPortal({ user }) {
     setTimeout(() => setRefreshing(false), 1500);
   };
 
-  // Todas las visitas Programada del técnico, por fecha
+  // Todas las visitas Programada del técnico, por fecha (con filtro aplicado)
   const allVisitsByDate = useMemo(() => {
     const map = {};
     tasks.forEach(task => {
@@ -417,12 +418,15 @@ export default function TechPortal({ user }) {
           visit.technicianEmail === user.email ||
           visit.technician === user.email;
         if (!isMyVisit) return;
+        const isConfirmed = visit.confirmed || visit.technicianConfirmed;
+        if (visitFilter === 'programadas' && isConfirmed) return;
+        if (visitFilter === 'confirmadas' && !isConfirmed) return;
         if (!map[visit.scheduledDate]) map[visit.scheduledDate] = [];
         map[visit.scheduledDate].push({ visit, task });
       });
     });
     return map;
-  }, [tasks, user.email]);
+  }, [tasks, user.email, visitFilter]);
 
   // Grupos para vista lista
   const { atrasadas, hoy, proximas } = useMemo(() => {
@@ -516,24 +520,42 @@ export default function TechPortal({ user }) {
           </div>
         </div>
 
-        {/* Selector de vista */}
-        <div className="max-w-lg mx-auto px-4 pb-2 flex gap-1">
-          {[
-            { id: 'lista',   label: 'Lista',   icon: <List     size={13} /> },
-            { id: 'dia',     label: 'Día',     icon: <Calendar size={13} /> },
-            { id: 'semana',  label: 'Semana',  icon: <Clock    size={13} /> },
-          ].map(v => (
-            <button key={v.id}
-              onClick={() => { setCalView(v.id); if (v.id !== 'lista') setCalDate(today); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                calView === v.id
-                  ? 'text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100'
-              }`}
-              style={calView === v.id ? { background: '#D61672' } : {}}>
-              {v.icon}{v.label}
-            </button>
-          ))}
+        {/* Selector de vista + filtro */}
+        <div className="max-w-lg mx-auto px-4 pb-2 flex items-center justify-between gap-2 flex-wrap">
+          {/* Vista */}
+          <div className="flex gap-1">
+            {[
+              { id: 'lista',  label: 'Lista',  icon: <List     size={13} /> },
+              { id: 'dia',    label: 'Día',    icon: <Calendar size={13} /> },
+              { id: 'semana', label: 'Semana', icon: <Clock    size={13} /> },
+            ].map(v => (
+              <button key={v.id}
+                onClick={() => { setCalView(v.id); if (v.id !== 'lista') setCalDate(today); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  calView === v.id ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+                }`}
+                style={calView === v.id ? { background: '#D61672' } : {}}>
+                {v.icon}{v.label}
+              </button>
+            ))}
+          </div>
+          {/* Filtro */}
+          <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+            {[
+              { id: 'todas',       label: 'Todas' },
+              { id: 'programadas', label: 'Pend.' },
+              { id: 'confirmadas', label: 'Conf.' },
+            ].map(f => (
+              <button key={f.id} onClick={() => setVisitFilter(f.id)}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                  visitFilter === f.id
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
