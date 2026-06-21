@@ -30,6 +30,11 @@ function VisitCard({ visit, task, onConfirm, confirming }) {
       <div className="px-4 py-3 flex items-center justify-between"
         style={{ background: urgBg }}>
         <div className="flex items-center gap-2 min-w-0">
+          {task.serviceOrder && (
+            <span className="flex-shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-white/70 text-slate-600 border border-slate-200">
+              OS: {task.serviceOrder}
+            </span>
+          )}
           <span className="font-bold text-slate-800 truncate">{task.clientName}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
