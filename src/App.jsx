@@ -52,7 +52,15 @@ export default function App() {
             getDoc(doc(db, 'tenants', ids[0])),
             getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
           ]);
-          const role = memberSnap.exists() ? (memberSnap.data().role || 'admin') : 'admin';
+          let role = 'admin';
+          if (memberSnap.exists()) {
+            role = memberSnap.data().role || 'admin';
+          } else {
+            // Usuario existente sin registro de rol → crearlo como admin
+            await setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
+              uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
+            });
+          }
           useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', userRole: role, isAuthLoading: false });
         } else {
           // Múltiples empresas — cargar lista y mostrar selector
@@ -71,9 +79,16 @@ export default function App() {
   useEffect(() => {
     if (!user || !tenantId) return;
     getDoc(doc(db, 'tenants', tenantId, 'members', user.uid))
-      .then(snap => {
-        const role = snap.exists() ? (snap.data().role || 'admin') : 'admin';
-        useAppStore.setState({ userRole: role });
+      .then(async snap => {
+        if (snap.exists()) {
+          useAppStore.setState({ userRole: snap.data().role || 'admin' });
+        } else {
+          // Usuario existente sin registro de rol → crearlo como admin
+          await setDoc(doc(db, 'tenants', tenantId, 'members', user.uid), {
+            uid: user.uid, email: user.email, role: 'admin', joinedAt: new Date().toISOString(),
+          });
+          useAppStore.setState({ userRole: 'admin' });
+        }
       })
       .catch(() => {});
   }, [user?.uid, tenantId]);
