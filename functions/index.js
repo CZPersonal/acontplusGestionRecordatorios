@@ -317,7 +317,11 @@ exports.sendTechnicianDailyAgenda = onSchedule(
     const byTenantHoy     = groupByTenant(snapHoy.docs);
     const byTenantMañana  = groupByTenant(snapMañana.docs);
     const byTenantOverdue = groupByTenant(
-      snapTodas.docs.filter(d => { const dt = d.data().scheduledDate; return dt && dt < todayStr; })
+      snapTodas.docs.filter(d => {
+        const data = d.data();
+        const dt = data.scheduledDate;
+        return dt && dt < todayStr && !data.confirmed && !data.technicianConfirmed;
+      })
     );
 
     const allTenantIds = new Set([

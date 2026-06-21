@@ -8,6 +8,7 @@ export const useAppStore = create((set, get) => ({
   // ─── Auth ─────────────────────────────────────────────────────────────────
   user:          null,
   isAuthLoading: true,
+  userRole:      'admin',   // 'admin' | 'tecnico' — poblado en App.jsx tras leer members/{uid}
 
   // ─── Tenant (poblado en App.jsx tras auth) ────────────────────────────────
   tenantId:         null,   // UUID del tenant activo

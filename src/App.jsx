@@ -12,6 +12,7 @@ import Login from './components/Login.jsx';
 import TenantSetup from './components/TenantSetup.jsx';
 import CompanySelector from './components/CompanySelector.jsx';
 import AppRouter from './components/AppRouter.jsx';
+import TechPortal from './components/TechPortal.jsx';
 
 export default function App() {
   const user             = useAppStore(s => s.user);
@@ -20,6 +21,7 @@ export default function App() {
   const tenantIds        = useAppStore(s => s.tenantIds);
   const isLoadingTasks   = useAppStore(s => s.isLoadingTasks);
   const tasks            = useAppStore(s => s.tasks);
+  const userRole         = useAppStore(s => s.userRole);
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -46,8 +48,12 @@ export default function App() {
           useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
         } else if (ids.length === 1) {
           // Una sola empresa — seleccionar automáticamente
-          const td = await getDoc(doc(db, 'tenants', ids[0]));
-          useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', isAuthLoading: false });
+          const [td, memberSnap] = await Promise.all([
+            getDoc(doc(db, 'tenants', ids[0])),
+            getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
+          ]);
+          const role = memberSnap.exists() ? (memberSnap.data().role || 'admin') : 'admin';
+          useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', userRole: role, isAuthLoading: false });
         } else {
           // Múltiples empresas — cargar lista y mostrar selector
           const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'tenants', id))));
@@ -60,6 +66,17 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // ─── Role refresh (multi-tenant: cuando el usuario selecciona empresa) ─────
+  useEffect(() => {
+    if (!user || !tenantId) return;
+    getDoc(doc(db, 'tenants', tenantId, 'members', user.uid))
+      .then(snap => {
+        const role = snap.exists() ? (snap.data().role || 'admin') : 'admin';
+        useAppStore.setState({ userRole: role });
+      })
+      .catch(() => {});
+  }, [user?.uid, tenantId]);
 
   // ─── Network ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -121,5 +138,6 @@ export default function App() {
     );
   }
 
+  if (userRole === 'tecnico') return <TechPortal user={user} />;
   return <AppRouter />;
 }

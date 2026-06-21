@@ -11,6 +11,7 @@ import { useConfiguracion } from '../hooks/useConfiguracion.js';
 import TecnicosForm from './TecnicosForm.jsx';
 import ServiceTypesManager from './ServiceTypesManager.jsx';
 import TiposVisitaManager from './TiposVisitaManager.jsx';
+import UsersManager from './UsersManager.jsx';
 
 // ─── Sub-componentes de Entidad ───────────────────────────────────────────────
 
@@ -841,6 +842,7 @@ function TabCatalogos({ user }) {
   const [showTecnicos,     setShowTecnicos]     = useState(false);
   const [showServiceTypes, setShowServiceTypes] = useState(false);
   const [showTiposVisita,  setShowTiposVisita]  = useState(false);
+  const [showUsers,        setShowUsers]        = useState(false);
 
   const cards = [
     {
@@ -866,6 +868,14 @@ function TabCatalogos({ user }) {
       color: '#7c3aed',
       bg: '#ede9fe',
       onClick: () => setShowTiposVisita(true),
+    },
+    {
+      label: 'Usuarios y roles',
+      description: 'Asigna roles de admin o técnico a cada usuario',
+      icon: <Users size={22} />,
+      color: '#0f766e',
+      bg: '#ccfbf1',
+      onClick: () => setShowUsers(true),
     },
   ];
 
@@ -893,6 +903,7 @@ function TabCatalogos({ user }) {
       {showTecnicos     && <TecnicosForm        user={user} onClose={() => setShowTecnicos(false)} />}
       {showServiceTypes && <ServiceTypesManager  user={user} onClose={() => setShowServiceTypes(false)} />}
       {showTiposVisita  && <TiposVisitaManager   user={user} onClose={() => setShowTiposVisita(false)} />}
+      {showUsers        && <UsersManager                     onClose={() => setShowUsers(false)} />}
     </div>
   );
 }

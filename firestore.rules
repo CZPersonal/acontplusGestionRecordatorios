@@ -36,6 +36,20 @@ service cloud.firestore {
       return (data.get('tenantIds', []).hasAny([tid])) || (data.get('tenantId', '') == tid);
     }
 
+    // ─── Helper: el usuario tiene rol admin en el tenant ─────────────────────
+    // Si no existe el documento members/{uid} el default es 'admin' (retrocompatibilidad)
+    function isAdmin(tid) {
+      return get(/databases/$(database)/documents/tenants/$(tid)/members/$(request.auth.uid)).data.get('role', 'admin') == 'admin';
+    }
+
+    // ─── Miembros del tenant: roles ───────────────────────────────────────────
+    match /tenants/{tenantId}/members/{uid} {
+      allow read:   if request.auth != null && isMember(tenantId);
+      allow create: if request.auth != null && isMember(tenantId) && request.auth.uid == uid;
+      allow update: if request.auth != null && isAdmin(tenantId);
+      allow delete: if false;
+    }
+
     // ─── Datos del tenant: colecciones y subcolecciones ──────────────────────
     match /tenants/{tenantId}/water_filter_tasks/{taskId} {
       allow read:   if request.auth != null && isMember(tenantId);

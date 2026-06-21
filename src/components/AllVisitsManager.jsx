@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getVisitsRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
@@ -11,7 +11,7 @@ import { formatDateOnly } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ChevronDown, ChevronUp,
-  ClipboardList, MapPin, Phone, CreditCard, Wrench, FileText,
+  ClipboardList, MapPin, Phone, CreditCard, Wrench, FileText, UserCheck,
 } from 'lucide-react';
 
 // ─── Campo con etiqueta para la grilla de tarea ──────────────────────────────
@@ -200,6 +200,7 @@ export default function AllVisitsManager({ user }) {
   const [completeModal,    setCompleteModal]    = useState(null); // { task, visit }
   const [annulConfirm,     setAnnulConfirm]     = useState(null); // { task, visit }
   const [deleteTaskId,     setDeleteTaskId]     = useState(null);
+  const [confirmingVisit,  setConfirmingVisit]  = useState(null); // visitId
 
   const today = useMemo(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' }), []);
@@ -307,6 +308,22 @@ export default function AllVisitsManager({ user }) {
       annulledAt: new Date().toISOString(),
       annulledBy: user.email,
     });
+  };
+
+  const doConfirmVisit = async (taskId, visitId) => {
+    setConfirmingVisit(visitId);
+    try {
+      await updateDoc(doc(getVisitsRef(taskId), visitId), {
+        confirmed:           true,
+        technicianConfirmed: true,
+        confirmedAt:         new Date().toISOString(),
+        confirmedBy:         user.email,
+      });
+    } catch {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo confirmar la visita.' });
+    } finally {
+      setConfirmingVisit(null);
+    }
   };
 
   // ─── Acciones de tarea ───────────────────────────────────────────────────────
@@ -653,7 +670,8 @@ export default function AllVisitsManager({ user }) {
                       ) : (
                         <div className="divide-y divide-slate-100">
                           {visits.map(visit => {
-                            const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < today;
+                            const isOverdue    = visit.status === 'Programada' && visit.scheduledDate < today && !visit.confirmed && !visit.technicianConfirmed;
+                            const isConfirmed  = visit.confirmed || visit.technicianConfirmed;
                             const busy         = loadingVisit === visit.id;
                             const borderColor  = VISIT_STATUS_BORDER[visit.status] || '#cbd5e1';
 
@@ -687,9 +705,10 @@ export default function AllVisitsManager({ user }) {
                                         {visit.urgency}
                                       </span>
                                     )}
-                                    {visit.technicianConfirmed && (
-                                      <span className="text-xs font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
-                                        ✅ Confirmada
+                                    {isConfirmed && (
+                                      <span className="text-xs font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200"
+                                        title={visit.confirmedBy ? `Confirmada por ${visit.confirmedBy}` : ''}>
+                                        ✅ Confirmada{visit.confirmedBy ? ` · ${visit.confirmedBy.split('@')[0]}` : ''}
                                       </span>
                                     )}
                                     {isOverdue && (
@@ -725,6 +744,14 @@ export default function AllVisitsManager({ user }) {
                                 <div className="flex-shrink-0 flex flex-col items-stretch gap-1.5 justify-center px-3 py-3 bg-slate-50 border-l border-slate-100 min-w-[110px]">
                                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center mb-0.5">Visita</p>
                                   {visit.status === 'Programada' && (<>
+                                    {!isConfirmed && (
+                                      <button
+                                        disabled={confirmingVisit === visit.id}
+                                        onClick={() => doConfirmVisit(task.id, visit.id)}
+                                        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-teal-100 text-teal-700 hover:bg-teal-200 disabled:opacity-40 transition-colors w-full">
+                                        <UserCheck size={11} /> Confirmar
+                                      </button>
+                                    )}
                                     <button disabled={busy}
                                       onClick={() => setCompleteModal({ task, visit })}
                                       className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 transition-colors w-full">

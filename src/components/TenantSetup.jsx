@@ -35,8 +35,11 @@ export default function TenantSetup() {
         createdAt: new Date().toISOString(),
       });
       await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenantId), email: user.email }, { merge: true });
+      await setDoc(doc(db, 'tenants', tenantId, 'members', user.uid), {
+        uid: user.uid, email: user.email, role: 'admin', joinedAt: new Date().toISOString(),
+      });
       setCreated({ tenantId, joinCode: code });
-      useAppStore.setState({ tenantId, tenantIds: [tenantId], tenantName: name.trim(), tenantRuc: ruc.trim() });
+      useAppStore.setState({ tenantId, tenantIds: [tenantId], tenantName: name.trim(), tenantRuc: ruc.trim(), userRole: 'admin' });
     } catch (e) {
       setError('Error al crear la empresa. Intenta de nuevo.');
       console.error(e);
@@ -56,7 +59,10 @@ export default function TenantSetup() {
       if (snap.empty) { setError('Código incorrecto. Verifica con el administrador.'); return; }
       const tenant = snap.docs[0].data();
       await setDoc(doc(db, 'users', user.uid), { tenantIds: arrayUnion(tenant.id), email: user.email }, { merge: true });
-      useAppStore.setState({ tenantId: tenant.id, tenantIds: [tenant.id], tenantName: tenant.name });
+      await setDoc(doc(db, 'tenants', tenant.id, 'members', user.uid), {
+        uid: user.uid, email: user.email, role: 'tecnico', joinedAt: new Date().toISOString(),
+      }, { merge: true });
+      useAppStore.setState({ tenantId: tenant.id, tenantIds: [tenant.id], tenantName: tenant.name, userRole: 'tecnico' });
     } catch (e) {
       setError('Error al unirse. Intenta de nuevo.');
       console.error(e);
