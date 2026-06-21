@@ -35,7 +35,7 @@ function VisitCard({ visit, task, onConfirm, confirming }) {
               OS: {task.serviceOrder}
             </span>
           )}
-          <span className="font-bold text-slate-800 truncate">{task.clientName}</span>
+          <span className="font-bold text-slate-800">{task.clientName}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {visit.urgency && (
@@ -68,9 +68,9 @@ function VisitCard({ visit, task, onConfirm, confirming }) {
           )}
         </div>
         {task.clientAddress && (
-          <p className="flex items-start gap-1.5 text-sm text-slate-600">
+          <p className="flex items-start gap-1.5 text-sm text-slate-600 break-words">
             <MapPin size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
-            {task.clientAddress}
+            <span>{task.clientAddress}</span>
           </p>
         )}
         {task.clientPhone && (
