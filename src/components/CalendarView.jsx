@@ -1029,9 +1029,11 @@ export default function CalendarView({ tasks, user, onNewTask }) {
     if (visitFilter === 'todas') return events;
     return events.filter(e => {
       if (e.type === 'task') return true;
-      const isConfirmed = e.visit?.confirmed || e.visit?.technicianConfirmed;
-      if (visitFilter === 'programadas') return !isConfirmed;
-      if (visitFilter === 'confirmadas') return !!isConfirmed;
+      const isConfirmed  = e.visit?.confirmed || e.visit?.technicianConfirmed;
+      const isRealizada  = e.visitStatus === 'Realizada';
+      if (visitFilter === 'programadas') return !isRealizada && !isConfirmed;
+      if (visitFilter === 'confirmadas') return !isRealizada && !!isConfirmed;
+      if (visitFilter === 'realizadas')  return isRealizada;
       return true;
     });
   }, [events, visitFilter]);
@@ -1134,6 +1136,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
               { id: 'todas',       label: 'Todas' },
               { id: 'programadas', label: 'Programadas' },
               { id: 'confirmadas', label: 'Confirmadas' },
+              { id: 'realizadas',  label: 'Realizadas' },
             ].map(f => (
               <button key={f.id} onClick={() => setVisitFilter(f.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${

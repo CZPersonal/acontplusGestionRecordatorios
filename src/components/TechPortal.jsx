@@ -239,23 +239,41 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
           </p>
         )}
       </div>
-      <div className="px-4 pb-4 space-y-2">
-        {isConfirmed && (
-          <button onClick={() => onComplete(visit, task)}
-            className="w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-sm"
-            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-            <CheckCircle2 size={18} className="inline mr-2 -mt-0.5" />
-            Marcar como realizada
-          </button>
-        )}
-        {!isConfirmed && (
-          <button onClick={() => onConfirm(task.id, visit.id)} disabled={confirming === visit.id}
-            className="w-full py-4 rounded-2xl text-white font-bold text-lg shadow-sm disabled:opacity-60"
-            style={{ background: confirming === visit.id ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-            {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
-          </button>
-        )}
-      </div>
+      {visit.status === 'Realizada' ? (
+        <div className="px-4 pb-4 space-y-1.5 bg-emerald-50 border-t border-emerald-100 pt-3">
+          <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">✅ Visita realizada</p>
+          {visit.completedAt && (
+            <p className="text-xs text-emerald-600">Fecha: {formatDateTime(visit.completedAt)}</p>
+          )}
+          {visit.completedBy && (
+            <p className="text-xs text-emerald-600">Por: {visit.completedBy}</p>
+          )}
+          {visit.visitValue > 0 && (
+            <p className="text-xs font-bold text-emerald-700">Valor cobrado: ${visit.visitValue}</p>
+          )}
+          {visit.closingObservations && (
+            <p className="text-xs text-emerald-600 italic">📝 {visit.closingObservations}</p>
+          )}
+        </div>
+      ) : (
+        <div className="px-4 pb-4 space-y-2">
+          {isConfirmed && (
+            <button onClick={() => onComplete(visit, task)}
+              className="w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+              <CheckCircle2 size={18} className="inline mr-2 -mt-0.5" />
+              Marcar como realizada
+            </button>
+          )}
+          {!isConfirmed && (
+            <button onClick={() => onConfirm(task.id, visit.id)} disabled={confirming === visit.id}
+              className="w-full py-4 rounded-2xl text-white font-bold text-lg shadow-sm disabled:opacity-60"
+              style={{ background: confirming === visit.id ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+              {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -433,7 +451,7 @@ export default function TechPortal({ user }) {
 
   const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana'
   const [calDate,         setCalDate]         = useState(today);
-  const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas'
+  const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas' | 'realizadas'
   const [confirming,      setConfirming]      = useState(null);
   const [completingVisit, setCompletingVisit] = useState(null);
   const [refreshing,      setRefreshing]      = useState(false);
@@ -444,19 +462,22 @@ export default function TechPortal({ user }) {
     setTimeout(() => setRefreshing(false), 1500);
   };
 
-  // Todas las visitas Programada del técnico, por fecha (con filtro aplicado)
+  // Visitas del técnico (Programada y Realizada), por fecha, con filtro aplicado
   const allVisitsByDate = useMemo(() => {
     const map = {};
     tasks.forEach(task => {
       (task.visits || []).forEach(visit => {
-        if (visit.status !== 'Programada') return;
+        const isActive = visit.status === 'Programada' || visit.status === 'Realizada';
+        if (!isActive) return;
         const isMyVisit =
           visit.technicianEmail === user.email ||
           visit.technician === user.email;
         if (!isMyVisit) return;
-        const isConfirmed = visit.confirmed || visit.technicianConfirmed;
-        if (visitFilter === 'programadas' && isConfirmed) return;
-        if (visitFilter === 'confirmadas' && !isConfirmed) return;
+        const isConfirmed  = visit.confirmed || visit.technicianConfirmed;
+        const isRealizada  = visit.status === 'Realizada';
+        if (visitFilter === 'programadas' && (isRealizada || isConfirmed)) return;
+        if (visitFilter === 'confirmadas' && (isRealizada || !isConfirmed)) return;
+        if (visitFilter === 'realizadas'  && !isRealizada) return;
         if (!map[visit.scheduledDate]) map[visit.scheduledDate] = [];
         map[visit.scheduledDate].push({ visit, task });
       });
@@ -465,11 +486,16 @@ export default function TechPortal({ user }) {
   }, [tasks, user.email, visitFilter]);
 
   // Grupos para vista lista
-  const { atrasadas, hoy, proximas } = useMemo(() => {
-    const groups = { atrasadas: [], hoy: [], proximas: [] };
+  const { atrasadas, hoy, proximas, realizadas } = useMemo(() => {
+    const groups = { atrasadas: [], hoy: [], proximas: [], realizadas: [] };
     Object.entries(allVisitsByDate).forEach(([date, entries]) => {
       entries.forEach(entry => {
         const { visit } = entry;
+        if (visit.status === 'Realizada') {
+          if (date === today) groups.hoy.push(entry);
+          else groups.realizadas.push(entry);
+          return;
+        }
         if (date < today && !visit.confirmed && !visit.technicianConfirmed) {
           groups.atrasadas.push(entry);
         } else if (date === today) {
@@ -482,6 +508,7 @@ export default function TechPortal({ user }) {
     groups.hoy.sort((a, b) => (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || ''));
     groups.proximas.sort((a, b) => a.visit.scheduledDate.localeCompare(b.visit.scheduledDate));
     groups.atrasadas.sort((a, b) => b.visit.scheduledDate.localeCompare(a.visit.scheduledDate));
+    groups.realizadas.sort((a, b) => b.visit.scheduledDate.localeCompare(a.visit.scheduledDate));
     return groups;
   }, [allVisitsByDate, today]);
 
@@ -516,7 +543,7 @@ export default function TechPortal({ user }) {
     }
   };
 
-  const totalVisitas = atrasadas.length + hoy.length + proximas.length;
+  const totalVisitas = atrasadas.length + hoy.length + proximas.length + realizadas.length;
 
   const visitCardProps = {
     onConfirm: handleConfirm,
@@ -581,6 +608,7 @@ export default function TechPortal({ user }) {
               { id: 'todas',       label: 'Todas' },
               { id: 'programadas', label: 'Pend.' },
               { id: 'confirmadas', label: 'Conf.' },
+              { id: 'realizadas',  label: 'Real.' },
             ].map(f => (
               <button key={f.id} onClick={() => setVisitFilter(f.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
@@ -620,9 +648,10 @@ export default function TechPortal({ user }) {
               timeZone: 'America/Guayaquil',
             })}
           </p>
-          <Section title="Visitas atrasadas" icon={AlertTriangle} color="#dc2626" visits={atrasadas} {...visitCardProps} />
-          <Section title="Hoy"               icon={Calendar}      color="#D61672"  visits={hoy}      {...visitCardProps} />
-          <Section title="Próximas"          icon={Clock}         color="#2563eb"  visits={proximas} {...visitCardProps} />
+          <Section title="Visitas atrasadas" icon={AlertTriangle} color="#dc2626"  visits={atrasadas}  {...visitCardProps} />
+          <Section title="Hoy"               icon={Calendar}      color="#D61672"   visits={hoy}        {...visitCardProps} />
+          <Section title="Próximas"          icon={Clock}         color="#2563eb"  visits={proximas}   {...visitCardProps} />
+          <Section title="Realizadas"        icon={CheckCircle2}  color="#16a34a"  visits={realizadas} {...visitCardProps} />
         </>)}
 
         {/* Vista día */}
