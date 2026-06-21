@@ -6,3 +6,15 @@ export const formatDateOnly = (dateStr) => {
   const [y, m, d] = dateStr.split('-');
   return `${d}/${m}/${y}`;
 };
+
+export const formatDateTime = (isoStr) => {
+  if (!isoStr) return '—';
+  return new Date(isoStr).toLocaleString('es-EC', {
+    timeZone:  'America/Guayaquil',
+    day:       '2-digit',
+    month:     '2-digit',
+    year:      'numeric',
+    hour:      '2-digit',
+    minute:    '2-digit',
+  });
+};

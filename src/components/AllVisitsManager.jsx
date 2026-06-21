@@ -7,7 +7,7 @@ import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { VisitFormModal } from './VisitsModal.jsx';
 import VisitsReport from './VisitsReport.jsx';
-import { formatDateOnly } from '../utils/dates.js';
+import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ChevronDown, ChevronUp,
@@ -749,8 +749,18 @@ export default function AllVisitsManager({ user }) {
                                   {visit.observations && (
                                     <p className="text-xs text-slate-400 italic truncate">📝 {visit.observations}</p>
                                   )}
+                                  {isConfirmed && visit.confirmedAt && (
+                                    <p className="text-xs text-slate-400">
+                                      🕐 Confirmada: {formatDateTime(visit.confirmedAt)}
+                                    </p>
+                                  )}
                                   {visit.closingObservations && (
                                     <p className="text-xs text-green-600 italic truncate">✅ {visit.closingObservations}</p>
+                                  )}
+                                  {visit.completedAt && (
+                                    <p className="text-xs text-slate-400">
+                                      🕐 Realizada: {formatDateTime(visit.completedAt)}
+                                    </p>
                                   )}
                                   {visit.visitValue != null && visit.visitValue !== '' && (
                                     <p className="text-xs font-bold text-emerald-700">
