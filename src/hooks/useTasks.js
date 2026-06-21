@@ -10,6 +10,8 @@ import { logAudit } from '../services/auditService';
 const TASKS_PAGE_SIZE = 200;
 
 export function useTasks(user) {
+  const refreshKey = useAppStore(s => s.refreshKey);
+
   const [rawTasks,       setRawTasks]       = useState([]);
   const [extraTasks,     setExtraTasks]     = useState([]);
   const [visitsMap,      setVisitsMap]      = useState({});
@@ -103,7 +105,7 @@ export function useTasks(user) {
       lastDocRef.current = null;
       extraTaskIdsRef.current.clear();
     };
-  }, [user]);
+  }, [user, refreshKey]);
 
   // ─── Combinar primera página (real-time) con páginas extra (getDocs) ─────────
   const allRawTasks = useMemo(() => {

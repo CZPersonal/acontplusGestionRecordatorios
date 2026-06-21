@@ -8,7 +8,7 @@ import { formatDateOnly } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, MapPin, Phone, Wrench, X,
-  ChevronLeft, ChevronRight, List,
+  ChevronLeft, ChevronRight, List, RefreshCw,
 } from 'lucide-react';
 
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
@@ -390,6 +390,8 @@ export default function TechPortal({ user }) {
   const tasks      = useAppStore(s => s.tasks);
   const addToast   = useAppStore(s => s.addToast);
   const tenantName = useAppStore(s => s.tenantName);
+  const tenantRuc  = useAppStore(s => s.tenantRuc);
+  const refreshKey = useAppStore(s => s.refreshKey);
 
   const today = useMemo(() => localToday(), []);
 
@@ -397,6 +399,13 @@ export default function TechPortal({ user }) {
   const [calDate,         setCalDate]         = useState(today);
   const [confirming,      setConfirming]      = useState(null);
   const [completingVisit, setCompletingVisit] = useState(null);
+  const [refreshing,      setRefreshing]      = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    useAppStore.setState({ refreshKey: refreshKey + 1 });
+    setTimeout(() => setRefreshing(false), 1500);
+  };
 
   // Todas las visitas Programada del técnico, por fecha
   const allVisitsByDate = useMemo(() => {
@@ -480,19 +489,26 @@ export default function TechPortal({ user }) {
 
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Acontplus" className="w-8 h-8 object-contain" />
-            <div>
-              <p className="text-xs text-slate-400">{tenantName}</p>
-              <p className="text-sm font-bold text-slate-800 leading-tight">Portal Técnico</p>
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-start justify-between gap-3">
+          {/* Izquierda: logo + info empresa */}
+          <div className="flex items-center gap-3 min-w-0">
+            <img src="/logo.png" alt="Acontplus" className="w-9 h-9 object-contain flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-800 leading-tight truncate">{tenantName || 'Portal Técnico'}</p>
+              {tenantRuc && (
+                <p className="text-xs text-slate-400 leading-tight">RUC: {tenantRuc}</p>
+              )}
+              <p className="text-xs text-slate-500 leading-tight truncate">{user.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-slate-400">Sesión</p>
-              <p className="text-xs font-semibold text-slate-700 truncate max-w-[160px]">{user.email}</p>
-            </div>
+          {/* Derecha: refrescar + salir */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={handleRefresh} disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors border border-slate-200 disabled:opacity-60"
+              title="Actualizar visitas">
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Actualizar</span>
+            </button>
             <button onClick={() => signOut(auth)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors border border-slate-200">
               <LogOut size={13} /> Salir

@@ -178,7 +178,7 @@ export default function AppRouter() {
           <CalendarView
             tasks={tasks}
             user={user}
-            onNewTask={() => { setEditingTask(null); setActiveTab('form'); }}
+            onNewTask={() => { useAppStore.setState({ formSource: 'calendar', editingTask: null }); setActiveTab('form'); }}
           />
         )}
         {activeTab === 'reports' && (
