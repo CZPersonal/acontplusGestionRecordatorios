@@ -2,21 +2,27 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, deleteDoc, onSnapshot, query, limit } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
+import { useAppStore } from '../lib/store';
 
 export function useTiposVisita(user) {
   const [tipos, setTipos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const tenantId = useAppStore(s => s.tenantId);
 
   useEffect(() => {
-    if (!user) return;
-    const unsub = onSnapshot(query(getCollectionRef('tipos_visita'), limit(200)), (snap) => {
-      const data = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => a.nombre.localeCompare(b.nombre));
-      setTipos(data);
-    });
+    if (!user || !tenantId) return;
+    const unsub = onSnapshot(
+      query(getCollectionRef('tipos_visita'), limit(200)),
+      (snap) => {
+        const data = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+        setTipos(data);
+      },
+      (err) => console.error('useTiposVisita onSnapshot error:', err)
+    );
     return () => unsub();
-  }, [user]);
+  }, [user, tenantId]);
 
   const addTipo = async (nombre) => {
     if (!user || !nombre.trim()) return false;
