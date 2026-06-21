@@ -8,13 +8,24 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, MapPin, Phone, Wrench, X,
-  ChevronLeft, ChevronRight, List, RefreshCw,
+  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle,
 } from 'lucide-react';
 
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
 
 function localToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+}
+
+function localNowTime() {
+  const d = new Date();
+  return d.toLocaleTimeString('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit' });
+}
+
+function isLateConfirmation(visit) {
+  if (!visit?.confirmedAt || !visit?.scheduledDate) return false;
+  const scheduled = new Date(`${visit.scheduledDate}T${visit.scheduledTime || '23:59'}:00-05:00`);
+  return new Date(visit.confirmedAt) > scheduled;
 }
 
 function addDays(dateStr, n) {
@@ -136,14 +147,28 @@ function CompleteModal({ visit, task, onSave, onClose }) {
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
 function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
+  const today       = localToday();
+  const nowTime     = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed;
+  const isLate      = isConfirmed && isLateConfirmation(visit);
+  const isOverdue   = !isConfirmed && (
+    visit.scheduledDate < today ||
+    (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < nowTime)
+  );
+
   const urgBg     = URGENCY_BG[visit.urgency]    || '#f8fafc';
   const urgBorder = URGENCY_BORDER[visit.urgency] || '#e2e8f0';
   const urgText   = URGENCY_TEXT[visit.urgency]   || '#64748b';
 
+  // Borde izquierdo refleja el estado más importante
+  const statusBorder = isOverdue   ? '#ef4444'
+    : isLate      ? '#f97316'
+    : isConfirmed ? '#22c55e'
+    : urgBorder;
+
   return (
     <div className="bg-white rounded-2xl border-2 shadow-sm overflow-hidden"
-      style={{ borderColor: urgBorder }}>
+      style={{ borderColor: statusBorder }}>
       <div className="px-4 py-3 flex items-center justify-between gap-2 flex-wrap"
         style={{ background: urgBg }}>
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -161,9 +186,20 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
               {visit.urgency}
             </span>
           )}
-          {isConfirmed && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
-              ✓ Confirmada
+          {/* Etiqueta de estado de confirmación */}
+          {isOverdue && (
+            <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+              <AlertTriangle size={11} />Atrasada
+            </span>
+          )}
+          {isConfirmed && !isLate && (
+            <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+              <CheckCircle2 size={11} />Confirmada
+            </span>
+          )}
+          {isConfirmed && isLate && (
+            <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+              <AlertTriangle size={11} />Conf. tardía
             </span>
           )}
         </div>
@@ -171,8 +207,8 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
       <div className="px-4 py-3 space-y-1.5">
         <div className="flex items-center gap-5 flex-wrap">
           {visit.scheduledTime && (
-            <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
-              <Clock size={14} className="text-slate-400" />{visit.scheduledTime}
+            <span className={`flex items-center gap-1.5 text-sm font-bold ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
+              <Clock size={14} className={isOverdue ? 'text-red-400' : 'text-slate-400'} />{visit.scheduledTime}
             </span>
           )}
           {visit.type && (
@@ -197,8 +233,8 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
           <p className="text-xs text-slate-400 italic">📝 {visit.observations}</p>
         )}
         {isConfirmed && visit.confirmedBy && (
-          <p className="text-xs text-green-600">
-            Confirmada por {visit.confirmedBy}
+          <p className={`text-xs font-semibold ${isLate ? 'text-orange-600' : 'text-green-600'}`}>
+            {isLate ? '⚠️' : '✓'} Confirmada por {visit.confirmedBy}
             {visit.confirmedAt && ` — ${formatDateTime(visit.confirmedAt)}`}
           </p>
         )}
