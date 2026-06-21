@@ -840,7 +840,24 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                   <p className="text-sm text-slate-700 leading-snug">{event.visit.observations}</p>
                 </div>
               )}
-              {event.visit?.closingObservations && (
+              {event.visitStatus === 'Realizada' && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">✅ Realizada</p>
+                  {event.visit?.completedAt && (
+                    <p className="text-sm font-bold text-emerald-800">{formatDateTime(event.visit.completedAt)}</p>
+                  )}
+                  {event.visit?.completedBy && (
+                    <p className="text-xs text-emerald-600">Por: {event.visit.completedBy}</p>
+                  )}
+                  {event.visit?.visitValue > 0 && (
+                    <p className="text-xs font-bold text-emerald-700">Valor: ${event.visit.visitValue}</p>
+                  )}
+                  {event.visit?.closingObservations && (
+                    <p className="text-xs text-emerald-700 italic mt-1">📝 {event.visit.closingObservations}</p>
+                  )}
+                </div>
+              )}
+              {event.visitStatus !== 'Realizada' && event.visit?.closingObservations && (
                 <div className="bg-green-50 border border-green-100 rounded-xl p-3">
                   <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Cierre</p>
                   <p className="text-sm text-green-800 leading-snug">{event.visit.closingObservations}</p>

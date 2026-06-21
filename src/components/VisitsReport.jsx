@@ -39,6 +39,8 @@ function flattenVisits(tasks) {
         closingObservations:  visit.closingObservations  || '',
         completedAt:          visit.completedAt          || '',
         completedBy:          visit.completedBy          || '',
+        confirmedAt:          visit.confirmedAt          || '',
+        confirmedBy:          visit.confirmedBy          || '',
         taskId:               task.id,
         clientName:           task.clientName            || '',
         clientPhone:          task.clientPhone           || '',
@@ -472,8 +474,11 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                         {/* Estado */}
                         <td className="px-4 py-3 whitespace-nowrap">
                           <VisitStatusBadge status={row.visitStatus} />
+                          {row.confirmedAt && (
+                            <p className="text-xs text-teal-600 mt-0.5">🕐 Conf: {formatDateTime(row.confirmedAt)}</p>
+                          )}
                           {row.visitStatus === 'Realizada' && row.completedAt && (
-                            <p className="text-xs text-slate-400 mt-0.5">{formatDateOnly(row.completedAt.slice(0,10))}</p>
+                            <p className="text-xs text-green-600 mt-0.5">✅ Real: {formatDateTime(row.completedAt)}</p>
                           )}
                         </td>
 
