@@ -4,7 +4,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { getVisitsRef } from '../lib/tenantDb';
-import { formatDateOnly } from '../utils/dates.js';
+import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, MapPin, Phone, Wrench, X,
@@ -199,7 +199,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
         {isConfirmed && visit.confirmedBy && (
           <p className="text-xs text-green-600">
             Confirmada por {visit.confirmedBy}
-            {visit.confirmedAt && ` — ${formatDateOnly(visit.confirmedAt.slice(0, 10))}`}
+            {visit.confirmedAt && ` — ${formatDateTime(visit.confirmedAt)}`}
           </p>
         )}
       </div>
