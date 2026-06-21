@@ -121,10 +121,12 @@ function CompleteVisitModal({ visit, task, user, onClose }) {
   const handleConfirm = async () => {
     setLoading(true);
     try {
+      const parsedValue = parseFloat(visitValue) || 0;
       const updated = applyVisitChange(task, visit.id, {
         status:              'Realizada',
         closingObservations: obs.trim(),
-        visitValue:          parseFloat(visitValue) || 0,
+        visitValue:          parsedValue,
+        ...(parsedValue > 0 && { valorCobrar: parsedValue }),
         completedAt:         new Date().toISOString(),
         completedBy:         user.email,
       });

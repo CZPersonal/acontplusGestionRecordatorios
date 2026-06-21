@@ -456,6 +456,7 @@ export default function TechPortal({ user }) {
     try {
       await updateDoc(doc(getVisitsRef(taskId), visitId), {
         status: 'Realizada', closingObservations, visitValue,
+        ...(visitValue > 0 && { valorCobrar: visitValue }),
         completedAt: new Date().toISOString(), completedBy: user.email,
       });
       addToast({ type: 'success', title: '✅ Realizada', body: 'Visita registrada como realizada.' });
