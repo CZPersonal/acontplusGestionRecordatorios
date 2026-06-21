@@ -113,8 +113,9 @@ function ConfirmDialog({ title, body, onConfirm, onCancel, confirmLabel = 'Confi
 // ─── Sub-componente: modal completar visita ──────────────────────────────────
 
 function CompleteVisitModal({ visit, task, user, onClose }) {
-  const [obs,     setObs]     = useState('');
-  const [loading, setLoading] = useState(false);
+  const [obs,        setObs]        = useState('');
+  const [visitValue, setVisitValue] = useState('0');
+  const [loading,    setLoading]    = useState(false);
   const addToast = useAppStore(s => s.addToast);
 
   const handleConfirm = async () => {
@@ -123,6 +124,7 @@ function CompleteVisitModal({ visit, task, user, onClose }) {
       const updated = applyVisitChange(task, visit.id, {
         status:              'Realizada',
         closingObservations: obs.trim(),
+        visitValue:          parseFloat(visitValue) || 0,
         completedAt:         new Date().toISOString(),
         completedBy:         user.email,
       });
@@ -148,8 +150,20 @@ function CompleteVisitModal({ visit, task, user, onClose }) {
           value={obs} onChange={e => setObs(e.target.value)}
           rows={3}
           placeholder="Ej: Trabajo realizado correctamente…"
-          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-green-400 mb-4"
+          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-green-400 mb-3"
         />
+        <label className="block text-xs font-semibold text-slate-600 mb-1">
+          Valor de la visita <span className="font-normal text-slate-400">(opcional)</span>
+        </label>
+        <div className="relative mb-4">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-semibold">$</span>
+          <input
+            type="number" min="0" step="0.01"
+            value={visitValue}
+            onChange={e => setVisitValue(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-green-400"
+          />
+        </div>
         <div className="flex gap-3">
           <button onClick={onClose} disabled={loading}
             className="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
@@ -737,6 +751,11 @@ export default function AllVisitsManager({ user }) {
                                   )}
                                   {visit.closingObservations && (
                                     <p className="text-xs text-green-600 italic truncate">✅ {visit.closingObservations}</p>
+                                  )}
+                                  {visit.visitValue != null && visit.visitValue !== '' && (
+                                    <p className="text-xs font-bold text-emerald-700">
+                                      💰 Valor: ${Number(visit.visitValue).toFixed(2)}
+                                    </p>
                                   )}
                                 </div>
 
