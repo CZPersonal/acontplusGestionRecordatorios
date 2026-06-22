@@ -228,6 +228,27 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
             📝 {isVisit ? event.visit.observations : task.observations}
           </p>
         )}
+
+        {/* Datos de realización — solo en vista día (wide) */}
+        {wide && isVisit && event.visitStatus === 'Realizada' && (
+          <div className="mt-1.5 pt-1.5 border-t border-emerald-200 space-y-0.5">
+            {event.visit?.completedAt && (
+              <p className="text-xs font-semibold text-emerald-700">
+                ✅ Realizada: {formatDateTime(event.visit.completedAt)}
+              </p>
+            )}
+            {event.visit?.visitValue > 0 && (
+              <p className="text-xs font-bold text-emerald-700">
+                💰 Valor: ${Number(event.visit.visitValue).toFixed(2)}
+              </p>
+            )}
+            {event.visit?.closingObservations && (
+              <p className="text-xs text-emerald-600 italic">
+                📝 {event.visit.closingObservations}
+              </p>
+            )}
+          </div>
+        )}
       </button>
 
       <div className="flex items-center justify-between px-2.5 pb-1.5 pt-0.5">
