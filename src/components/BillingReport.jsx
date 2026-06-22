@@ -2,15 +2,17 @@ import { useMemo, useState } from 'react';
 import {
   Filter, X, ChevronDown, ChevronUp, Download,
   FileText, Search, Calendar, DollarSign,
-  CheckCircle, AlertCircle, Package, Banknote, Settings
+  CheckCircle, AlertCircle, Package, Banknote, Settings, CalendarDays
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
+import AbonosModal from './AbonosModal.jsx';
 import { calcPaymentSummary } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
+import { useAbonos } from '../hooks/useAbonos.js';
 
 // ─── Aplanar todas las visitas ─────────────────────────────────────────────────
 function flattenVisits(tasks) {
@@ -53,6 +55,9 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const [showFilters,    setShowFilters]    = useState(true);
   const [showExport,     setShowExport]     = useState(false);
   const [billingTarget,  setBillingTarget]  = useState(null); // { task, visit }
+  const [abonosTarget,   setAbonosTarget]   = useState(null); // { task, visit }
+
+  const { abonosByVisit, addAbono, deleteAbono } = useAbonos();
 
   const allRows = useMemo(() => flattenVisits(tasks), [tasks]);
 
@@ -325,20 +330,34 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                           {isOverdue && (
                             <p className="text-xs text-red-500 mt-0.5">⚠️ Compromiso vencido</p>
                           )}
+                          {(() => {
+                            const va = abonosByVisit[visit.id] || [];
+                            if (va.length === 0) return null;
+                            const total = va.reduce((s, a) => s + (a.valor || 0), 0);
+                            return (
+                              <p className="text-xs text-blue-600 mt-0.5 font-medium">
+                                📅 {va.length} abono{va.length !== 1 ? 's' : ''} · ${fmtMoney(total)}
+                              </p>
+                            );
+                          })()}
                         </td>
 
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => setBillingTarget({
-                              task,
-                              visit,
-                              allVisits: task.visits || [],
-                            })}
-                            className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-white whitespace-nowrap"
-                            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-                            <DollarSign size={11} />
-                            Cobrar
-                          </button>
+                          <div className="flex flex-col gap-1.5">
+                            <button
+                              onClick={() => setBillingTarget({ task, visit, allVisits: task.visits || [] })}
+                              className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-white whitespace-nowrap"
+                              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                              <DollarSign size={11} />Cobrar
+                            </button>
+                            {summary.total > 0 && !summary.pagado && (
+                              <button
+                                onClick={() => setAbonosTarget({ task, visit })}
+                                className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 whitespace-nowrap transition-colors">
+                                <CalendarDays size={11} />Abonos
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -370,6 +389,19 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
           user={user}
           onClose={() => setBillingTarget(null)}
           onUpdate={handleBillingUpdate}
+        />
+      )}
+
+      {/* Modal de abonos programados */}
+      {abonosTarget && (
+        <AbonosModal
+          task={abonosTarget.task}
+          visit={abonosTarget.visit}
+          visitAbonos={abonosByVisit[abonosTarget.visit.id] || []}
+          user={user}
+          onClose={() => setAbonosTarget(null)}
+          onAdd={addAbono}
+          onDelete={deleteAbono}
         />
       )}
     </div>
