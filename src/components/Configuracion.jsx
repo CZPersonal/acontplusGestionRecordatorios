@@ -422,17 +422,57 @@ function TabEntidad({ user }) {
 
 // ─── Sub-menú: Notificaciones ─────────────────────────────────────────────────
 
+const NOTIF_DEFAULT = { tecnico: true, cliente: false, creador: false, otros: false, otrosEmail: '' };
+
+function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
+  const RECIPIENTS = [
+    { key: 'tecnico', emoji: '👷', label: 'Técnico' },
+    { key: 'cliente', emoji: '👤', label: 'Cliente' },
+    { key: 'creador', emoji: '✍️', label: 'Creador' },
+    { key: 'otros',   emoji: '📧', label: 'Otros' },
+  ];
+  const toggle = (key) => onChange({ ...value, [key]: !value[key] });
+  return (
+    <div className="py-4 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-base">{icon}</span>
+        <p className="text-sm font-bold text-slate-700">{label}</p>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {RECIPIENTS.map(r => (
+          <label key={r.key} className="flex items-center gap-1.5 cursor-pointer select-none
+            px-3 py-1.5 rounded-lg border-2 transition-all"
+            style={{
+              borderColor: value[r.key] ? accent : '#e2e8f0',
+              background:  value[r.key] ? `${accent}10` : 'white',
+            }}>
+            <input type="checkbox" checked={!!value[r.key]} onChange={() => toggle(r.key)}
+              className="w-3.5 h-3.5 rounded" style={{ accentColor: accent }} />
+            <span className="text-xs font-semibold text-slate-700">{r.emoji} {r.label}</span>
+          </label>
+        ))}
+      </div>
+      {value.otros && (
+        <input type="email" value={value.otrosEmail || ''}
+          onChange={e => onChange({ ...value, otrosEmail: e.target.value })}
+          placeholder="correo@ejemplo.com"
+          className="mt-2.5 w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
+          onFocus={e => e.target.style.borderColor = accent}
+          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+      )}
+    </div>
+  );
+}
+
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
   const [agendaHoy,    setAgendaHoy]    = useState({ activo: false, hora: 7,  destinatarios: [] });
   const [agendaMañana, setAgendaMañana] = useState({ activo: false, hora: 20, destinatarios: [] });
   const [incluirAtrasadas, setIncluirAtrasadas] = useState(false);
-  const [ccCorreos,    setCcCorreos]    = useState([]);
 
   const [newAgendaHoy,    setNewAgendaHoy]    = useState('');
   const [newAgendaMañana, setNewAgendaMañana] = useState('');
-  const [newCc,           setNewCc]           = useState('');
   const [emailErr,        setEmailErr]        = useState('');
   const [saved,           setSaved]           = useState(false);
   const [error,           setError]           = useState('');
@@ -440,30 +480,23 @@ function TabNotificaciones({ user }) {
   const [notifPre,    setNotifPre]    = useState({ activo: false, minutosAntes: 30,   destinatarios: ['tecnico'] });
   const [notifRetard, setNotifRetard] = useState({ activo: false, minutosRetraso: 30, destinatarios: ['admin']   });
 
+  const [notifCreada,      setNotifCreada]      = useState(NOTIF_DEFAULT);
+  const [notifModificada,  setNotifModificada]  = useState(NOTIF_DEFAULT);
+  const [notifConfirmada,  setNotifConfirmada]  = useState(NOTIF_DEFAULT);
+  const [notifRealizada,   setNotifRealizada]   = useState(NOTIF_DEFAULT);
+
   useEffect(() => {
     if (!config) return;
     setAgendaHoy(prev => ({ ...prev, ...(config.agendaHoy || {}) }));
     setAgendaMañana(prev => ({ ...prev, ...(config.agendaMañana || {}) }));
     setIncluirAtrasadas(!!config.incluirAtrasadas);
-    setCcCorreos(config.ccCorreos || []);
     if (config.notifPrevisita) setNotifPre(prev => ({ ...prev, ...config.notifPrevisita }));
     if (config.notifRetraso)   setNotifRetard(prev => ({ ...prev, ...config.notifRetraso }));
+    if (config.notifCreada)     setNotifCreada(prev     => ({ ...NOTIF_DEFAULT, ...config.notifCreada }));
+    if (config.notifModificada) setNotifModificada(prev => ({ ...NOTIF_DEFAULT, ...config.notifModificada }));
+    if (config.notifConfirmada) setNotifConfirmada(prev => ({ ...NOTIF_DEFAULT, ...config.notifConfirmada }));
+    if (config.notifRealizada)  setNotifRealizada(prev  => ({ ...NOTIF_DEFAULT, ...config.notifRealizada }));
   }, [config]);
-
-  const addToList = (list, setList, val, setVal) => {
-    const e = val.trim().toLowerCase();
-    if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
-    if (list.includes(e)) { setEmailErr('Este correo ya está en la lista.'); return; }
-    setList(prev => [...prev, e]);
-    setVal('');
-    setEmailErr('');
-    setSaved(false);
-  };
-
-  const removeFromList = (setList, email) => {
-    setList(prev => prev.filter(e => e !== email));
-    setSaved(false);
-  };
 
   const handleSave = async () => {
     setError('');
@@ -471,9 +504,12 @@ function TabNotificaciones({ user }) {
       agendaHoy,
       agendaMañana,
       incluirAtrasadas,
-      ccCorreos,
-      notifPrevisita: notifPre,
-      notifRetraso:   notifRetard,
+      notifPrevisita:  notifPre,
+      notifRetraso:    notifRetard,
+      notifCreada,
+      notifModificada,
+      notifConfirmada,
+      notifRealizada,
     });
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
     else setError('Error al guardar. Verifica tu conexión.');
@@ -660,25 +696,43 @@ function TabNotificaciones({ user }) {
         </div>
       </div>
 
-      {/* CC para confirmación de visita completada */}
+      {/* Notificaciones de eventos de visita */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
           style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
           <div className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-            <Mail size={15} className="text-white" />
+            <Bell size={15} className="text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-700">Copias (CC) — Confirmación de visita realizada</p>
-            <p className="text-xs text-slate-400">Estos correos reciben copia cuando se completa una visita</p>
+            <p className="text-sm font-bold text-slate-700">Notificaciones de eventos de visita</p>
+            <p className="text-xs text-slate-400">Elige quién recibe aviso en cada tipo de evento</p>
           </div>
         </div>
-        <div className="p-6">
-          <EmailList
-            list={ccCorreos}
-            onRemove={e => removeFromList(setCcCorreos, e)}
-            value={newCc} onChange={setNewCc}
-            onAdd={() => addToList(ccCorreos, setCcCorreos, newCc, setNewCc)}
+        <div className="px-6 py-4 divide-y divide-slate-100">
+          <NotifGroup
+            label="Visita creada"
+            icon="🆕"
+            value={notifCreada}
+            onChange={v => { setNotifCreada(v); setSaved(false); }}
+          />
+          <NotifGroup
+            label="Visita modificada"
+            icon="✏️"
+            value={notifModificada}
+            onChange={v => { setNotifModificada(v); setSaved(false); }}
+          />
+          <NotifGroup
+            label="Visita confirmada"
+            icon="✅"
+            value={notifConfirmada}
+            onChange={v => { setNotifConfirmada(v); setSaved(false); }}
+          />
+          <NotifGroup
+            label="Visita realizada"
+            icon="🏁"
+            value={notifRealizada}
+            onChange={v => { setNotifRealizada(v); setSaved(false); }}
           />
         </div>
       </div>
