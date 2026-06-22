@@ -508,6 +508,134 @@ function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
   );
 }
 
+// ─── Tarjeta de notificación de cobros (con toggle + días + destinatarios) ─────
+
+const COBROS_NOTIF_DEFAULT = {
+  activo: false, dias: 3,
+  tecnico: false, creador: false, cliente: false, administrador: false,
+  otros: false, otrosEmails: [],
+};
+
+function CobrosNotifCard({ title, subtitle, diasLabel, value, onChange, accent = '#D61672' }) {
+  const [newEmail, setNewEmail] = useState('');
+  const [emailErr, setEmailErr] = useState('');
+
+  const RECIPIENTS = [
+    { key: 'tecnico',       emoji: '👷', label: 'Técnico'  },
+    { key: 'creador',       emoji: '✍️', label: 'Creador'  },
+    { key: 'cliente',       emoji: '👤', label: 'Cliente'  },
+    { key: 'administrador', emoji: '🛡️', label: 'Admin'    },
+    { key: 'otros',         emoji: '📧', label: 'Otros'    },
+  ];
+
+  const toggle = (key) => onChange({ ...value, [key]: !value[key] });
+
+  const addEmail = () => {
+    const e = newEmail.trim().toLowerCase();
+    if (!e.includes('@')) { setEmailErr('Email inválido'); return; }
+    const list = value.otrosEmails || [];
+    if (list.includes(e)) { setEmailErr('Ya está en la lista'); return; }
+    onChange({ ...value, otrosEmails: [...list, e] });
+    setNewEmail(''); setEmailErr('');
+  };
+  const removeEmail = (email) =>
+    onChange({ ...value, otrosEmails: (value.otrosEmails || []).filter(e => e !== email) });
+
+  const inp = "border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors bg-white";
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between"
+        style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${accent}, #FFA901)` }}>
+            <Bell size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">{title}</p>
+            <p className="text-xs text-slate-400">{subtitle}</p>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <div className="relative w-11 h-6 rounded-full transition-colors"
+            style={{ background: value.activo ? accent : '#cbd5e1' }}
+            onClick={() => onChange({ ...value, activo: !value.activo })}>
+            <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value.activo ? 'translate-x-5' : ''}`} />
+          </div>
+          <span className="text-xs font-semibold text-slate-600">{value.activo ? 'Activo' : 'Inactivo'}</span>
+        </label>
+      </div>
+      {value.activo && (
+        <div className="p-6 space-y-5">
+          {/* Días */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{diasLabel}</label>
+            <div className="flex items-center gap-3">
+              <input type="number" min={1} max={365} value={value.dias}
+                onChange={e => onChange({ ...value, dias: Number(e.target.value) })}
+                className={`${inp} w-24 font-mono`}
+                onFocus={e => e.target.style.borderColor = accent}
+                onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+              <span className="text-sm text-slate-500">día{value.dias !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          {/* Destinatarios */}
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Destinatarios</p>
+            <div className="flex flex-wrap gap-2">
+              {RECIPIENTS.map(r => (
+                <label key={r.key} className="flex items-center gap-1.5 cursor-pointer select-none px-3 py-1.5 rounded-lg border-2 transition-all"
+                  style={{
+                    borderColor: value[r.key] ? accent : '#e2e8f0',
+                    background:  value[r.key] ? `${accent}15` : 'white',
+                  }}>
+                  <input type="checkbox" checked={!!value[r.key]} onChange={() => toggle(r.key)}
+                    className="w-3.5 h-3.5 rounded" style={{ accentColor: accent }} />
+                  <span className="text-xs font-semibold text-slate-700">{r.emoji} {r.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {/* Emails adicionales */}
+          {value.otros && (
+            <div className="space-y-2">
+              {(value.otrosEmails || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {(value.otrosEmails || []).map(email => (
+                    <span key={email} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
+                      style={{ background: `${accent}10`, borderColor: `${accent}40`, color: accent }}>
+                      {email}
+                      <button type="button" onClick={() => removeEmail(email)} className="ml-0.5 hover:opacity-70">
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input type="email" value={newEmail}
+                  onChange={e => { setNewEmail(e.target.value); setEmailErr(''); }}
+                  onKeyDown={e => e.key === 'Enter' && addEmail()}
+                  placeholder="correo@ejemplo.com"
+                  className={`flex-1 ${inp}`}
+                  onFocus={e => e.target.style.borderColor = accent}
+                  onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+                <button type="button" onClick={addEmail}
+                  className="px-3 py-2 rounded-xl text-white text-xs font-bold flex-shrink-0"
+                  style={{ background: accent }}>
+                  Agregar
+                </button>
+              </div>
+              {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
@@ -529,6 +657,9 @@ function TabNotificaciones({ user }) {
   const [notifConfirmada,  setNotifConfirmada]  = useState(NOTIF_DEFAULT);
   const [notifRealizada,   setNotifRealizada]   = useState(NOTIF_DEFAULT);
 
+  const [notifCobrosProgramados, setNotifCobrosProgramados] = useState(COBROS_NOTIF_DEFAULT);
+  const [notifCobrosVencidos,    setNotifCobrosVencidos]    = useState(COBROS_NOTIF_DEFAULT);
+
   useEffect(() => {
     if (!config) return;
     setAgendaHoy(prev => ({ ...prev, ...(config.agendaHoy || {}) }));
@@ -540,6 +671,8 @@ function TabNotificaciones({ user }) {
     if (config.notifModificada) setNotifModificada(prev => ({ ...NOTIF_DEFAULT, ...config.notifModificada }));
     if (config.notifConfirmada) setNotifConfirmada(prev => ({ ...NOTIF_DEFAULT, ...config.notifConfirmada }));
     if (config.notifRealizada)  setNotifRealizada(prev  => ({ ...NOTIF_DEFAULT, ...config.notifRealizada }));
+    if (config.notifCobrosProgramados) setNotifCobrosProgramados(prev => ({ ...COBROS_NOTIF_DEFAULT, ...config.notifCobrosProgramados }));
+    if (config.notifCobrosVencidos)    setNotifCobrosVencidos(prev    => ({ ...COBROS_NOTIF_DEFAULT, ...config.notifCobrosVencidos }));
   }, [config]);
 
   const handleSave = async () => {
@@ -554,6 +687,8 @@ function TabNotificaciones({ user }) {
       notifModificada,
       notifConfirmada,
       notifRealizada,
+      notifCobrosProgramados,
+      notifCobrosVencidos,
     });
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
     else setError('Error al guardar. Verifica tu conexión.');
@@ -907,6 +1042,29 @@ function TabNotificaciones({ user }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ─── Notificaciones de cobros ─────────────────────────────────────────── */}
+      <div className="pt-2">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">💰 Notificaciones de cobros</p>
+        <div className="space-y-4">
+          <CobrosNotifCard
+            title="Cobros programados"
+            subtitle="Aviso previo a la fecha comprometida de pago"
+            diasLabel="Días de anticipación para notificar"
+            value={notifCobrosProgramados}
+            onChange={v => { setNotifCobrosProgramados(v); setSaved(false); }}
+            accent="#7c3aed"
+          />
+          <CobrosNotifCard
+            title="Cobros vencidos"
+            subtitle="Recordatorio cuando un abono no se ha pagado"
+            diasLabel="Días después del vencimiento para notificar"
+            value={notifCobrosVencidos}
+            onChange={v => { setNotifCobrosVencidos(v); setSaved(false); }}
+            accent="#dc2626"
+          />
+        </div>
       </div>
 
       {error && (
