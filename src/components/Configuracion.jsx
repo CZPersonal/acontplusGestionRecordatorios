@@ -422,16 +422,33 @@ function TabEntidad({ user }) {
 
 // ─── Sub-menú: Notificaciones ─────────────────────────────────────────────────
 
-const NOTIF_DEFAULT = { tecnico: true, cliente: false, creador: false, otros: false, otrosEmail: '' };
+const NOTIF_DEFAULT = { tecnico: true, cliente: false, creador: false, otros: false, otrosEmails: [] };
 
 function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
+  const [newEmail, setNewEmail] = useState('');
+  const [emailErr, setEmailErr] = useState('');
+
   const RECIPIENTS = [
     { key: 'tecnico', emoji: '👷', label: 'Técnico' },
     { key: 'cliente', emoji: '👤', label: 'Cliente' },
     { key: 'creador', emoji: '✍️', label: 'Creador' },
     { key: 'otros',   emoji: '📧', label: 'Otros' },
   ];
+
   const toggle = (key) => onChange({ ...value, [key]: !value[key] });
+
+  const addEmail = () => {
+    const e = newEmail.trim().toLowerCase();
+    if (!e.includes('@')) { setEmailErr('Email inválido'); return; }
+    const list = value.otrosEmails || [];
+    if (list.includes(e)) { setEmailErr('Ya está en la lista'); return; }
+    onChange({ ...value, otrosEmails: [...list, e] });
+    setNewEmail(''); setEmailErr('');
+  };
+
+  const removeEmail = (email) =>
+    onChange({ ...value, otrosEmails: (value.otrosEmails || []).filter(e => e !== email) });
+
   return (
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-center gap-2 mb-3">
@@ -453,12 +470,39 @@ function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
         ))}
       </div>
       {value.otros && (
-        <input type="email" value={value.otrosEmail || ''}
-          onChange={e => onChange({ ...value, otrosEmail: e.target.value })}
-          placeholder="correo@ejemplo.com"
-          className="mt-2.5 w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
-          onFocus={e => e.target.style.borderColor = accent}
-          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <div className="mt-3 space-y-2">
+          {/* Chips de correos agregados */}
+          {(value.otrosEmails || []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(value.otrosEmails || []).map(email => (
+                <span key={email} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border"
+                  style={{ background: `${accent}10`, borderColor: `${accent}40`, color: accent }}>
+                  {email}
+                  <button type="button" onClick={() => removeEmail(email)}
+                    className="ml-0.5 hover:opacity-70 transition-opacity">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Input agregar */}
+          <div className="flex gap-2">
+            <input type="email" value={newEmail}
+              onChange={e => { setNewEmail(e.target.value); setEmailErr(''); }}
+              onKeyDown={e => e.key === 'Enter' && addEmail()}
+              placeholder="correo@ejemplo.com"
+              className="flex-1 border-2 border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors"
+              onFocus={e => e.target.style.borderColor = accent}
+              onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+            <button type="button" onClick={addEmail}
+              className="px-3 py-2 rounded-xl text-white text-xs font-bold flex-shrink-0"
+              style={{ background: accent }}>
+              Agregar
+            </button>
+          </div>
+          {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+        </div>
       )}
     </div>
   );
