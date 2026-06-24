@@ -242,7 +242,7 @@ function BorradorCard({ b, onEdit }) {
 
 // ─── Componente principal exportado ──────────────────────────────────────────
 
-export default function BorradorSheet({ user }) {
+export default function BorradorSheet({ user, showList = false }) {
   const { borradores, isLoading, addBorrador, updateBorrador } = useBorradores(user, { onlyMine: true });
 
   const [open,      setOpen]      = useState(false);
@@ -275,8 +275,8 @@ export default function BorradorSheet({ user }) {
 
   return (
     <>
-      {/* ── Lista de borradores propios ── */}
-      {borradores.length > 0 && (
+      {/* ── Lista de borradores propios (solo cuando showList=true) ── */}
+      {showList && borradores.length > 0 && (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
@@ -301,6 +301,13 @@ export default function BorradorSheet({ user }) {
               <p className="text-xs text-green-700 font-medium">Todos tus borradores fueron procesados</p>
             </div>
           )}
+        </div>
+      )}
+      {showList && borradores.length === 0 && (
+        <div className="mt-6 text-center py-12 text-slate-400">
+          <FileText size={40} className="mx-auto mb-3 opacity-20" />
+          <p className="text-sm font-medium">Sin borradores registrados</p>
+          <p className="text-xs mt-1">Usa el botón <span className="font-bold text-pink-500">+</span> para registrar tu primer borrador</p>
         </div>
       )}
 

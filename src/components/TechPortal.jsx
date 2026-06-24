@@ -4,11 +4,12 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { getVisitsRef } from '../lib/tenantDb';
+import { useBorradores } from '../hooks/useBorradores';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, MapPin, Phone, Wrench, X,
-  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle,
+  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
 
@@ -502,7 +503,13 @@ export default function TechPortal({ user }) {
 
   const today = useMemo(() => localToday(), []);
 
-  const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana'
+  const { borradores: misBorradores } = useBorradores(user, { onlyMine: true });
+  const pendientesBorradores = useMemo(
+    () => misBorradores.filter(b => b.status === 'Pendiente').length,
+    [misBorradores]
+  );
+
+  const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana' | 'borradores'
   const [calDate,         setCalDate]         = useState(today);
   const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas' | 'realizadas'
   const [confirming,      setConfirming]      = useState(null);
@@ -639,40 +646,50 @@ export default function TechPortal({ user }) {
         {/* Selector de vista + filtro */}
         <div className="max-w-lg mx-auto px-4 pb-2 flex items-center justify-between gap-2 flex-wrap">
           {/* Vista */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {[
-              { id: 'lista',  label: 'Lista',  icon: <List     size={13} /> },
-              { id: 'dia',    label: 'Día',    icon: <Calendar size={13} /> },
-              { id: 'semana', label: 'Semana', icon: <Clock    size={13} /> },
+              { id: 'lista',       label: 'Lista',      icon: <List      size={13} /> },
+              { id: 'dia',         label: 'Día',         icon: <Calendar  size={13} /> },
+              { id: 'semana',      label: 'Semana',     icon: <Clock     size={13} /> },
+              { id: 'borradores',  label: 'Borradores', icon: <BookOpen  size={13} />, badge: pendientesBorradores },
             ].map(v => (
               <button key={v.id}
-                onClick={() => { setCalView(v.id); if (v.id !== 'lista') setCalDate(today); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                onClick={() => { setCalView(v.id); if (v.id !== 'lista' && v.id !== 'borradores') setCalDate(today); }}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                   calView === v.id ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                 }`}
                 style={calView === v.id ? { background: '#D61672' } : {}}>
                 {v.icon}{v.label}
+                {v.badge > 0 && (
+                  <span className={`ml-0.5 min-w-[16px] h-4 px-1 rounded-full text-xs font-bold flex items-center justify-center ${
+                    calView === v.id ? 'bg-white text-pink-600' : 'bg-amber-400 text-white'
+                  }`}>
+                    {v.badge}
+                  </span>
+                )}
               </button>
             ))}
           </div>
-          {/* Filtro */}
-          <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
-            {[
-              { id: 'todas',       label: 'Todas' },
-              { id: 'programadas', label: 'Pend.' },
-              { id: 'confirmadas', label: 'Conf.' },
-              { id: 'realizadas',  label: 'Real.' },
-            ].map(f => (
-              <button key={f.id} onClick={() => setVisitFilter(f.id)}
-                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                  visitFilter === f.id
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                {f.label}
-              </button>
-            ))}
-          </div>
+          {/* Filtro — oculto en vista borradores */}
+          {calView !== 'borradores' && (
+            <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+              {[
+                { id: 'todas',       label: 'Todas' },
+                { id: 'programadas', label: 'Pend.' },
+                { id: 'confirmadas', label: 'Conf.' },
+                { id: 'realizadas',  label: 'Real.' },
+              ].map(f => (
+                <button key={f.id} onClick={() => setVisitFilter(f.id)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                    visitFilter === f.id
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -705,7 +722,6 @@ export default function TechPortal({ user }) {
           <Section title="Hoy"               icon={Calendar}      color="#D61672"   visits={hoy}        {...visitCardProps} />
           <Section title="Próximas"          icon={Clock}         color="#2563eb"  visits={proximas}   {...visitCardProps} />
           <Section title="Realizadas"        icon={CheckCircle2}  color="#16a34a"  visits={realizadas} {...visitCardProps} />
-          <BorradorSheet user={user} />
         </>)}
 
         {/* Vista día */}
@@ -729,7 +745,17 @@ export default function TechPortal({ user }) {
             today={today}
           />
         )}
+
+        {/* Vista borradores */}
+        {calView === 'borradores' && (
+          <BorradorSheet user={user} showList={true} />
+        )}
       </div>
+
+      {/* FAB siempre visible en otras vistas */}
+      {calView !== 'borradores' && (
+        <BorradorSheet user={user} showList={false} />
+      )}
 
       {completingVisit && (
         <CompleteModal
