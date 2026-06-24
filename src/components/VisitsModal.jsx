@@ -246,6 +246,7 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
     observations:    initial?.observations    || '',
     technician:      initial?.technician      || '',
     technicianEmail: initial?.technicianEmail || '',
+    technicianPhone: initial?.technicianPhone || '',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -332,17 +333,28 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
                 const found  = tecnicosParaSelect.find(t => t.nombre === nombre);
                 set('technician', nombre);
                 set('technicianEmail', found?.email || '');
+                set('technicianPhone', found?.phone || '');
               }} className={inp} onFocus={foc} onBlur={blr}>
                 <option value="">— Selecciona un técnico —</option>
                 {tecnicosParaSelect.map(t => (
                   <option key={t.id} value={t.nombre}>{t.nombre}</option>
                 ))}
               </select>
-              {formData.technicianEmail && (
-                <p className="flex items-center gap-1.5 text-xs text-slate-400 mt-2">
-                  <Mail size={11} />
-                  Notificación de email: <span className="font-mono text-slate-500">{formData.technicianEmail}</span>
-                </p>
+              {(formData.technicianEmail || formData.technicianPhone) && (
+                <div className="flex flex-col gap-0.5 mt-2">
+                  {formData.technicianEmail && (
+                    <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Mail size={11} />
+                      <span className="font-mono text-slate-500">{formData.technicianEmail}</span>
+                    </p>
+                  )}
+                  {formData.technicianPhone && (
+                    <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Phone size={11} />
+                      <span className="text-slate-500">{formData.technicianPhone}</span>
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 

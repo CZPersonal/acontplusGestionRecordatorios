@@ -120,6 +120,82 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Genera el HTML de un email de visita con secciones separadas de cliente y visita.
+// portalNote: true → muestra aviso de confirmar por portal (sin botón de link)
+// changes: array de filas HTML (para notifModificada)
+function buildVisitEmailHtml({ title, titleColor = '#D61672', intro, task, visit, changes = null, portalNote = false }) {
+  const urgencyLabel = { Alta: '🔴 Alta', Media: '🟡 Media', Baja: '🟢 Baja' }[visit.urgency] || '';
+  const tdL = 'padding:8px 12px;color:#64748b;font-size:13px;width:130px;vertical-align:top;';
+  const tdR = 'padding:8px 12px;font-size:13px;vertical-align:top;';
+  const sectionTitle = (icon, text) =>
+    `<p style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 6px;">${icon} ${text}</p>`;
+  const row = (label, value, mono = false) => value
+    ? `<tr><td style="${tdL}">${escHtml(label)}</td><td style="${tdR}${mono ? 'font-family:monospace;' : 'font-weight:500;'}">${escHtml(value)}</td></tr>`
+    : '';
+  const tableWrap = (rows) =>
+    `<table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:4px;">${rows}</table>`;
+
+  const clientRows = [
+    row('Nombre',     task.clientName,    false),
+    row('Dirección',  task.clientAddress, false),
+    row('Cédula/RUC', task.identification, true),
+    row('Teléfono',   task.clientPhone,   false),
+    row('Orden',      task.serviceOrder,  true),
+  ].join('');
+
+  const visitRows = [
+    row('Fecha',            visit.scheduledDate || '—', false),
+    row('Hora',             visit.scheduledTime,  false),
+    row('Tipo',             visit.type,           false),
+    urgencyLabel ? `<tr><td style="${tdL}">Urgencia</td><td style="${tdR}">${urgencyLabel}</td></tr>` : '',
+    row('Servicio',         task.serviceType,     false),
+    row('Técnico',          visit.technician,     false),
+    row('Email técnico',    visit.technicianEmail, true),
+    row('Teléfono técnico', visit.technicianPhone, false),
+    visit.observations
+      ? `<tr><td style="${tdL}">Observaciones</td><td style="${tdR};font-style:italic;">${escHtml(visit.observations)}</td></tr>`
+      : '',
+    visit.closingObservations
+      ? `<tr><td style="${tdL}">Obs. cierre</td><td style="${tdR};font-style:italic;">${escHtml(visit.closingObservations)}</td></tr>`
+      : '',
+  ].join('');
+
+  const changesBlock = changes
+    ? `${sectionTitle('✏️', 'Cambios realizados')}
+       <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:4px;">
+         <tr style="background:#f1f5f9;">
+           <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Campo</th>
+           <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Anterior</th>
+           <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Nuevo</th>
+         </tr>
+         ${changes}
+       </table>`
+    : '';
+
+  const portalBlock = portalNote
+    ? `<div style="margin:20px 0;padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+         <p style="margin:0;font-size:13px;color:#15803d;">
+           ✅ Para confirmar tu asistencia, ingresa al <strong>Portal de Técnicos</strong> con tus credenciales en:<br>
+           <a href="https://gestorrecordatorios.web.app" style="color:#15803d;font-weight:bold;">https://gestorrecordatorios.web.app</a>
+         </p>
+       </div>`
+    : '';
+
+  return `
+    <div style="font-family:sans-serif;max-width:560px;margin:auto;">
+      <h2 style="color:${titleColor};margin-bottom:4px;">${title}</h2>
+      <p style="color:#555;margin-bottom:16px;">${intro}</p>
+      ${sectionTitle('📋', 'Información del cliente')}
+      ${tableWrap(clientRows)}
+      ${sectionTitle('📅', 'Detalles de la visita')}
+      ${tableWrap(visitRows)}
+      ${changesBlock}
+      ${portalBlock}
+      <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+      <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
+    </div>`;
+}
+
 // Resuelve lista de destinatarios a partir de la configuración de notificación del tenant.
 // notifCfg: { tecnico, creador, cliente, otros, otrosEmails[] }
 // Fallback: si la config no existe o queda sin destinatarios, usa fallbackEmails.
@@ -242,62 +318,19 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
       return;
     }
 
-    const urgencyLabel = { Alta: '🔴 Alta', Media: '🟡 Media', Baja: '🟢 Baja' }[visit.urgency] || '';
-
     await resend.emails.send({
       from:    getFromEmail(config.empresaNombre),
       to:      toList,
-      subject: `Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-          <h2 style="color:#D61672;">Nueva visita asignada</h2>
-          <p style="color:#555;margin-bottom:16px;">Se ha programado la siguiente visita:</p>
-          <table style="border-collapse:collapse;width:100%;">
-            <tr><td style="padding:6px 0;color:#888;width:130px;">Cliente</td>
-                <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-            ${task.clientAddress
-              ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
-                     <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
-            ${task.identification
-              ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td>
-                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
-            ${task.clientPhone
-              ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
-                     <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
-            <tr><td style="padding:6px 0;color:#888;">Fecha</td>
-                <td style="padding:6px 0;">${escHtml(visit.scheduledDate || '—')}</td></tr>
-            ${visit.scheduledTime
-              ? `<tr><td style="padding:6px 0;color:#888;">Hora</td>
-                     <td style="padding:6px 0;">${escHtml(visit.scheduledTime)}</td></tr>` : ''}
-            ${visit.technician
-              ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td>
-                     <td style="padding:6px 0;font-weight:600;">${escHtml(visit.technician)}</td></tr>` : ''}
-            ${visit.technicianEmail
-              ? `<tr><td style="padding:6px 0;color:#888;">Email técnico</td>
-                     <td style="padding:6px 0;font-family:monospace;">${escHtml(visit.technicianEmail)}</td></tr>` : ''}
-            ${visit.type
-              ? `<tr><td style="padding:6px 0;color:#888;">Tipo</td>
-                     <td style="padding:6px 0;">${escHtml(visit.type)}</td></tr>` : ''}
-            ${urgencyLabel
-              ? `<tr><td style="padding:6px 0;color:#888;">Urgencia</td>
-                     <td style="padding:6px 0;">${urgencyLabel}</td></tr>` : ''}
-            ${task.serviceOrder
-              ? `<tr><td style="padding:6px 0;color:#888;">Orden</td>
-                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-            ${task.serviceType
-              ? `<tr><td style="padding:6px 0;color:#888;">Servicio</td>
-                     <td style="padding:6px 0;">${escHtml(task.serviceType)}</td></tr>` : ''}
-            ${visit.observations
-              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones</td>
-                     <td style="padding:6px 0;font-style:italic;">${escHtml(visit.observations)}</td></tr>` : ''}
-          </table>
-          <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-          <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-        </div>
-      `,
+      subject: `🗓️ Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
+      html:    buildVisitEmailHtml({
+        title:      '🗓️ Nueva visita asignada',
+        intro:      'Se ha programado la siguiente visita en tu agenda.',
+        task, visit,
+        portalNote: true,
+      }),
     });
 
-    console.log(`notifyTechnicianOnVisit: email enviado a ${emailDestino} — tarea ${event.params.taskId}`);
+    console.log(`notifyTechnicianOnVisit: email enviado a ${toList.join(', ')} — tarea ${event.params.taskId}`);
   }
 );
 
@@ -546,50 +579,16 @@ exports.notifyVisitCompleted = onDocumentUpdated(
       from:    getFromEmail(config.empresaNombre),
       to:      toList,
       subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-          <h2 style="color:#16a34a;">✅ Visita completada</h2>
-          <p style="color:#555;margin-bottom:16px;">La siguiente visita fue marcada como <strong>Realizada</strong>.</p>
-          <table style="border-collapse:collapse;width:100%;">
-            <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
-                <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-            ${task.clientAddress
-              ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
-                     <td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
-            ${task.identification
-              ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td>
-                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
-            ${task.clientPhone
-              ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td>
-                     <td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
-            <tr><td style="padding:6px 0;color:#888;">Fecha</td>
-                <td style="padding:6px 0;">${escHtml(after.scheduledDate || '—')}</td></tr>
-            ${after.scheduledTime
-              ? `<tr><td style="padding:6px 0;color:#888;">Hora</td>
-                     <td style="padding:6px 0;">${escHtml(after.scheduledTime)}</td></tr>` : ''}
-            ${after.technician
-              ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td>
-                     <td style="padding:6px 0;">${escHtml(after.technician)}</td></tr>` : ''}
-            ${after.type
-              ? `<tr><td style="padding:6px 0;color:#888;">Tipo</td>
-                     <td style="padding:6px 0;">${escHtml(after.type)}</td></tr>` : ''}
-            ${task.serviceOrder
-              ? `<tr><td style="padding:6px 0;color:#888;">Orden</td>
-                     <td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-            ${after.observations
-              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones</td>
-                     <td style="padding:6px 0;font-style:italic;">${escHtml(after.observations)}</td></tr>` : ''}
-            ${after.closingObservations
-              ? `<tr><td style="padding:6px 0;color:#888;">Observaciones de cierre</td>
-                     <td style="padding:6px 0;font-style:italic;">${escHtml(after.closingObservations)}</td></tr>` : ''}
-          </table>
-          <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-          <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-        </div>
-      `,
+      html:    buildVisitEmailHtml({
+        title:      '✅ Visita completada',
+        titleColor: '#16a34a',
+        intro:      'La siguiente visita fue marcada como <strong>Realizada</strong>.',
+        task,
+        visit: after,
+      }),
     });
 
-    console.log(`notifyVisitCompleted: confirmación enviada a ${to} — visita ${event.params.visitId}`);
+    console.log(`notifyVisitCompleted: email enviado a ${toList.join(', ')} — visita ${event.params.visitId}`);
   }
 );
 
@@ -646,34 +645,6 @@ exports.notifyVisitUpdated = onDocumentUpdated(
         <td style="padding:7px 10px;color:#16a34a;font-size:13px;font-weight:600;">${escHtml(String(after[f] ?? '—'))}</td>
       </tr>`).join('');
 
-    const buildHtml = (intro, titulo = '✏️ Visita modificada', color = '#D61672') => `
-      <div style="font-family:sans-serif;max-width:520px;margin:auto;">
-        <h2 style="color:${color};">${titulo}</h2>
-        <p style="color:#555;margin-bottom:16px;">${intro}</p>
-        <table style="border-collapse:collapse;width:100%;margin-bottom:20px;">
-          <tr><td style="padding:6px 0;color:#888;width:130px;">Cliente</td>
-              <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-          ${task.clientAddress ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td><td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
-          ${after.scheduledDate ? `<tr><td style="padding:6px 0;color:#888;">Fecha</td><td style="padding:6px 0;">${escHtml(after.scheduledDate)}</td></tr>` : ''}
-          ${after.scheduledTime ? `<tr><td style="padding:6px 0;color:#888;">Hora</td><td style="padding:6px 0;">${escHtml(after.scheduledTime)}</td></tr>` : ''}
-          ${after.technician ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td><td style="padding:6px 0;font-weight:600;">${escHtml(after.technician)}</td></tr>` : ''}
-          ${after.technicianEmail ? `<tr><td style="padding:6px 0;color:#888;">Email técnico</td><td style="padding:6px 0;font-family:monospace;">${escHtml(after.technicianEmail)}</td></tr>` : ''}
-          ${task.serviceOrder ? `<tr><td style="padding:6px 0;color:#888;">Orden</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-        </table>
-        ${changeRows ? `
-        <p style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Cambios realizados</p>
-        <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;">
-          <tr style="background:#f1f5f9;">
-            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Campo</th>
-            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Anterior</th>
-            <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Nuevo</th>
-          </tr>
-          ${changeRows}
-        </table>` : ''}
-        <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-        <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-      </div>`;
-
     const sends = [];
 
     if (esConfirmacion) {
@@ -681,8 +652,12 @@ exports.notifyVisitUpdated = onDocumentUpdated(
         sends.push(resend.emails.send({
           from:    getFromEmail(config.empresaNombre),
           to:      destList,
-          subject: `✅ Visita confirmada: ${task.clientName} — ${after.scheduledDate || ''}`,
-          html:    buildHtml(`El técnico <strong>${escHtml(after.technician || after.technicianEmail || '—')}</strong> confirmó su asistencia.`, '✅ Asistencia confirmada', '#16a34a'),
+          subject: `✅ Asistencia confirmada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildVisitEmailHtml({
+            title: '✅ Asistencia confirmada', titleColor: '#16a34a',
+            intro: `El técnico <strong>${escHtml(after.technician || after.technicianEmail || '—')}</strong> confirmó su asistencia.`,
+            task, visit: after,
+          }),
         }));
       }
     } else {
@@ -694,7 +669,11 @@ exports.notifyVisitUpdated = onDocumentUpdated(
           from:    getFromEmail(config.empresaNombre),
           to:      [oldTechEmail],
           subject: `ℹ️ Visita reasignada: ${task.clientName} — ${after.scheduledDate || ''}`,
-          html:    buildHtml(`Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`),
+          html:    buildVisitEmailHtml({
+            title: 'ℹ️ Visita reasignada',
+            intro: `Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`,
+            task, visit: after,
+          }),
         }));
       }
 
@@ -703,7 +682,12 @@ exports.notifyVisitUpdated = onDocumentUpdated(
           from:    getFromEmail(config.empresaNombre),
           to:      destList,
           subject,
-          html:    buildHtml('Se realizaron cambios en la siguiente visita.'),
+          html:    buildVisitEmailHtml({
+            title: '✏️ Visita modificada',
+            intro: 'Se realizaron cambios en la siguiente visita.',
+            task, visit: after,
+            changes: changeRows || null,
+          }),
         }));
       }
     }
@@ -782,40 +766,6 @@ exports.checkVisitNotifications = onSchedule(
         if (preConfig.activo && !meta.notifiedBefore) {
           const diff = visitMin - nowMin;
           if (diff >= (minutosAntes - 2) && diff <= (minutosAntes + 3)) {
-            const token      = generateConfirmToken(tenantId, taskId, visitId, confirmSecret.value());
-            const confirmUrl = `${baseUrl}/confirmVisitAttendance?t=${encodeURIComponent(token)}`;
-
-            const htmlBody = `
-              <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-                <h2 style="color:#D61672;">⏰ Visita en ${minutosAntes} minutos</h2>
-                <p style="color:#555;margin-bottom:16px;">Recordatorio de visita programada para hoy.</p>
-                <table style="border-collapse:collapse;width:100%;">
-                  <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
-                      <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-                  ${task.clientAddress ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td><td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
-                  ${task.identification ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
-                  ${task.clientPhone ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td><td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
-                  <tr><td style="padding:6px 0;color:#888;">Hora</td>
-                      <td style="padding:6px 0;font-weight:bold;color:#D61672;">${escHtml(visit.scheduledTime)}</td></tr>
-                  ${visit.technician ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td><td style="padding:6px 0;">${escHtml(visit.technician)}</td></tr>` : ''}
-                  ${task.serviceOrder ? `<tr><td style="padding:6px 0;color:#888;">Orden</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-                  ${visit.observations ? `<tr><td style="padding:6px 0;color:#888;">Observaciones</td><td style="padding:6px 0;font-style:italic;">${escHtml(visit.observations)}</td></tr>` : ''}
-                </table>
-                <div style="margin:28px 0;text-align:center;">
-                  <a href="${confirmUrl}"
-                     style="display:inline-block;padding:14px 32px;background:#D61672;color:#fff;
-                            border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px;">
-                    ✅ Confirmar mi asistencia
-                  </a>
-                </div>
-                <p style="font-size:11px;color:#aaa;text-align:center;">
-                  Este enlace confirma tu asistencia a esta visita en la hora programada.
-                </p>
-                <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-                <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-              </div>
-            `;
-
             const destPre = preConfig.destinatarios || ['tecnico'];
             const tos = [];
             if (destPre.includes('tecnico') && emailTech)  tos.push(emailTech);
@@ -826,7 +776,12 @@ exports.checkVisitNotifications = onSchedule(
                 from:    getFromEmail(config.empresaNombre),
                 to:      toUniq,
                 subject: `⏰ Visita en ${minutosAntes} min: ${task.clientName} a las ${visit.scheduledTime}`,
-                html:    htmlBody,
+                html:    buildVisitEmailHtml({
+                  title:      `⏰ Visita en ${minutosAntes} minutos`,
+                  intro:      'Recordatorio de visita programada para hoy.',
+                  task, visit,
+                  portalNote: true,
+                }),
               });
               await metaRef.set({ notifiedBefore: true }, { merge: true });
               totalPre++;
@@ -838,29 +793,6 @@ exports.checkVisitNotifications = onSchedule(
         if (overdueConfig.activo && !meta.notifiedOverdue) {
           const diff = nowMin - visitMin;
           if (diff >= minutosRetraso && diff <= minutosRetraso + 5) {
-            const htmlBody = `
-              <div style="font-family:sans-serif;max-width:480px;margin:auto;">
-                <h2 style="color:#dc2626;">🚨 Visita retrasada</h2>
-                <p style="color:#555;margin-bottom:16px;">
-                  Han pasado <strong>${minutosRetraso} minutos</strong> desde la hora programada
-                  y la visita todavía no fue registrada.
-                </p>
-                <table style="border-collapse:collapse;width:100%;">
-                  <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
-                      <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
-                  ${task.clientAddress ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td><td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
-                  ${task.identification ? `<tr><td style="padding:6px 0;color:#888;">Cédula/RUC</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.identification)}</td></tr>` : ''}
-                  ${task.clientPhone ? `<tr><td style="padding:6px 0;color:#888;">Teléfono</td><td style="padding:6px 0;">${escHtml(task.clientPhone)}</td></tr>` : ''}
-                  <tr><td style="padding:6px 0;color:#888;">Hora programada</td>
-                      <td style="padding:6px 0;font-weight:bold;color:#dc2626;">${escHtml(visit.scheduledTime)}</td></tr>
-                  ${visit.technician ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td><td style="padding:6px 0;">${escHtml(visit.technician)}</td></tr>` : ''}
-                  ${task.serviceOrder ? `<tr><td style="padding:6px 0;color:#888;">Orden</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
-                </table>
-                <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
-                <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
-              </div>
-            `;
-
             const destOver = overdueConfig.destinatarios || ['admin'];
             const tos = [];
             if (destOver.includes('tecnico') && emailTech)  tos.push(emailTech);
@@ -871,7 +803,12 @@ exports.checkVisitNotifications = onSchedule(
                 from:    getFromEmail(config.empresaNombre),
                 to:      toUniq,
                 subject: `🚨 Visita retrasada ${minutosRetraso} min: ${task.clientName}`,
-                html:    htmlBody,
+                html:    buildVisitEmailHtml({
+                  title:      '🚨 Visita retrasada',
+                  titleColor: '#dc2626',
+                  intro:      `Han pasado <strong>${minutosRetraso} minutos</strong> desde la hora programada y la visita todavía no fue registrada.`,
+                  task, visit,
+                }),
               });
               await metaRef.set({ notifiedOverdue: true }, { merge: true });
               totalOverdue++;

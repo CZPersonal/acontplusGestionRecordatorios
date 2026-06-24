@@ -24,7 +24,7 @@ export function useTecnicos(user) {
     return () => unsub();
   }, [user, tenantId]);
 
-  const addTecnico = async ({ nombre, email }) => {
+  const addTecnico = async ({ nombre, email, phone }) => {
     if (!user || !nombre.trim()) return false;
     setIsLoading(true);
     const id = crypto.randomUUID();
@@ -35,6 +35,7 @@ export function useTecnicos(user) {
           id,
           nombre: nombre.trim(),
           email:  email?.trim() || '',
+          phone:  phone?.trim() || '',
           createdAt: new Date().toISOString(),
         }
       );
@@ -47,13 +48,13 @@ export function useTecnicos(user) {
     }
   };
 
-  const updateTecnico = async (id, { nombre, email }) => {
+  const updateTecnico = async (id, { nombre, email, phone }) => {
     if (!user || !nombre.trim()) return false;
     setIsLoading(true);
     try {
       await setDoc(
         doc(getCollectionRef('tecnicos'), id),
-        { nombre: nombre.trim(), email: email?.trim() || '', updatedAt: new Date().toISOString() },
+        { nombre: nombre.trim(), email: email?.trim() || '', phone: phone?.trim() || '', updatedAt: new Date().toISOString() },
         { merge: true }
       );
       return true;

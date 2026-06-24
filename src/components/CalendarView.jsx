@@ -6,6 +6,9 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
+import { useTiposVisita } from '../hooks/useTiposVisita';
+import { useTecnicos } from '../hooks/useTecnicos';
+import { VisitFormModal } from './VisitsModal.jsx';
 import { localDateStr, formatDateOnly, formatDateTime } from '../utils/dates.js';
 
 const MONTHS     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -273,6 +276,28 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
 
 // ─── Formulario agregar visita (inline) ───────────────────────────────────────
 
+// Wrapper que usa VisitFormModal + useVisits para guardar desde el calendario
+function CalendarAddVisitForm({ task, user, defaultDate, tiposParaSelect, tecnicosParaSelect, onClose }) {
+  const { addVisit } = useVisits(task, user);
+
+  const handleSave = async (formData) => {
+    await addVisit(formData);
+    onClose();
+  };
+
+  return (
+    <VisitFormModal
+      initial={{ scheduledDate: defaultDate || localDateStr() }}
+      onSave={handleSave}
+      onClose={onClose}
+      isEdit={false}
+      tiposParaSelect={tiposParaSelect}
+      tecnicosParaSelect={tecnicosParaSelect}
+    />
+  );
+}
+
+// Mantenido por compatibilidad con AddVisitInlineForm (ya no se usa en el flujo principal)
 function AddVisitInlineForm({ task, user, defaultDate, onClose }) {
   const { addVisit, isLoading } = useVisits(task, user);
   const [form, setForm] = useState({
@@ -938,7 +963,7 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
 
 // ─── Modal selector de tarea ───────────────────────────────────────────────────
 
-function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask }) {
+function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask, tiposParaSelect, tecnicosParaSelect }) {
   const [selected, setSelected] = useState(null);
   const [search, setSearch]     = useState('');
 
@@ -960,7 +985,12 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask }) {
     : activeTasks;
 
   if (selected) {
-    return <AddVisitInlineForm task={selected} user={user} defaultDate={defaultDate} onClose={onClose} />;
+    return (
+      <CalendarAddVisitForm
+        task={selected} user={user} defaultDate={defaultDate} onClose={onClose}
+        tiposParaSelect={tiposParaSelect} tecnicosParaSelect={tecnicosParaSelect}
+      />
+    );
   }
 
   return (
@@ -1079,6 +1109,10 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function CalendarView({ tasks, user, onNewTask }) {
+  const { tiposVisita }  = useTiposVisita(user);
+  const { tecnicos }     = useTecnicos(user);
+  const tiposParaSelect  = useMemo(() => tiposVisita.map(t => t.nombre), [tiposVisita]);
+  const tecnicosParaSelect = tecnicos;
   const today = new Date();
   const [viewMode, setViewMode]       = useState('month'); // 'month' | 'week' | 'day'
   const [currentDate, setCurrentDate] = useState({
@@ -1272,10 +1306,12 @@ export default function CalendarView({ tasks, user, onNewTask }) {
         />
       )}
       {addVisitContext && (
-        <AddVisitInlineForm
+        <CalendarAddVisitForm
           task={addVisitContext.task}
           user={user}
           defaultDate={addVisitContext.defaultDate}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicosParaSelect}
           onClose={() => setAddVisitContext(null)}
         />
       )}
@@ -1286,6 +1322,8 @@ export default function CalendarView({ tasks, user, onNewTask }) {
           user={user}
           onClose={() => setDayPickerDate(null)}
           onNewTask={onNewTask}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicosParaSelect}
         />
       )}
     </div>

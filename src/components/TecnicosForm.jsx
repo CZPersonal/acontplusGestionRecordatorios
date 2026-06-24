@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Plus, Trash2, User, X, Check, Mail, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Trash2, User, X, Check, Mail, Phone, Pencil, Loader2 } from 'lucide-react';
 import { useTecnicos } from '../hooks/useTecnicos';
 
 export default function TecnicosForm({ user, onClose }) {
   const { tecnicos, isLoading, addTecnico, updateTecnico, deleteTecnico } = useTecnicos(user);
 
-  const [form,          setForm]          = useState({ nombre: '', email: '' });
+  const [form,          setForm]          = useState({ nombre: '', email: '', phone: '' });
   const [editing,       setEditing]       = useState(null); // tecnico object o null
   const [saving,        setSaving]        = useState(false);
   const [errors,        setErrors]        = useState({});
@@ -27,22 +27,22 @@ export default function TecnicosForm({ user, onClose }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     const ok = editing
-      ? await updateTecnico(editing.id, { nombre: form.nombre, email: form.email })
-      : await addTecnico({ nombre: form.nombre, email: form.email });
-    if (ok) { setForm({ nombre: '', email: '' }); setErrors({}); setEditing(null); }
+      ? await updateTecnico(editing.id, { nombre: form.nombre, email: form.email, phone: form.phone })
+      : await addTecnico({ nombre: form.nombre, email: form.email, phone: form.phone });
+    if (ok) { setForm({ nombre: '', email: '', phone: '' }); setErrors({}); setEditing(null); }
     setSaving(false);
   };
 
   const handleEdit = (t) => {
     setEditing(t);
-    setForm({ nombre: t.nombre, email: t.email || '' });
+    setForm({ nombre: t.nombre, email: t.email || '', phone: t.phone || '' });
     setErrors({});
     setConfirmDelete(null);
   };
 
   const handleCancelEdit = () => {
     setEditing(null);
-    setForm({ nombre: '', email: '' });
+    setForm({ nombre: '', email: '', phone: '' });
     setErrors({});
   };
 
@@ -117,6 +117,17 @@ export default function TecnicosForm({ user, onClose }) {
               </div>
             </div>
 
+            <div>
+              <div className="relative">
+                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="tel" value={form.phone} onChange={handleChange('phone')}
+                  placeholder="Teléfono (opcional)"
+                  className={`${inp} pl-9`}
+                  onFocus={e => e.target.style.borderColor = '#2563eb'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button type="submit" disabled={saving || !form.nombre.trim()}
                 className="flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all"
@@ -160,6 +171,11 @@ export default function TecnicosForm({ user, onClose }) {
                     {t.email && (
                       <p className="text-xs text-slate-400 truncate flex items-center gap-1">
                         <Mail size={10} />{t.email}
+                      </p>
+                    )}
+                    {t.phone && (
+                      <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                        <Phone size={10} />{t.phone}
                       </p>
                     )}
                   </div>

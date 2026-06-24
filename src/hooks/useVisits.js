@@ -36,6 +36,7 @@ export function useVisits(task, user) {
       observations:  visitData.observations  || '',
       technician:      visitData.technician      || user.email,
       technicianEmail: visitData.technicianEmail || '',
+      technicianPhone: visitData.technicianPhone || '',
       status:          'Programada',
       createdBy:     user.email,
       createdAt:     new Date().toISOString(),
@@ -70,6 +71,7 @@ export function useVisits(task, user) {
               observations:  visitData.observations  ?? v.observations,
               technician:      visitData.technician      || v.technician,
               technicianEmail: visitData.technicianEmail !== undefined ? visitData.technicianEmail : (v.technicianEmail || ''),
+              technicianPhone: visitData.technicianPhone !== undefined ? visitData.technicianPhone : (v.technicianPhone || ''),
               updatedAt:       new Date().toISOString(),
               updatedBy:     user.email,
             }
