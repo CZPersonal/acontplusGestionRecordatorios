@@ -13,6 +13,7 @@ import TenantSetup from './components/TenantSetup.jsx';
 import CompanySelector from './components/CompanySelector.jsx';
 import AppRouter from './components/AppRouter.jsx';
 import TechPortal from './components/TechPortal.jsx';
+import UpdatePrompt from './components/UpdatePrompt.jsx';
 
 export default function App() {
   const user             = useAppStore(s => s.user);
@@ -153,6 +154,10 @@ export default function App() {
     );
   }
 
-  if (userRole === 'tecnico') return <TechPortal user={user} />;
-  return <AppRouter />;
+  return (
+    <>
+      {userRole === 'tecnico' ? <TechPortal user={user} /> : <AppRouter />}
+      <UpdatePrompt />
+    </>
+  );
 }
