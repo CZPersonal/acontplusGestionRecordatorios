@@ -636,6 +636,43 @@ function CobrosNotifCard({ title, subtitle, diasLabel, value, onChange, accent =
   );
 }
 
+// Definido fuera del render para evitar unmount/remount en cada keystroke
+function EmailList({ list, onRemove, value, onChange, onAdd, placeholder, emailErr }) {
+  return (
+    <div className="space-y-3">
+      {list.length > 0 ? (
+        <div className="space-y-2">
+          {list.map(email => (
+            <div key={email} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-sm text-slate-700 font-mono">{email}</span>
+              <button onClick={() => onRemove(email)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 text-center py-1">Sin correos configurados</p>
+      )}
+      <div className="flex gap-2">
+        <input type="email" value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onAdd()}
+          placeholder={placeholder || 'correo@ejemplo.com'}
+          className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
+          onFocus={e => e.target.style.borderColor = '#D61672'}
+          onBlur={e  => e.target.style.borderColor = '#e2e8f0'} />
+        <button onClick={onAdd}
+          className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          Agregar
+        </button>
+      </div>
+      {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
+    </div>
+  );
+}
+
 function TabNotificaciones({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
 
@@ -711,40 +748,6 @@ function TabNotificaciones({ user }) {
     </div>
   );
 
-  const EmailList = ({ list, onRemove, value, onChange, onAdd, placeholder }) => (
-    <div className="space-y-3">
-      {list.length > 0 ? (
-        <div className="space-y-2">
-          {list.map(email => (
-            <div key={email} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
-              <span className="text-sm text-slate-700 font-mono">{email}</span>
-              <button onClick={() => onRemove(email)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-slate-400 text-center py-1">Sin correos configurados</p>
-      )}
-      <div className="flex gap-2">
-        <input type="email" value={value}
-          onChange={e => { onChange(e.target.value); setEmailErr(''); setSaved(false); }}
-          onKeyDown={e => e.key === 'Enter' && onAdd()}
-          placeholder={placeholder || 'correo@ejemplo.com'}
-          className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors"
-          onFocus={e => e.target.style.borderColor = '#D61672'}
-          onBlur={e => e.target.style.borderColor  = '#e2e8f0'} />
-        <button onClick={onAdd}
-          className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-          Agregar
-        </button>
-      </div>
-      {emailErr && <p className="text-xs text-red-500">{emailErr}</p>}
-    </div>
-  );
-
   return (
     <div className="space-y-6">
 
@@ -788,7 +791,9 @@ function TabNotificaciones({ user }) {
               <EmailList
                 list={agendaHoy.destinatarios}
                 onRemove={email => { setAgendaHoy(p => ({ ...p, destinatarios: p.destinatarios.filter(e => e !== email) })); setSaved(false); }}
-                value={newAgendaHoy} onChange={setNewAgendaHoy}
+                value={newAgendaHoy}
+                onChange={v => { setNewAgendaHoy(v); setEmailErr(''); setSaved(false); }}
+                emailErr={emailErr}
                 onAdd={() => {
                   const e = newAgendaHoy.trim().toLowerCase();
                   if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
@@ -842,7 +847,9 @@ function TabNotificaciones({ user }) {
               <EmailList
                 list={agendaMañana.destinatarios}
                 onRemove={email => { setAgendaMañana(p => ({ ...p, destinatarios: p.destinatarios.filter(e => e !== email) })); setSaved(false); }}
-                value={newAgendaMañana} onChange={setNewAgendaMañana}
+                value={newAgendaMañana}
+                onChange={v => { setNewAgendaMañana(v); setEmailErr(''); setSaved(false); }}
+                emailErr={emailErr}
                 onAdd={() => {
                   const e = newAgendaMañana.trim().toLowerCase();
                   if (!e.includes('@')) { setEmailErr('Ingresa un email válido.'); return; }
