@@ -21,13 +21,15 @@ export const useAppStore = create((set, get) => ({
   isOnline: navigator.onLine,
 
   // ─── UI Navigation ────────────────────────────────────────────────────────
-  activeTab:        'dashboard',
-  editingTask:      null,
-  showExportConfig: false,
-  formSource:       null,   // 'calendar' | null — indica desde dónde se abrió el formulario
-  setActiveTab:     (tab)  => set({ activeTab: tab }),
-  setEditingTask:   (task) => set({ editingTask: task }),
+  activeTab:          'dashboard',
+  editingTask:        null,
+  showExportConfig:   false,
+  formSource:         null,   // 'calendar' | null — indica desde dónde se abrió el formulario
+  highlightedTaskId:  null,   // ID de tarea recién guardada para resaltar en AllVisitsManager
+  setActiveTab:       (tab)  => set({ activeTab: tab }),
+  setEditingTask:     (task) => set({ editingTask: task }),
   setShowExportConfig: (show) => set({ showExportConfig: show }),
+  setHighlightedTaskId: (id) => set({ highlightedTaskId: id }),
 
   // ─── Tasks (poblado por useTasks) ─────────────────────────────────────────
   tasks:           [],
@@ -81,10 +83,10 @@ export const useAppStore = create((set, get) => ({
 
   // ─── Handlers de app (usan get() para estado siempre fresco) ─────────────
   handleAddTask: async (task) => {
-    const { saveClient, addTask, user, addToast, formSource } = get();
+    const { saveClient, addTask, user, addToast } = get();
     if (task.identification?.trim() && task.clientName) await saveClient(task);
-    const ok = await addTask(task, user.email);
-    if (ok) set({ activeTab: formSource === 'calendar' ? 'all-visits' : 'list', editingTask: null, formSource: null });
+    const savedId = await addTask(task, user.email);
+    if (savedId) set({ activeTab: 'all-visits', editingTask: null, formSource: null, highlightedTaskId: savedId });
     else addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo guardar la tarea. Verifica tu conexión o los permisos.' });
   },
   handleEdit: (task) => set({ editingTask: task, activeTab: 'form' }),

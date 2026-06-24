@@ -147,7 +147,7 @@ export function useTasks(user) {
         }
       );
       logAudit(u, 'task_created', 'task', taskId, { clientName: task.clientName });
-      return true;
+      return taskId;
     } catch (error) {
       console.error("Error al guardar:", error);
       return false;

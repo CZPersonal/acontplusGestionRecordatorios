@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getVisitsRef } from '../lib/tenantDb';
@@ -184,17 +184,35 @@ function CompleteVisitModal({ visit, task, user, onClose }) {
 // ─── Componente principal ────────────────────────────────────────────────────
 
 export default function AllVisitsManager({ user }) {
-  const tasks               = useAppStore(s => s.tasks);
-  const addToast            = useAppStore(s => s.addToast);
-  const handleEdit          = useAppStore(s => s.handleEdit);
-  const handleDelete        = useAppStore(s => s.handleDelete);
-  const handleComplete      = useAppStore(s => s.handleComplete);
-  const setEditingTask      = useAppStore(s => s.setEditingTask);
-  const setActiveTab        = useAppStore(s => s.setActiveTab);
-  const getActiveColumns    = useAppStore(s => s.getActiveColumns);
-  const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
+  const tasks                = useAppStore(s => s.tasks);
+  const addToast             = useAppStore(s => s.addToast);
+  const handleEdit           = useAppStore(s => s.handleEdit);
+  const handleDelete         = useAppStore(s => s.handleDelete);
+  const handleComplete       = useAppStore(s => s.handleComplete);
+  const setEditingTask       = useAppStore(s => s.setEditingTask);
+  const setActiveTab         = useAppStore(s => s.setActiveTab);
+  const getActiveColumns     = useAppStore(s => s.getActiveColumns);
+  const setShowExportConfig  = useAppStore(s => s.setShowExportConfig);
+  const highlightedTaskId    = useAppStore(s => s.highlightedTaskId);
+  const setHighlightedTaskId = useAppStore(s => s.setHighlightedTaskId);
   const { tecnicos }         = useTecnicos(user);
   const { tiposParaSelect }  = useTiposVisita(user);
+
+  const [flashId, setFlashId] = useState(null);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    setFlashId(highlightedTaskId);
+    const scrollTimer = setTimeout(() => {
+      const el = document.getElementById(`task-${highlightedTaskId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    const clearTimer = setTimeout(() => {
+      setFlashId(null);
+      setHighlightedTaskId(null);
+    }, 3500);
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
+  }, [highlightedTaskId, setHighlightedTaskId]);
 
   const [innerTab, setInnerTab] = useState('gestion'); // 'gestion' | 'historial'
 
@@ -584,8 +602,12 @@ export default function AllVisitsManager({ user }) {
               const taskComplete = task.status === 'Completado';
               const headerBg     = TASK_HEADER_GRADIENT[task.status] || TASK_HEADER_GRADIENT['Pendiente'];
 
+              const isFlashing = flashId === task.id;
               return (
-                <div key={task.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div key={task.id} id={`task-${task.id}`}
+                  className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-700 ${
+                    isFlashing ? 'border-amber-400 ring-2 ring-amber-300 ring-offset-1' : 'border-slate-200'
+                  }`}>
 
                   {/* ══ ÁREA DE TAREA ════════════════════════════════════════ */}
 
