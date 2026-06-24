@@ -120,6 +120,22 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Resuelve lista de destinatarios a partir de la configuración de notificación del tenant.
+// notifCfg: { tecnico, creador, cliente, otros, otrosEmails[] }
+// Fallback: si la config no existe o queda sin destinatarios, usa fallbackEmails.
+function resolveRecipients(notifCfg, visit, task, fallbackEmails = []) {
+  if (!notifCfg) return fallbackEmails;
+  const emails = new Set();
+  const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+  if (notifCfg.tecnico && techEmail)                        emails.add(techEmail);
+  if (notifCfg.creador && task.createdBy?.includes('@'))    emails.add(task.createdBy);
+  if (notifCfg.cliente && task.clientEmail?.includes('@'))  emails.add(task.clientEmail);
+  if (notifCfg.otros) {
+    (notifCfg.otrosEmails || []).filter(e => e?.includes('@')).forEach(e => emails.add(e));
+  }
+  return emails.size > 0 ? [...emails] : fallbackEmails;
+}
+
 // Lee la config del tenant y la cachea para no hacer lecturas repetidas por ejecución
 async function getTenantConfig(db, tenantId, configCache) {
   if (configCache[tenantId] !== undefined) return configCache[tenantId];
@@ -207,33 +223,37 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
     const visit = event.data.data();
 
     if (visit.status !== 'Programada') return;
-    const emailDestino = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
-    if (!emailDestino) {
-      console.log(`notifyTechnicianOnVisit: sin email de técnico en ${event.params.visitId}`);
-      return;
-    }
 
     const db       = getFirestore();
     const taskRef  = event.data.ref.parent.parent;
     const taskSnap = await taskRef.get();
     if (!taskSnap.exists) return;
-    const task      = taskSnap.data();
+    const task       = taskSnap.data();
     const configSnap = await db.doc(`tenants/${event.params.tenantId}/configuracion/config_empresa`).get();
     const config     = configSnap.exists ? configSnap.data() : {};
     const resend     = new Resend(resendApiKey.value());
+
+    // Fallback: si no hay config de notifCreada, notificar al técnico por defecto
+    const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+    const toList    = resolveRecipients(config.notifCreada, visit, task, techEmail ? [techEmail] : []);
+
+    if (toList.length === 0) {
+      console.log(`notifyTechnicianOnVisit: sin destinatarios configurados en ${event.params.visitId}`);
+      return;
+    }
 
     const urgencyLabel = { Alta: '🔴 Alta', Media: '🟡 Media', Baja: '🟢 Baja' }[visit.urgency] || '';
 
     await resend.emails.send({
       from:    getFromEmail(config.empresaNombre),
-      to:      [emailDestino],
+      to:      toList,
       subject: `Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;">
           <h2 style="color:#D61672;">Nueva visita asignada</h2>
-          <p style="color:#555;margin-bottom:16px;">Se te ha asignado la siguiente visita:</p>
+          <p style="color:#555;margin-bottom:16px;">Se ha programado la siguiente visita:</p>
           <table style="border-collapse:collapse;width:100%;">
-            <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
+            <tr><td style="padding:6px 0;color:#888;width:130px;">Cliente</td>
                 <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
             ${task.clientAddress
               ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td>
@@ -249,6 +269,12 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
             ${visit.scheduledTime
               ? `<tr><td style="padding:6px 0;color:#888;">Hora</td>
                      <td style="padding:6px 0;">${escHtml(visit.scheduledTime)}</td></tr>` : ''}
+            ${visit.technician
+              ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td>
+                     <td style="padding:6px 0;font-weight:600;">${escHtml(visit.technician)}</td></tr>` : ''}
+            ${visit.technicianEmail
+              ? `<tr><td style="padding:6px 0;color:#888;">Email técnico</td>
+                     <td style="padding:6px 0;font-family:monospace;">${escHtml(visit.technicianEmail)}</td></tr>` : ''}
             ${visit.type
               ? `<tr><td style="padding:6px 0;color:#888;">Tipo</td>
                      <td style="padding:6px 0;">${escHtml(visit.type)}</td></tr>` : ''}
@@ -506,20 +532,19 @@ exports.notifyVisitCompleted = onDocumentUpdated(
     if (!taskSnap.exists) return;
     const task = taskSnap.data();
 
-    const to = task.createdBy;
-    if (!to || !to.includes('@')) return;
-
     const tenantId   = event.params.tenantId;
     const configSnap = await db.doc(`tenants/${tenantId}/configuracion/config_empresa`).get();
     const config     = configSnap.exists ? configSnap.data() : {};
-    const cc         = (config.ccCorreos || []).filter(e => e && e.includes('@') && e !== to);
+    const resend     = new Resend(resendApiKey.value());
 
-    const resend = new Resend(resendApiKey.value());
+    // Fallback: creador de la tarea (comportamiento anterior)
+    const fallbackTo = task.createdBy?.includes('@') ? [task.createdBy] : [];
+    const toList     = resolveRecipients(config.notifRealizada, after, task, fallbackTo);
+    if (toList.length === 0) return;
 
     await resend.emails.send({
       from:    getFromEmail(config.empresaNombre),
-      to:      [to],
-      ...(cc.length > 0 ? { cc } : {}),
+      to:      toList,
       subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:auto;">
@@ -585,11 +610,14 @@ exports.notifyVisitUpdated = onDocumentUpdated(
     // Si el status cambia A 'Realizada', notifyVisitCompleted lo maneja
     if (before.status !== 'Realizada' && after.status === 'Realizada') return;
 
-    const WATCHED = ['scheduledDate', 'scheduledTime', 'technician', 'technicianEmail', 'urgency', 'type', 'observations', 'status'];
-    const LABELS  = { scheduledDate: 'Fecha', scheduledTime: 'Hora', technician: 'Técnico', technicianEmail: 'Email técnico', urgency: 'Urgencia', type: 'Tipo de servicio', observations: 'Observaciones', status: 'Estado' };
+    const WATCHED = ['scheduledDate', 'scheduledTime', 'technician', 'technicianEmail', 'urgency', 'type', 'observations', 'status', 'confirmed'];
+    const LABELS  = { scheduledDate: 'Fecha', scheduledTime: 'Hora', technician: 'Técnico', technicianEmail: 'Email técnico', urgency: 'Urgencia', type: 'Tipo de servicio', observations: 'Observaciones', status: 'Estado', confirmed: 'Confirmación' };
 
     const changes = WATCHED.filter(f => (before[f] ?? '') !== (after[f] ?? ''));
     if (changes.length === 0) return;
+
+    // Si el único cambio es confirmed→true, usar notifConfirmada; si no, notifModificada
+    const esConfirmacion = changes.length === 1 && changes[0] === 'confirmed' && after.confirmed === true;
 
     const db       = getFirestore();
     const tenantId = event.params.tenantId;
@@ -601,25 +629,38 @@ exports.notifyVisitUpdated = onDocumentUpdated(
     const config     = configSnap.exists ? configSnap.data() : {};
     const resend     = new Resend(resendApiKey.value());
 
-    const changeRows = changes.map(f => `
+    const newTechEmail = after.technicianEmail  || (after.technician?.includes('@')  ? after.technician  : null);
+    const oldTechEmail = before.technicianEmail || (before.technician?.includes('@') ? before.technician : null);
+    const techCambiado = oldTechEmail && oldTechEmail !== newTechEmail;
+
+    // Fallback de destinatarios: técnico + creador (comportamiento anterior)
+    const fallbackDest = [...new Set([newTechEmail, task.createdBy?.includes('@') ? task.createdBy : null].filter(Boolean))];
+
+    const notifCfg = esConfirmacion ? config.notifConfirmada : config.notifModificada;
+    const destList  = resolveRecipients(notifCfg, after, task, fallbackDest);
+
+    const changeRows = changes.filter(f => f !== 'confirmed').map(f => `
       <tr style="border-top:1px solid #f1f5f9;">
         <td style="padding:7px 10px;color:#64748b;font-size:13px;width:140px;">${escHtml(LABELS[f] || f)}</td>
         <td style="padding:7px 10px;color:#dc2626;font-size:13px;text-decoration:line-through;">${escHtml(String(before[f] ?? '—'))}</td>
         <td style="padding:7px 10px;color:#16a34a;font-size:13px;font-weight:600;">${escHtml(String(after[f] ?? '—'))}</td>
       </tr>`).join('');
 
-    const buildHtml = (intro) => `
+    const buildHtml = (intro, titulo = '✏️ Visita modificada', color = '#D61672') => `
       <div style="font-family:sans-serif;max-width:520px;margin:auto;">
-        <h2 style="color:#D61672;">✏️ Visita modificada</h2>
+        <h2 style="color:${color};">${titulo}</h2>
         <p style="color:#555;margin-bottom:16px;">${intro}</p>
         <table style="border-collapse:collapse;width:100%;margin-bottom:20px;">
-          <tr><td style="padding:6px 0;color:#888;width:120px;">Cliente</td>
+          <tr><td style="padding:6px 0;color:#888;width:130px;">Cliente</td>
               <td style="padding:6px 0;font-weight:bold;">${escHtml(task.clientName)}</td></tr>
           ${task.clientAddress ? `<tr><td style="padding:6px 0;color:#888;">Dirección</td><td style="padding:6px 0;">${escHtml(task.clientAddress)}</td></tr>` : ''}
           ${after.scheduledDate ? `<tr><td style="padding:6px 0;color:#888;">Fecha</td><td style="padding:6px 0;">${escHtml(after.scheduledDate)}</td></tr>` : ''}
           ${after.scheduledTime ? `<tr><td style="padding:6px 0;color:#888;">Hora</td><td style="padding:6px 0;">${escHtml(after.scheduledTime)}</td></tr>` : ''}
+          ${after.technician ? `<tr><td style="padding:6px 0;color:#888;">Técnico</td><td style="padding:6px 0;font-weight:600;">${escHtml(after.technician)}</td></tr>` : ''}
+          ${after.technicianEmail ? `<tr><td style="padding:6px 0;color:#888;">Email técnico</td><td style="padding:6px 0;font-family:monospace;">${escHtml(after.technicianEmail)}</td></tr>` : ''}
           ${task.serviceOrder ? `<tr><td style="padding:6px 0;color:#888;">Orden</td><td style="padding:6px 0;font-family:monospace;">${escHtml(task.serviceOrder)}</td></tr>` : ''}
         </table>
+        ${changeRows ? `
         <p style="font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Cambios realizados</p>
         <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;">
           <tr style="background:#f1f5f9;">
@@ -628,40 +669,43 @@ exports.notifyVisitUpdated = onDocumentUpdated(
             <th style="padding:7px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:600;">Nuevo</th>
           </tr>
           ${changeRows}
-        </table>
+        </table>` : ''}
         <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
         <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
       </div>`;
 
-    const subject = `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`;
-
-    const newTechEmail = after.technicianEmail  || (after.technician?.includes('@')  ? after.technician  : null);
-    const oldTechEmail = before.technicianEmail || (before.technician?.includes('@') ? before.technician : null);
-    const techCambiado = oldTechEmail && oldTechEmail !== newTechEmail;
-
     const sends = [];
 
-    // Técnico anterior: correo de reasignación
-    if (techCambiado) {
-      sends.push(resend.emails.send({
-        from:    getFromEmail(config.empresaNombre),
-        to:      [oldTechEmail],
-        subject: `ℹ️ Visita reasignada: ${task.clientName} — ${after.scheduledDate || ''}`,
-        html:    buildHtml(`Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`),
-      }));
-    }
+    if (esConfirmacion) {
+      if (destList.length > 0) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      destList,
+          subject: `✅ Visita confirmada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildHtml(`El técnico <strong>${escHtml(after.technician || after.technicianEmail || '—')}</strong> confirmó su asistencia.`, '✅ Asistencia confirmada', '#16a34a'),
+        }));
+      }
+    } else {
+      const subject = `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`;
 
-    // Técnico actual + creador (sin duplicados)
-    const dest = new Set();
-    if (newTechEmail) dest.add(newTechEmail);
-    if (task.createdBy?.includes('@')) dest.add(task.createdBy);
-    if (dest.size > 0) {
-      sends.push(resend.emails.send({
-        from:    getFromEmail(config.empresaNombre),
-        to:      [...dest],
-        subject,
-        html:    buildHtml('Se realizaron cambios en la siguiente visita.'),
-      }));
+      // Técnico anterior: correo de reasignación (siempre, independiente de config)
+      if (techCambiado && oldTechEmail) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      [oldTechEmail],
+          subject: `ℹ️ Visita reasignada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildHtml(`Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`),
+        }));
+      }
+
+      if (destList.length > 0) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      destList,
+          subject,
+          html:    buildHtml('Se realizaron cambios en la siguiente visita.'),
+        }));
+      }
     }
 
     await Promise.allSettled(sends);
