@@ -11,13 +11,18 @@ export function useBorradores(user, { onlyMine = false } = {}) {
   useEffect(() => {
     if (!user || !tenantId) return;
     const col = getCollectionRef('borradores');
+    // onlyMine: solo where sin orderBy para evitar requerir índice compuesto en Firestore
     const q = onlyMine
-      ? query(col, where('technicianEmail', '==', user.email), orderBy('createdAt', 'desc'), limit(50))
+      ? query(col, where('technicianEmail', '==', user.email), limit(50))
       : query(col, orderBy('createdAt', 'desc'), limit(200));
 
     const unsub = onSnapshot(q,
-      snap => setBorradores(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      err  => console.error('useBorradores onSnapshot:', err)
+      snap => {
+        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (onlyMine) docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        setBorradores(docs);
+      },
+      err => console.error('useBorradores onSnapshot:', err)
     );
     return () => unsub();
   }, [user, tenantId, onlyMine]);
