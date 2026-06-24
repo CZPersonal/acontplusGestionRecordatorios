@@ -1109,10 +1109,9 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask, tiposPa
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function CalendarView({ tasks, user, onNewTask }) {
-  const { tiposVisita }  = useTiposVisita(user);
-  const { tecnicos }     = useTecnicos(user);
-  const tiposParaSelect  = useMemo(() => tiposVisita.map(t => t.nombre), [tiposVisita]);
-  const tecnicosParaSelect = tecnicos;
+  const { tiposParaSelect } = useTiposVisita(user);
+  const { tecnicos }        = useTecnicos(user);
+  const tecnicosParaSelect  = tecnicos;
   const today = new Date();
   const [viewMode, setViewMode]       = useState('month'); // 'month' | 'week' | 'day'
   const [currentDate, setCurrentDate] = useState({
