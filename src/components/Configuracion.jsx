@@ -697,6 +697,8 @@ function TabNotificaciones({ user }) {
   const [notifCobrosProgramados, setNotifCobrosProgramados] = useState(COBROS_NOTIF_DEFAULT);
   const [notifCobrosVencidos,    setNotifCobrosVencidos]    = useState(COBROS_NOTIF_DEFAULT);
 
+  const [notifBorrador, setNotifBorrador] = useState(NOTIF_DEFAULT);
+
   useEffect(() => {
     if (!config) return;
     setAgendaHoy(prev => ({ ...prev, ...(config.agendaHoy || {}) }));
@@ -710,6 +712,7 @@ function TabNotificaciones({ user }) {
     if (config.notifRealizada)  setNotifRealizada(prev  => ({ ...NOTIF_DEFAULT, ...config.notifRealizada }));
     if (config.notifCobrosProgramados) setNotifCobrosProgramados(prev => ({ ...COBROS_NOTIF_DEFAULT, ...config.notifCobrosProgramados }));
     if (config.notifCobrosVencidos)    setNotifCobrosVencidos(prev    => ({ ...COBROS_NOTIF_DEFAULT, ...config.notifCobrosVencidos }));
+    if (config.notifBorrador) setNotifBorrador(prev => ({ ...NOTIF_DEFAULT, ...config.notifBorrador }));
   }, [config]);
 
   const handleSave = async () => {
@@ -726,6 +729,7 @@ function TabNotificaciones({ user }) {
       notifRealizada,
       notifCobrosProgramados,
       notifCobrosVencidos,
+      notifBorrador,
     });
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
     else setError('Error al guardar. Verifica tu conexión.');
@@ -919,6 +923,29 @@ function TabNotificaciones({ user }) {
             icon="🏁"
             value={notifRealizada}
             onChange={v => { setNotifRealizada(v); setSaved(false); }}
+          />
+        </div>
+      </div>
+
+      {/* Notificación borradores */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center space-x-3"
+          style={{ background: 'linear-gradient(135deg, #fdf2f8, #fff7ed)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Bell size={15} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-700">Borradores de visita</p>
+            <p className="text-xs text-slate-400">A quién notificar cuando un técnico registra un borrador</p>
+          </div>
+        </div>
+        <div className="p-6 divide-y divide-slate-100">
+          <NotifGroup
+            label="Nuevo borrador registrado"
+            icon="📋"
+            value={notifBorrador}
+            onChange={v => { setNotifBorrador(v); setSaved(false); }}
           />
         </div>
       </div>

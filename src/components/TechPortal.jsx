@@ -10,6 +10,7 @@ import {
   LogOut, MapPin, Phone, Wrench, X,
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle,
 } from 'lucide-react';
+import BorradorSheet from './BorradorSheet.jsx';
 
 const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
 
@@ -704,6 +705,7 @@ export default function TechPortal({ user }) {
           <Section title="Hoy"               icon={Calendar}      color="#D61672"   visits={hoy}        {...visitCardProps} />
           <Section title="Próximas"          icon={Clock}         color="#2563eb"  visits={proximas}   {...visitCardProps} />
           <Section title="Realizadas"        icon={CheckCircle2}  color="#16a34a"  visits={realizadas} {...visitCardProps} />
+          <BorradorSheet user={user} />
         </>)}
 
         {/* Vista día */}

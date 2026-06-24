@@ -825,7 +825,85 @@ exports.checkVisitNotifications = onSchedule(
   }
 );
 
-// ─── 8. Confirmación de asistencia del técnico ───────────────────────────────
+// ─── 8. Notificación al crear un borrador de visita ──────────────────────────
+exports.notifyBorradorCreado = onDocumentCreated(
+  {
+    document: 'tenants/{tenantId}/borradores/{borradoreId}',
+    region:   'us-central1',
+    secrets:  [resendApiKey],
+  },
+  async (event) => {
+    const borrador = event.data.data();
+    const db       = getFirestore();
+    const configSnap = await db.doc(`tenants/${event.params.tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
+
+    const notifCfg = config.notifBorrador;
+    if (!notifCfg) return;
+
+    const fallback = [];
+    const toList   = resolveRecipients(notifCfg,
+      { technicianEmail: borrador.technicianEmail, technician: borrador.technicianName },
+      { createdBy: borrador.technicianEmail },
+      fallback
+    );
+
+    if (toList.length === 0) return;
+
+    const tdL = 'padding:8px 12px;color:#64748b;font-size:13px;width:130px;vertical-align:top;';
+    const tdR = 'padding:8px 12px;font-size:13px;font-weight:500;vertical-align:top;';
+    const row = (label, value) => value
+      ? `<tr><td style="${tdL}">${escHtml(label)}</td><td style="${tdR}">${escHtml(value)}</td></tr>`
+      : '';
+
+    const clienteRows = [
+      row('Nombre',     borrador.clientName),
+      row('Cédula/RUC', borrador.clientIdNumber),
+      row('Dirección',  borrador.clientAddress),
+      row('Teléfono',   borrador.clientPhone),
+      row('Email',      borrador.clientEmail),
+    ].join('');
+
+    const visitaRows = [
+      row('Fecha',    borrador.scheduledDate),
+      row('Hora',     borrador.scheduledTime),
+      row('Motivo',   borrador.motivo),
+      row('Técnico',  borrador.technicianName || borrador.technicianEmail),
+    ].join('');
+
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:auto;">
+        <h2 style="color:#D61672;">📋 Nuevo borrador de visita</h2>
+        <p style="color:#555;margin-bottom:16px;">
+          El técnico <strong>${escHtml(borrador.technicianName || borrador.technicianEmail)}</strong>
+          registró un nuevo borrador de visita pendiente de asignación.
+        </p>
+        <p style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">📋 Cliente</p>
+        <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:12px;">${clienteRows}</table>
+        <p style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">📅 Visita</p>
+        <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:16px;">${visitaRows}</table>
+        <div style="padding:12px 16px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin-bottom:16px;">
+          <p style="margin:0;font-size:13px;color:#92400e;">
+            ⏳ Este borrador está <strong>pendiente de asignación</strong>. El administrador debe convertirlo en una visita formal desde el panel de administración.
+          </p>
+        </div>
+        <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+        <p style="font-size:12px;color:#aaa;">Acontplus Gestión Recordatorios</p>
+      </div>`;
+
+    await resend.emails.send({
+      from:    getFromEmail(config.empresaNombre),
+      to:      toList,
+      subject: `📋 Nuevo borrador: ${borrador.clientName} — ${borrador.scheduledDate || 'fecha por confirmar'}`,
+      html,
+    });
+
+    console.log(`notifyBorradorCreado: email enviado a ${toList.join(', ')} — ${event.params.borradoreId}`);
+  }
+);
+
+// ─── 9. Confirmación de asistencia del técnico ───────────────────────────────
 // HTTP endpoint expuesto en /confirmar via Firebase Hosting rewrite.
 // El técnico hace clic en el link del email; se valida el token HMAC y se
 // escribe technicianConfirmed:true en el documento de visita.

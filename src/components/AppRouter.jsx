@@ -14,9 +14,10 @@ import Toast from './Toast.jsx';
 import CalendarView from './CalendarView.jsx';
 import Configuracion from './Configuracion.jsx';
 import AllVisitsManager from './AllVisitsManager.jsx';
+import BorradoresAdmin from './BorradoresAdmin.jsx';
 import {
   Home, Wrench, FileText, Bell, BellOff,
-  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings
+  Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings, BookOpen,
 } from 'lucide-react';
 
 const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
@@ -81,8 +82,9 @@ export default function AppRouter() {
           <NavItem icon={<CalendarDays />} label="Calendario"     isActive={activeTab === 'calendar'}   onClick={() => setActiveTab('calendar')} />
           <NavItem icon={<FileText />}     label="Reportes"       isActive={activeTab === 'reports'}    onClick={() => setActiveTab('reports')} />
           <NavItem icon={<ClipboardList />}label="Tareas - Visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
-          <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}    onClick={() => setActiveTab('billing')} />
-          <NavItem icon={<Settings />}     label="Config."        isActive={activeTab === 'config'}     onClick={() => setActiveTab('config')} />
+          <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}      onClick={() => setActiveTab('billing')} />
+          <NavItem icon={<BookOpen />}     label="Borradores"     isActive={activeTab === 'borradores'}  onClick={() => setActiveTab('borradores')} />
+          <NavItem icon={<Settings />}     label="Config."        isActive={activeTab === 'config'}      onClick={() => setActiveTab('config')} />
 
           {/* Logout desktop */}
           <div className="hidden md:block mt-auto pt-4 border-t border-slate-100">
@@ -206,6 +208,9 @@ export default function AppRouter() {
             exportConfig={getActiveColumns('billing')}
             onOpenConfig={() => setShowExportConfig(true)}
           />
+        )}
+        {activeTab === 'borradores' && (
+          <BorradoresAdmin user={user} />
         )}
         {activeTab === 'config' && (
           <Configuracion user={user} />

@@ -132,6 +132,15 @@ service cloud.firestore {
       allow read, write: if request.auth != null && isMember(tenantId);
     }
 
+    match /tenants/{tenantId}/borradores/{borradoreId} {
+      allow read:   if request.auth != null && isMember(tenantId);
+      allow create: if request.auth != null && isMember(tenantId)
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() > 0;
+      allow update: if request.auth != null && isMember(tenantId);
+      allow delete: if false;
+    }
+
     match /tenants/{tenantId}/abonos/{abonoId} {
       allow read:   if request.auth != null && isMember(tenantId);
       allow create: if request.auth != null && isMember(tenantId);
