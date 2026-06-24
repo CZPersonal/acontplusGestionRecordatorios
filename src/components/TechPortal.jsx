@@ -11,6 +11,8 @@ import {
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle,
 } from 'lucide-react';
 
+const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
+
 // ─── Helpers de fecha ─────────────────────────────────────────────────────────
 
 function localToday() {
@@ -303,11 +305,28 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
 // ─── Vista día ────────────────────────────────────────────────────────────────
 
 function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete }) {
-  const visits = (allVisitsByDate[calDate] || []).sort((a, b) =>
-    (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || ''));
-
-  const dayName  = new Date(calDate + 'T12:00:00')
+  const dayName = new Date(calDate + 'T12:00:00')
     .toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Guayaquil' });
+
+  const allDayVisits = useMemo(() =>
+    (allVisitsByDate[calDate] || []).sort((a, b) =>
+      (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || '')),
+    [allVisitsByDate, calDate]
+  );
+
+  const { visitsByHour, noTimeVisits } = useMemo(() => {
+    const byHour = {};
+    WORK_HOURS.forEach(h => { byHour[h] = []; });
+    const noTime = [];
+    allDayVisits.forEach(item => {
+      const t = item.visit.scheduledTime;
+      if (!t) { noTime.push(item); return; }
+      const h = parseInt(t.split(':')[0], 10);
+      if (h >= 7 && h <= 22) byHour[h].push(item);
+      else noTime.push(item);
+    });
+    return { visitsByHour: byHour, noTimeVisits: noTime };
+  }, [allDayVisits]);
 
   return (
     <div className="space-y-4">
@@ -332,19 +351,52 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
         )}
       </div>
 
-      {visits.length === 0 ? (
-        <div className="text-center py-12 text-slate-400">
-          <Calendar size={36} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Sin visitas este día</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {visits.map(({ visit, task: t }) => (
-            <VisitCard key={visit.id} visit={visit} task={t}
-              onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
-          ))}
-        </div>
-      )}
+      {/* Grilla horaria 07:00 – 22:00 */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-100">
+        {WORK_HOURS.map(h => {
+          const hVisits = visitsByHour[h] || [];
+          const isBusy  = hVisits.length > 0;
+          return (
+            <div key={h} className={`flex min-h-[72px] transition-colors ${isBusy ? '' : 'hover:bg-slate-50/50'}`}>
+              {/* Etiqueta hora */}
+              <div className={`flex-shrink-0 w-20 flex flex-col items-center justify-start pt-3 pb-2 border-r ${
+                isBusy ? 'bg-pink-50/70 border-pink-100' : 'bg-slate-50/40 border-slate-100'
+              }`}>
+                <span className={`font-extrabold leading-none ${isBusy ? 'text-2xl text-pink-700' : 'text-xl text-slate-300'}`}>
+                  {String(h).padStart(2, '0')}
+                </span>
+                <span className={`text-xs font-bold ${isBusy ? 'text-pink-400' : 'text-slate-200'}`}>00</span>
+              </div>
+              {/* Visitas o libre */}
+              <div className="flex-1 py-2.5 px-3 min-w-0">
+                {isBusy ? (
+                  <div className="space-y-3">
+                    {hVisits.map(({ visit, task: t }) => (
+                      <VisitCard key={visit.id} visit={visit} task={t}
+                        onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center py-2">
+                    <span className="text-base font-semibold text-slate-300 italic tracking-wide">Libre</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {noTimeVisits.length > 0 && (
+          <div className="p-4 bg-amber-50">
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">Sin hora asignada</p>
+            <div className="space-y-3">
+              {noTimeVisits.map(({ visit, task: t }) => (
+                <VisitCard key={visit.id} visit={visit} task={t}
+                  onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   X, Plus, Clock, CheckCircle, Calendar, User,
   Phone, MapPin, FileText, Wrench, AlertCircle, Hash,
-  Edit, Printer, MessageCircle, RotateCcw, Ban, Settings
+  Edit, Printer, MessageCircle, RotateCcw, Ban, Settings, Mail,
 } from 'lucide-react';
 import { useVisits } from '../hooks/useVisits';
 import { useAppStore } from '../lib/store';
@@ -236,6 +236,8 @@ const URGENCY_CONFIG = {
 export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSelect, tecnicosParaSelect }) {
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
+  const tasks = useAppStore(s => s.tasks);
+
   const [formData, setFormData] = useState({
     scheduledDate:   initial?.scheduledDate   || today,
     scheduledTime:   initial?.scheduledTime   || '',
@@ -248,6 +250,23 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
   const [isLoading, setIsLoading] = useState(false);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+
+  // Visitas del técnico seleccionado en la fecha seleccionada (excluye la visita en edición)
+  const techSchedule = useMemo(() => {
+    if (!formData.technician || !formData.scheduledDate) return [];
+    const result = [];
+    tasks.forEach(task => {
+      (task.visits || []).forEach(v => {
+        if (
+          v.technician === formData.technician &&
+          v.scheduledDate === formData.scheduledDate &&
+          v.status === 'Programada' &&
+          v.id !== initial?.id
+        ) result.push({ visit: v, clientName: task.clientName });
+      });
+    });
+    return result.sort((a, b) => (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || ''));
+  }, [tasks, formData.technician, formData.scheduledDate, initial?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -262,122 +281,144 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
   const foc = e => e.target.style.borderColor = accentColor;
   const blr = e => e.target.style.borderColor = '#e2e8f0';
 
+  const SectionHeader = ({ icon: Icon, title }) => (
+    <div className="flex items-center gap-2 mb-5">
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: accentColor }}>
+        <Icon size={14} className="text-white" />
+      </div>
+      <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">{title}</h4>
+      <div className="flex-1 h-px bg-slate-200" />
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[60] flex">
-      {/* Backdrop */}
       <div className="flex-1 min-w-0"
         style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(3px)' }}
         onClick={onClose} />
 
-      {/* Drawer panel */}
       <div className="relative bg-white shadow-2xl flex flex-col overflow-hidden"
         style={{ width: '100%', maxWidth: '560px' }}>
 
         {/* Header */}
         <div className="px-6 py-5 flex items-center justify-between flex-shrink-0"
-          style={{ background: isEdit
-            ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
-            : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+          style={{ background: isEdit ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.2)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
               {isEdit ? <Edit size={18} className="text-white" /> : <Plus size={18} className="text-white" />}
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
-                {isEdit ? 'Editar visita' : 'Nueva visita programada'}
-              </h3>
+              <h3 className="text-base font-bold text-white">{isEdit ? 'Editar visita' : 'Nueva visita programada'}</h3>
               <p className="text-xs text-white" style={{ opacity: 0.75 }}>
                 {isEdit ? 'Modifica los datos de la visita' : 'Completa la información de la visita'}
               </p>
             </div>
           </div>
-          <button onClick={onClose}
-            className="p-2 rounded-xl text-white transition-all"
-            style={{ opacity: 0.75 }}
+          <button onClick={onClose} className="p-2 rounded-xl text-white transition-all" style={{ opacity: 0.75 }}
             onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
             onMouseLeave={e => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.background = 'transparent'; }}>
             <X size={20} />
           </button>
         </div>
 
-        {/* Cuerpo con scroll */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
           <div className="p-7 space-y-8">
 
-            {/* ── Sección 1: Programación ── */}
+            {/* ── 1. Técnico (primero para cargar la agenda) ── */}
             <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: accentColor }}>
-                  <Calendar size={14} className="text-white" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Programación</h4>
-                <div className="flex-1 h-px bg-slate-200" />
+              <SectionHeader icon={User} title="Técnico asignado" />
+              <select value={formData.technician} onChange={e => {
+                const nombre = e.target.value;
+                const found  = tecnicosParaSelect.find(t => t.nombre === nombre);
+                set('technician', nombre);
+                set('technicianEmail', found?.email || '');
+              }} className={inp} onFocus={foc} onBlur={blr}>
+                <option value="">— Selecciona un técnico —</option>
+                {tecnicosParaSelect.map(t => (
+                  <option key={t.id} value={t.nombre}>{t.nombre}</option>
+                ))}
+              </select>
+              {formData.technicianEmail && (
+                <p className="flex items-center gap-1.5 text-xs text-slate-400 mt-2">
+                  <Mail size={11} />
+                  Notificación de email: <span className="font-mono text-slate-500">{formData.technicianEmail}</span>
+                </p>
+              )}
+            </div>
+
+            {/* ── 2. Fecha + Agenda + Hora ── */}
+            <div>
+              <SectionHeader icon={Calendar} title="Programación" />
+
+              {/* Fecha */}
+              <div className="mb-4">
+                <label className={lbl}>Fecha de visita <span className="text-red-400">*</span></label>
+                <input type="date" value={formData.scheduledDate}
+                  onChange={e => set('scheduledDate', e.target.value)}
+                  required className={inp} onFocus={foc} onBlur={blr} />
               </div>
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className={lbl}>Fecha de visita <span className="text-red-400">*</span></label>
-                  <input type="date" value={formData.scheduledDate}
-                    onChange={e => set('scheduledDate', e.target.value)}
-                    required className={inp} onFocus={foc} onBlur={blr} />
+
+              {/* Agenda del técnico para esa fecha */}
+              {formData.technician && formData.scheduledDate && (
+                <div className="mb-4 rounded-xl border-2 overflow-hidden"
+                  style={{ borderColor: `${accentColor}30` }}>
+                  <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: `${accentColor}12` }}>
+                    <Clock size={13} style={{ color: accentColor }} />
+                    <p className="text-xs font-bold text-slate-700">
+                      Agenda de <span style={{ color: accentColor }}>{formData.technician}</span> — {formData.scheduledDate}
+                    </p>
+                  </div>
+                  {techSchedule.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-slate-400 italic flex items-center gap-1.5">
+                      <span className="text-green-500 font-bold">✓</span> Día libre — sin visitas programadas
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {techSchedule.map(({ visit, clientName }) => (
+                        <div key={visit.id} className="px-4 py-2.5 flex items-center gap-3">
+                          <span className="flex-shrink-0 text-xs font-bold font-mono w-12"
+                            style={{ color: accentColor }}>
+                            {visit.scheduledTime || '——:——'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-700 truncate">{clientName}</p>
+                            {visit.type && <p className="text-xs text-slate-400 truncate">🔧 {visit.type}</p>}
+                          </div>
+                          <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
+                            visit.urgency === 'Alta'  ? 'bg-red-100 text-red-700' :
+                            visit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>{visit.urgency || '—'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className={lbl}>Hora</label>
-                  <input type="time" value={formData.scheduledTime}
-                    onChange={e => set('scheduledTime', e.target.value)}
-                    className={inp} onFocus={foc} onBlur={blr} />
-                  <p className="text-xs text-slate-400 mt-1.5">Opcional — si no se indica se considera todo el día</p>
-                </div>
+              )}
+
+              {/* Hora */}
+              <div>
+                <label className={lbl}>Hora de la visita</label>
+                <input type="time" value={formData.scheduledTime}
+                  onChange={e => set('scheduledTime', e.target.value)}
+                  className={inp} onFocus={foc} onBlur={blr} />
+                <p className="text-xs text-slate-400 mt-1.5">Opcional — si no se indica se considera todo el día</p>
               </div>
             </div>
 
-            {/* ── Sección 2: Servicio ── */}
+            {/* ── 3. Tipo de visita ── */}
             <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: accentColor }}>
-                  <Wrench size={14} className="text-white" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Servicio</h4>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className={lbl}>Tipo de visita</label>
-                  <select value={formData.type} onChange={e => set('type', e.target.value)}
-                    className={inp} onFocus={foc} onBlur={blr}>
-                    <option value="">— Selecciona un tipo —</option>
-                    {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={lbl}>Técnico asignado</label>
-                  <select value={formData.technician} onChange={e => {
-                    const nombre = e.target.value;
-                    const found = tecnicosParaSelect.find(t => t.nombre === nombre);
-                    set('technician', nombre);
-                    set('technicianEmail', found?.email || '');
-                  }} className={inp} onFocus={foc} onBlur={blr}>
-                    <option value="">— Selecciona un técnico —</option>
-                    {tecnicosParaSelect.map(t => (
-                      <option key={t.id} value={t.nombre}>{t.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <SectionHeader icon={Wrench} title="Tipo de servicio" />
+              <select value={formData.type} onChange={e => set('type', e.target.value)}
+                className={inp} onFocus={foc} onBlur={blr}>
+                <option value="">— Selecciona un tipo —</option>
+                {tiposParaSelect.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
-            {/* ── Sección 3: Urgencia ── */}
+            {/* ── 4. Urgencia ── */}
             <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: accentColor }}>
-                  <AlertCircle size={14} className="text-white" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Urgencia</h4>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+              <SectionHeader icon={AlertCircle} title="Urgencia" />
               <div className="grid grid-cols-3 gap-4">
                 {URGENCIES.map(u => {
                   const cfg      = URGENCY_CONFIG[u];
@@ -398,26 +439,19 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
               </div>
             </div>
 
-            {/* ── Sección 4: Observaciones ── */}
+            {/* ── 5. Observaciones ── */}
             <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: accentColor }}>
-                  <FileText size={14} className="text-white" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Observaciones</h4>
-                <div className="flex-1 h-px bg-slate-200" />
-              </div>
+              <SectionHeader icon={FileText} title="Observaciones" />
               <textarea value={formData.observations}
                 onChange={e => set('observations', e.target.value)}
-                rows={6}
+                rows={5}
                 placeholder="Describe el trabajo a realizar, materiales necesarios, acceso al lugar, etc."
                 className={`${inp} resize-none`}
                 onFocus={foc} onBlur={blr} />
             </div>
           </div>
 
-          {/* Botones fijos abajo */}
+          {/* Botones */}
           <div className="px-7 py-5 border-t border-slate-100 bg-slate-50 flex gap-3 flex-shrink-0">
             <button type="submit" disabled={isLoading}
               className="flex-1 flex items-center justify-center gap-2 py-3.5 text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-all hover:opacity-90 active:scale-95 shadow-sm"

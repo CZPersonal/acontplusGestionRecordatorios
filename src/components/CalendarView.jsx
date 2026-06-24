@@ -8,8 +8,9 @@ import {
 import { useVisits } from '../hooks/useVisits';
 import { localDateStr, formatDateOnly, formatDateTime } from '../utils/dates.js';
 
-const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const DAYS   = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const MONTHS     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DAYS       = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
 
 const TASK_TYPES = [
   'Mantenimiento preventivo',
@@ -624,15 +625,26 @@ function WeekView({ year, month, day, events, onEventClick, onAddVisitToTask, on
 // ─── Vista día ─────────────────────────────────────────────────────────────────
 
 function DayView({ year, month, day, events, onEventClick, onAddVisitToTask, onAddVisitToDay }) {
-  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const dateStr  = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const todayStr = localDateStr();
 
   const dayEvents = useMemo(() =>
-    events
-      .filter(e => e.date === dateStr)
-      .sort((a, b) => (a.time || '').localeCompare(b.time || '')),
+    events.filter(e => e.date === dateStr).sort((a, b) => (a.time || '').localeCompare(b.time || '')),
     [events, dateStr]
   );
+
+  const { eventsByHour, noTimeEvents } = useMemo(() => {
+    const byHour = {};
+    WORK_HOURS.forEach(h => { byHour[h] = []; });
+    const noTime = [];
+    dayEvents.forEach(ev => {
+      if (!ev.time) { noTime.push(ev); return; }
+      const h = parseInt(ev.time.split(':')[0], 10);
+      if (h >= 7 && h <= 22) byHour[h].push(ev);
+      else noTime.push(ev);
+    });
+    return { eventsByHour: byHour, noTimeEvents: noTime };
+  }, [dayEvents]);
 
   const dayName = new Date(year, month, day)
     .toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });
@@ -643,9 +655,7 @@ function DayView({ year, month, day, events, onEventClick, onAddVisitToTask, onA
       <div className={`px-4 py-3 flex items-center justify-between border-b border-slate-100 ${dateStr === todayStr ? 'bg-pink-50' : 'bg-slate-50'}`}>
         <div>
           <p className="text-sm font-bold text-slate-800 capitalize">{dayName}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {dayEvents.length} evento{dayEvents.length !== 1 ? 's' : ''}
-          </p>
+          <p className="text-xs text-slate-400 mt-0.5">{dayEvents.length} evento{dayEvents.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={() => onAddVisitToDay(dateStr)}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
@@ -654,28 +664,48 @@ function DayView({ year, month, day, events, onEventClick, onAddVisitToTask, onA
         </button>
       </div>
 
-      {/* Lista de eventos */}
-      <div className="p-4 space-y-2">
-        {dayEvents.length === 0 ? (
-          <div className="py-12 text-center">
-            <CalendarDays size={36} className="mx-auto mb-3 text-slate-200" />
-            <p className="text-sm text-slate-400 font-medium">Sin eventos este día</p>
-            <button onClick={() => onAddVisitToDay(dateStr)}
-              className="mt-3 text-xs font-semibold px-4 py-2 rounded-xl text-white"
-              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-              + Agregar visita
-            </button>
+      {/* Grilla horaria 07:00 – 22:00 */}
+      <div className="divide-y divide-slate-100">
+        {WORK_HOURS.map(h => {
+          const hEvents = eventsByHour[h] || [];
+          const isBusy  = hEvents.length > 0;
+          return (
+            <div key={h} className={`flex min-h-[64px] transition-colors ${isBusy ? '' : 'hover:bg-slate-50/60'}`}>
+              {/* Etiqueta hora */}
+              <div className={`flex-shrink-0 w-20 flex flex-col items-center justify-start pt-3 pb-2 border-r ${
+                isBusy ? 'bg-pink-50/70 border-pink-100' : 'bg-slate-50/40 border-slate-100'
+              }`}>
+                <span className={`font-extrabold leading-none ${isBusy ? 'text-2xl text-pink-700' : 'text-xl text-slate-300'}`}>
+                  {String(h).padStart(2, '0')}
+                </span>
+                <span className={`text-xs font-bold ${isBusy ? 'text-pink-400' : 'text-slate-200'}`}>00</span>
+              </div>
+              {/* Contenido */}
+              <div className="flex-1 py-2 px-3 min-w-0">
+                {isBusy ? (
+                  <div className="space-y-1.5">
+                    {hEvents.map(ev => (
+                      <WeekEventCard key={ev.id} event={ev} onClick={onEventClick} onAddVisit={onAddVisitToTask} wide />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center py-2">
+                    <span className="text-sm font-semibold text-slate-300 italic tracking-wide">Libre</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {noTimeEvents.length > 0 && (
+          <div className="p-4 bg-amber-50 border-t border-amber-100">
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2">Sin hora asignada</p>
+            <div className="space-y-1.5">
+              {noTimeEvents.map(ev => (
+                <WeekEventCard key={ev.id} event={ev} onClick={onEventClick} onAddVisit={onAddVisitToTask} wide />
+              ))}
+            </div>
           </div>
-        ) : (
-          dayEvents.map(event => (
-            <WeekEventCard
-              key={event.id}
-              event={event}
-              onClick={onEventClick}
-              onAddVisit={onAddVisitToTask}
-              wide
-            />
-          ))
         )}
       </div>
     </div>
