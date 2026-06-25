@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc, addDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -30,10 +30,17 @@ const PENDING_KEY = 'acontplus_pending_borradores';
 const loadPending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; } };
 const savePending = (l) => { try { localStorage.setItem(PENDING_KEY, JSON.stringify(l)); } catch {} };
 
-// ID determinístico: evita duplicados si el sync corre más de una vez
-// (setDoc con el mismo docId sobreescribe en lugar de crear uno nuevo)
+// ID determinístico basado en uid + createdAt (nuevos borradores)
 function buildDocId(uid, createdAt) {
   return `${uid}_${createdAt.replace(/[:.]/g, '-')}`;
+}
+
+// ID determinístico para items viejos sin docId: email + createdAt
+// Garantiza que reintentos del sync no creen documentos duplicados
+function buildFallbackDocId(data) {
+  const email = (data.technicianEmail || 'unknown').replace(/[.@]/g, '_');
+  const ts    = (data.createdAt       || '').replace(/[:.]/g, '-');
+  return `${email}_${ts}`;
 }
 
 export function useBorradores(user, { onlyMine = false } = {}) {
@@ -62,8 +69,8 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
     const unsub = onSnapshot(q,
       snap => {
-        // Deduplicar por createdAt+technicianEmail: maneja duplicados que ya
-        // existan en BD (de versiones anteriores que usaban addDoc con ID aleatorio)
+        // Deduplicar por technicianEmail|createdAt para ocultar duplicados
+        // que pudieran existir en BD de versiones anteriores
         const seen = new Set();
         const docs = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
@@ -85,7 +92,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
   useEffect(() => {
     if (!user || !tenantId) return;
 
-    let syncing = false; // Previene ejecuciones simultáneas
+    let syncing = false;
 
     const sync = async () => {
       if (!navigator.onLine || syncing) return;
@@ -100,20 +107,29 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
         const failed = [];
         for (const item of mine) {
+          // ── Paso 1: borrador (siempre setDoc idempotente, nunca addDoc) ──
+          // Tanto items nuevos (con docId) como viejos (sin docId) usan un ID
+          // determinístico → reintentar el sync nunca crea documentos duplicados.
+          const docId = item.docId || buildFallbackDocId(item.data);
+          let borradorOk = false;
           try {
-            if (item.docId) {
-              // ID determinístico: setDoc es idempotente — no crea duplicados
-              await setDoc(doc(getCollectionRef('borradores'), item.docId), item.data);
-            } else {
-              // Compatibilidad con items guardados sin docId (versiones anteriores)
-              await addDoc(getCollectionRef('borradores'), item.data);
-            }
-            // Registrar cliente al sincronizar, igual que cuando se crea con internet
-            await syncClientFromBorrador(item.data);
+            await setDoc(doc(getCollectionRef('borradores'), docId), item.data);
+            borradorOk = true;
           } catch {
             failed.push(item);
           }
+
+          // ── Paso 2: cliente (try-catch independiente) ─────────────────────
+          // Si falla, se loga pero NO impide limpiar el borrador de la cola.
+          if (borradorOk) {
+            try {
+              await syncClientFromBorrador(item.data);
+            } catch (e) {
+              console.error('syncClientFromBorrador:', e);
+            }
+          }
         }
+
         savePending([
           ...all.filter(p => p.tenantId !== tenantId || (onlyMine && p.data.technicianEmail !== user.email)),
           ...failed,
@@ -161,13 +177,11 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     };
 
     if (!navigator.onLine) {
-      // Sin red: encolar en localStorage con docId determinístico
       const pending = loadPending();
       pending.push({ tenantId, docId, data: docData });
       savePending(pending);
       setLocalPending(prev => [{ ...docData, id: `pending_${createdAt}`, _pending: true }, ...prev]);
     } else {
-      // Con red: setDoc idempotente en lugar de addDoc
       setDoc(doc(getCollectionRef('borradores'), docId), docData)
         .catch(e => console.error('addBorrador:', e));
     }
