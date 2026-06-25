@@ -169,7 +169,6 @@ export default function BorradoresAdmin({ user }) {
   const { borradores, isLoading, convertBorrador } = useBorradores(user);
   const addToast     = useAppStore(s => s.addToast);
   const addTask      = useAppStore(s => s.addTask);
-  const saveClient   = useAppStore(s => s.saveClient);
   const clients      = useAppStore(s => s.clients);
   const serviceTypes = useAppStore(s => s.serviceTypes);
   const { tecnicos }        = useTecnicos(user);
@@ -179,7 +178,7 @@ export default function BorradoresAdmin({ user }) {
   const [search,      setSearch]      = useState('');
   const [dateFilter,  setDateFilter]  = useState('');
   const [detail,      setDetail]      = useState(null);
-  // convertFlow: null | { borrador, step: 'task'|'visit', taskId: string|null }
+  // convertFlow: null | { borrador, step: 'task'|'visit', taskId: string|null, client: object|null }
   const [convertFlow, setConvertFlow] = useState(null);
 
   const filtered = useMemo(() => {
@@ -202,15 +201,15 @@ export default function BorradoresAdmin({ user }) {
 
   const pendientesCount = borradores.filter(b => b.status === 'Pendiente').length;
 
-  // Paso 0: abrir flujo de conversión → muestra TaskForm
+  // Paso 0: abrir flujo de conversión → busca cliente en catálogo y muestra TaskForm
   const startConvert = (b) => {
     setDetail(null);
-    setConvertFlow({ borrador: b, step: 'task', taskId: null });
+    const client = clients.find(c => c.identification === b.clientIdNumber) || null;
+    setConvertFlow({ borrador: b, step: 'task', taskId: null, client });
   };
 
-  // Paso 1: tarea guardada → abrir VisitFormModal
+  // Paso 1: tarea guardada → abrir VisitFormModal (cliente ya existe en BD)
   const handleTaskSaved = async (formData) => {
-    if (formData.identification?.trim() && formData.clientName) await saveClient(formData);
     const taskId = await addTask(formData, user.email);
     if (!taskId) {
       addToast({ type: 'error', title: '❌ Error', body: 'No se pudo crear la tarea.' });
@@ -380,14 +379,14 @@ export default function BorradoresAdmin({ user }) {
             <TaskForm
               onSubmit={handleTaskSaved}
               initialData={{
-                clientName:     convertFlow.borrador.clientName     || '',
-                identification: convertFlow.borrador.clientIdNumber || '',
-                clientPhone:    convertFlow.borrador.clientPhone    || '',
-                clientEmail:    convertFlow.borrador.clientEmail    || '',
-                clientAddress:  convertFlow.borrador.clientAddress  || '',
+                clientName:     convertFlow.client?.name           || convertFlow.borrador.clientName     || '',
+                identification: convertFlow.client?.identification || convertFlow.borrador.clientIdNumber || '',
+                clientPhone:    convertFlow.client?.phone          || convertFlow.borrador.clientPhone    || '',
+                clientEmail:    convertFlow.client?.email          || convertFlow.borrador.clientEmail    || '',
+                clientAddress:  convertFlow.client?.address        || convertFlow.borrador.clientAddress  || '',
                 serviceOrder:   '',
                 serviceType:    '',
-                foreign:        false,
+                foreign:        convertFlow.client?.foreign ?? false,
                 status:         'Pendiente',
                 observations:   '',
               }}

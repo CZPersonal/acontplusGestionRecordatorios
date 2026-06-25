@@ -431,7 +431,8 @@ function BorradorCard({ b, onEdit }) {
 
 export default function BorradorSheet({ user, showList = false }) {
   const { borradores, isLoading, addBorrador, updateBorrador } = useBorradores(user, { onlyMine: true });
-  const { tecnicos } = useTecnicos(user);
+  const { tecnicos }  = useTecnicos(user);
+  const saveClient    = useAppStore(s => s.saveClient);
 
   const technicianName = useMemo(
     () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
@@ -456,6 +457,15 @@ export default function BorradorSheet({ user, showList = false }) {
   const closeSheet = () => { setOpen(false); setEditing(null); };
 
   const handleSave = async (data) => {
+    if (data.clientIdNumber?.trim() && data.clientName) {
+      await saveClient({
+        identification: data.clientIdNumber,
+        clientName:     data.clientName,
+        clientPhone:    data.clientPhone    || '',
+        clientAddress:  data.clientAddress  || '',
+        clientEmail:    data.clientEmail    || '',
+      });
+    }
     if (editing) return await updateBorrador(editing.id, data);
     return await addBorrador({ ...data, technicianName });
   };
