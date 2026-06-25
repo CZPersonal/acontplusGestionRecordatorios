@@ -3,6 +3,28 @@ import { doc, setDoc, addDoc, updateDoc, onSnapshot, query, limit, where } from 
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
+// Guarda el cliente en Firestore si el borrador tiene cédula y nombre.
+// merge:true evita sobreescribir datos de un cliente que ya exista.
+async function syncClientFromBorrador(docData) {
+  const id = docData.clientIdNumber?.replace(/\s/g, '');
+  if (!id || !docData.clientName) return;
+  await setDoc(
+    doc(getCollectionRef('clients'), id),
+    {
+      id,
+      name:           docData.clientName,
+      identification: docData.clientIdNumber,
+      phone:          docData.clientPhone   || '',
+      address:        docData.clientAddress || '',
+      email:          docData.clientEmail   || '',
+      foreign:        false,
+      active:         true,
+      updatedAt:      new Date().toISOString(),
+    },
+    { merge: true }
+  );
+}
+
 // ─── Cola offline en localStorage ─────────────────────────────────────────────
 const PENDING_KEY = 'acontplus_pending_borradores';
 const loadPending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; } };
@@ -86,6 +108,8 @@ export function useBorradores(user, { onlyMine = false } = {}) {
               // Compatibilidad con items guardados sin docId (versiones anteriores)
               await addDoc(getCollectionRef('borradores'), item.data);
             }
+            // Registrar cliente al sincronizar, igual que cuando se crea con internet
+            await syncClientFromBorrador(item.data);
           } catch {
             failed.push(item);
           }
