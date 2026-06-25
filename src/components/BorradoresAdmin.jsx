@@ -163,13 +163,15 @@ export default function BorradoresAdmin({ user }) {
 
   const [filter,     setFilter]     = useState('pendientes'); // 'pendientes' | 'convertidos' | 'todos'
   const [search,     setSearch]     = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [detail,     setDetail]     = useState(null);
   const [converting, setConverting] = useState(false);
 
   const filtered = useMemo(() => {
     let list = borradores;
-    if (filter === 'pendientes') list = list.filter(b => b.status === 'Pendiente');
+    if (filter === 'pendientes')  list = list.filter(b => b.status === 'Pendiente');
     if (filter === 'convertidos') list = list.filter(b => b.status === 'Convertido');
+    if (dateFilter) list = list.filter(b => b.scheduledDate === dateFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(b =>
@@ -181,7 +183,7 @@ export default function BorradoresAdmin({ user }) {
       );
     }
     return list;
-  }, [borradores, filter, search]);
+  }, [borradores, filter, dateFilter, search]);
 
   const pendientesCount = borradores.filter(b => b.status === 'Pendiente').length;
 
@@ -225,28 +227,47 @@ export default function BorradoresAdmin({ user }) {
         </div>
       )}
 
-      {/* Filtros + búsqueda */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
-          {[
-            { id: 'pendientes',  label: 'Pendientes' },
-            { id: 'convertidos', label: 'Convertidos' },
-            { id: 'todos',       label: 'Todos' },
-          ].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                filter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}>
-              {f.label}
-              {f.id === 'pendientes' && pendientesCount > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
-                  {pendientesCount}
-                </span>
-              )}
-            </button>
-          ))}
+      {/* Filtros */}
+      <div className="flex flex-col gap-3">
+        {/* Fila 1: estado + fecha */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+            {[
+              { id: 'pendientes',  label: 'Pendientes' },
+              { id: 'convertidos', label: 'Convertidos' },
+              { id: 'todos',       label: 'Todos' },
+            ].map(f => (
+              <button key={f.id} onClick={() => setFilter(f.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  filter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {f.label}
+                {f.id === 'pendientes' && pendientesCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                    {pendientesCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+              />
+            </div>
+            {dateFilter && (
+              <button onClick={() => setDateFilter('')}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 border-2 border-slate-200 bg-white transition-colors whitespace-nowrap">
+                <X size={12} />Limpiar
+              </button>
+            )}
+          </div>
         </div>
-        <div className="relative flex-1">
+        {/* Fila 2: búsqueda de texto */}
+        <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
