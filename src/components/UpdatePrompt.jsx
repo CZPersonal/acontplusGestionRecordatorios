@@ -30,6 +30,21 @@ export default function UpdatePrompt() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
+  const handleUpdate = async () => {
+    setNeedRefresh(false);
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg?.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        // Esperar brevemente a que el nuevo SW tome control
+        await new Promise(r => setTimeout(r, 250));
+      }
+    } catch (e) {
+      console.error('SW update error:', e);
+    }
+    window.location.reload();
+  };
+
   if (!needRefresh) return null;
 
   return (
@@ -51,7 +66,7 @@ export default function UpdatePrompt() {
           <p className="text-xs text-slate-400 mt-0.5">Toca Actualizar para aplicar los cambios</p>
         </div>
         <button
-          onClick={() => updateServiceWorker(true)}
+          onClick={handleUpdate}
           className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white active:scale-95 transition-transform"
           style={{ background: '#D61672' }}
         >
