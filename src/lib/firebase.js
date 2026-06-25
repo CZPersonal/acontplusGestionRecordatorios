@@ -1,7 +1,7 @@
 // src/lib/firebase.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
@@ -34,9 +34,10 @@ if (import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
 
 const auth = getAuth(app);
 
-// persistentLocalCache reemplaza el deprecado enableIndexedDbPersistence
+// persistentMultipleTabManager soporta múltiples pestañas y el service worker
+// de la PWA sin conflictos de lock en IndexedDB — necesario para escrituras offline
 const db = initializeFirestore(app, {
-  localCache: persistentLocalCache()
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
 // Firebase Messaging — solo disponible en navegadores con soporte Push API.

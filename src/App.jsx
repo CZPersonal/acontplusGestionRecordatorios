@@ -14,6 +14,15 @@ import CompanySelector from './components/CompanySelector.jsx';
 import AppRouter from './components/AppRouter.jsx';
 import TechPortal from './components/TechPortal.jsx';
 
+const SESSION_KEY = 'acontplus_session';
+
+function saveSession(data) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* quota */ }
+}
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || '{}'); } catch { return {}; }
+}
+
 export default function App() {
   const user             = useAppStore(s => s.user);
   const isAuthLoading    = useAppStore(s => s.isAuthLoading);
@@ -22,6 +31,7 @@ export default function App() {
   const isLoadingTasks   = useAppStore(s => s.isLoadingTasks);
   const tasks            = useAppStore(s => s.tasks);
   const userRole         = useAppStore(s => s.userRole);
+  const isOnline         = useAppStore(s => s.isOnline);
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -36,7 +46,9 @@ export default function App() {
           const snap = await getDoc(doc(db, 'users', u.uid));
           userData = snap.exists() ? snap.data() : {};
         } catch {
-          // Sin red y sin caché — continuar con datos vacíos
+          // Sin red y sin caché de Firestore — recuperar ids de localStorage
+          const s = loadSession();
+          if (s.tenantId) userData = { tenantIds: s.tenantIds || [s.tenantId] };
         }
 
         // Migrar tenantId (string) → tenantIds (array) si es necesario
@@ -48,8 +60,17 @@ export default function App() {
         }
 
         if (ids.length === 0) {
-          // Sin empresa — mostrar TenantSetup
-          useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
+          // Sin empresa — intentar localStorage como último recurso
+          const s = loadSession();
+          if (s.tenantId) {
+            useAppStore.setState({
+              user: u, tenantId: s.tenantId, tenantIds: s.tenantIds || [s.tenantId],
+              availableTenants: [], tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
+              userRole: s.userRole || 'tecnico', isAuthLoading: false,
+            });
+          } else {
+            useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
+          }
         } else if (ids.length === 1) {
           // Una sola empresa — seleccionar automáticamente
           try {
@@ -65,10 +86,18 @@ export default function App() {
                 uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
               }).catch(() => {});
             }
-            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', userRole: role, isAuthLoading: false });
+            const tenantName = td.data()?.name ?? '';
+            const tenantRuc  = td.data()?.ruc  ?? '';
+            saveSession({ tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
+            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, isAuthLoading: false });
           } catch {
-            // Sin red: usar tenant conocido con rol por defecto
-            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: '', tenantRuc: '', userRole: 'tecnico', isAuthLoading: false });
+            // Sin red: usar tenant conocido, priorizar rol guardado en localStorage
+            const s = loadSession();
+            useAppStore.setState({
+              user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [],
+              tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
+              userRole: s.userRole || 'tecnico', isAuthLoading: false,
+            });
           }
         } else {
           // Múltiples empresas — cargar lista y mostrar selector
@@ -156,7 +185,8 @@ export default function App() {
   if (tenantIds.length === 0)                        return <TenantSetup />;
   if (!tenantId && tenantIds.length > 1)             return <CompanySelector />;
 
-  if (isLoadingTasks && tasks.length === 0) {
+  // Offline: no bloquear con spinner si no hay red aunque las tareas no hayan cargado
+  if (isLoadingTasks && tasks.length === 0 && isOnline) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
         <img src="/logo.png" alt="Acontplus" className="w-20 h-20 object-contain mb-4 animate-bounce" />
