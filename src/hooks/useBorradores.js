@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, addDoc, updateDoc, onSnapshot, query, orderBy, limit, where } from 'firebase/firestore';
+import { doc, addDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -11,15 +11,16 @@ export function useBorradores(user, { onlyMine = false } = {}) {
   useEffect(() => {
     if (!user || !tenantId) return;
     const col = getCollectionRef('borradores');
-    // onlyMine: solo where sin orderBy para evitar requerir índice compuesto en Firestore
+    // Sin orderBy en Firestore: documentos sin el campo quedan excluidos silenciosamente.
+    // Se ordena siempre en el cliente para garantizar que todos los docs aparecen.
     const q = onlyMine
       ? query(col, where('technicianEmail', '==', user.email), limit(50))
-      : query(col, orderBy('createdAt', 'desc'), limit(200));
+      : query(col, limit(200));
 
     const unsub = onSnapshot(q,
       snap => {
-        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (onlyMine) docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBorradores(docs);
       },
       err => console.error('useBorradores onSnapshot:', err)
