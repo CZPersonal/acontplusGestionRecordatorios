@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { doc, addDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { doc, setDoc, addDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -7,6 +7,12 @@ import { useAppStore } from '../lib/store';
 const PENDING_KEY = 'acontplus_pending_borradores';
 const loadPending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; } };
 const savePending = (l) => { try { localStorage.setItem(PENDING_KEY, JSON.stringify(l)); } catch {} };
+
+// ID determinístico: evita duplicados si el sync corre más de una vez
+// (setDoc con el mismo docId sobreescribe en lugar de crear uno nuevo)
+function buildDocId(uid, createdAt) {
+  return `${uid}_${createdAt.replace(/[:.]/g, '-')}`;
+}
 
 export function useBorradores(user, { onlyMine = false } = {}) {
   const [firestoreDocs, setFirestoreDocs] = useState([]);
@@ -34,7 +40,17 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
     const unsub = onSnapshot(q,
       snap => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Deduplicar por createdAt+technicianEmail: maneja duplicados que ya
+        // existan en BD (de versiones anteriores que usaban addDoc con ID aleatorio)
+        const seen = new Set();
+        const docs = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(d => {
+            const key = `${d.technicianEmail ?? ''}|${d.createdAt ?? ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setFirestoreDocs(docs);
       },
@@ -47,37 +63,48 @@ export function useBorradores(user, { onlyMine = false } = {}) {
   useEffect(() => {
     if (!user || !tenantId) return;
 
-    const sync = async () => {
-      if (!navigator.onLine) return;
-      const all  = loadPending();
-      const mine = all.filter(p =>
-        p.tenantId === tenantId &&
-        (!onlyMine || p.data.technicianEmail === user.email)
-      );
-      if (!mine.length) return;
+    let syncing = false; // Previene ejecuciones simultáneas
 
-      const failed = [];
-      for (const item of mine) {
-        try {
-          await addDoc(getCollectionRef('borradores'), item.data);
-        } catch {
-          failed.push(item);
+    const sync = async () => {
+      if (!navigator.onLine || syncing) return;
+      syncing = true;
+      try {
+        const all  = loadPending();
+        const mine = all.filter(p =>
+          p.tenantId === tenantId &&
+          (!onlyMine || p.data.technicianEmail === user.email)
+        );
+        if (!mine.length) return;
+
+        const failed = [];
+        for (const item of mine) {
+          try {
+            if (item.docId) {
+              // ID determinístico: setDoc es idempotente — no crea duplicados
+              await setDoc(doc(getCollectionRef('borradores'), item.docId), item.data);
+            } else {
+              // Compatibilidad con items guardados sin docId (versiones anteriores)
+              await addDoc(getCollectionRef('borradores'), item.data);
+            }
+          } catch {
+            failed.push(item);
+          }
         }
-      }
-      // Guardar de vuelta solo los que fallaron + los de otros tenants/usuarios
-      savePending([
-        ...all.filter(p => p.tenantId !== tenantId || (onlyMine && p.data.technicianEmail !== user.email)),
-        ...failed,
-      ]);
-      // Limpiar los que se sincronizaron de la vista local
-      if (failed.length < mine.length) {
-        const failedIds = new Set(failed.map(f => f.data.createdAt));
-        setLocalPending(prev => prev.filter(b => failedIds.has(b.createdAt)));
+        savePending([
+          ...all.filter(p => p.tenantId !== tenantId || (onlyMine && p.data.technicianEmail !== user.email)),
+          ...failed,
+        ]);
+        if (failed.length < mine.length) {
+          const failedCreatedAts = new Set(failed.map(f => f.data.createdAt));
+          setLocalPending(prev => prev.filter(b => failedCreatedAts.has(b.createdAt)));
+        }
+      } finally {
+        syncing = false;
       }
     };
 
     window.addEventListener('online', sync);
-    sync(); // También al montar: sincroniza pendientes de sesiones anteriores
+    sync();
     return () => window.removeEventListener('online', sync);
   }, [user, tenantId, onlyMine]);
 
@@ -94,13 +121,15 @@ export function useBorradores(user, { onlyMine = false } = {}) {
   const addBorrador = (data) => {
     if (!user || !tenantId) return Promise.resolve(false);
     const { technicianName: nameOverride, ...rest } = data;
-    const docData = {
+    const createdAt = new Date().toISOString();
+    const docId     = buildDocId(user.uid, createdAt);
+    const docData   = {
       ...rest,
       status:          'Pendiente',
       technicianEmail: user.email,
       technicianName:  nameOverride || user.displayName || user.email,
-      createdAt:       new Date().toISOString(),
-      updatedAt:       new Date().toISOString(),
+      createdAt,
+      updatedAt:       createdAt,
       convertedAt:     null,
       convertedBy:     null,
       taskId:          null,
@@ -108,13 +137,14 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     };
 
     if (!navigator.onLine) {
-      // Sin red: encolar en localStorage y mostrar en la lista con indicador visual
+      // Sin red: encolar en localStorage con docId determinístico
       const pending = loadPending();
-      pending.push({ tenantId, data: docData });
+      pending.push({ tenantId, docId, data: docData });
       savePending(pending);
-      setLocalPending(prev => [{ ...docData, id: `pending_${docData.createdAt}`, _pending: true }, ...prev]);
+      setLocalPending(prev => [{ ...docData, id: `pending_${createdAt}`, _pending: true }, ...prev]);
     } else {
-      addDoc(getCollectionRef('borradores'), docData)
+      // Con red: setDoc idempotente en lugar de addDoc
+      setDoc(doc(getCollectionRef('borradores'), docId), docData)
         .catch(e => console.error('addBorrador:', e));
     }
     return Promise.resolve(true);
