@@ -88,5 +88,21 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     }
   };
 
-  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador };
+  const anuladoBorrador = async (id, { nombre, email }) => {
+    try {
+      await updateDoc(doc(getCollectionRef('borradores'), id), {
+        status:          'Anulado',
+        anuladoAt:       new Date().toISOString(),
+        anuladoPor:      nombre,
+        anuladoPorEmail: email,
+        updatedAt:       new Date().toISOString(),
+      });
+      return true;
+    } catch (e) {
+      console.error('anuladoBorrador:', e);
+      return false;
+    }
+  };
+
+  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
 }

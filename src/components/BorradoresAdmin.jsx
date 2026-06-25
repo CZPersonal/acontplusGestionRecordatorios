@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, CheckCircle2, Search, X, AlertCircle, Loader2,
-  ArrowRight, Eye,
+  ArrowRight, Eye, Ban,
 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { useBorradores } from '../hooks/useBorradores';
@@ -18,8 +18,10 @@ const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
-function BorradorDetailModal({ b, onClose, onConvert, converting }) {
+function BorradorDetailModal({ b, onClose, onConvert, onAnular, converting }) {
   const isPendiente = b.status === 'Pendiente';
+  const isAnulado   = b.status === 'Anulado';
+  const [confirmAnular, setConfirmAnular] = useState(false);
 
   const row = (icon, label, value) => value ? (
     <div className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
@@ -43,14 +45,12 @@ function BorradorDetailModal({ b, onClose, onConvert, converting }) {
 
         {/* Header */}
         <div className="px-5 py-4 flex items-start justify-between flex-shrink-0"
-          style={{ background: isPendiente ? 'linear-gradient(135deg, #D61672, #FFA901)' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+          style={{ background: isPendiente ? 'linear-gradient(135deg, #D61672, #FFA901)' : isAnulado ? '#64748b' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
           <div>
             <p className="text-xs font-bold text-white opacity-80 uppercase tracking-wide">Borrador de visita</p>
             <h3 className="text-base font-bold text-white mt-0.5">{b.clientName}</h3>
-            <span className={`inline-block mt-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full ${
-              isPendiente ? 'bg-white/20 text-white' : 'bg-white/20 text-white'
-            }`}>
-              {isPendiente ? '⏳ Pendiente' : '✅ Convertido'}
+            <span className="inline-block mt-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+              {isPendiente ? '⏳ Pendiente' : isAnulado ? '🚫 Anulado' : '✅ Convertido'}
             </span>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl text-white opacity-70 hover:opacity-100 hover:bg-white/20 transition-colors">
@@ -81,31 +81,61 @@ function BorradorDetailModal({ b, onClose, onConvert, converting }) {
           {b.updatedAt && b.updatedAt !== b.createdAt &&
             row(<Clock size={14} className="text-slate-400" />,     'Modificado',         formatDateTime(b.updatedAt))}
 
-          {!isPendiente && (
+          {b.status === 'Convertido' && (
             <>
               <p className="text-xs font-bold text-green-600 uppercase tracking-widest mt-4 mb-2">Conversión</p>
               {row(<CheckCircle2 size={14} className="text-green-600" />, 'Convertido el', b.convertedAt ? formatDateTime(b.convertedAt) : null)}
               {row(<User size={14} className="text-green-600" />,         'Convertido por', b.convertedBy)}
             </>
           )}
+          {isAnulado && (
+            <>
+              <p className="text-xs font-bold text-red-600 uppercase tracking-widest mt-4 mb-2">Anulación</p>
+              {row(<Ban size={14} className="text-red-600" />,  'Anulado el',  b.anuladoAt ? formatDateTime(b.anuladoAt) : null)}
+              {row(<User size={14} className="text-red-600" />, 'Anulado por', b.anuladoPor)}
+              {row(<Mail size={14} className="text-red-600" />, 'Email',       b.anuladoPorEmail)}
+            </>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-slate-100 flex gap-3 flex-shrink-0">
-          {isPendiente && (
-            <button
-              onClick={() => onConvert(b)}
-              disabled={converting}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60 transition-opacity"
-              style={{ background: converting ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-              {converting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
-              {converting ? 'Procesando…' : 'Convertir en visita'}
-            </button>
+        <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0">
+          {confirmAnular ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-bold text-red-700 text-center">¿Confirmar anulación del borrador?</p>
+              <div className="flex gap-2">
+                <button onClick={() => { onAnular(b); setConfirmAnular(false); }}
+                  className="flex-1 py-3 rounded-xl text-white text-sm font-bold bg-red-600 hover:bg-red-700 transition-colors">
+                  Sí, anular
+                </button>
+                <button onClick={() => setConfirmAnular(false)}
+                  className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              {isPendiente && (
+                <button onClick={() => onConvert(b)} disabled={converting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60 transition-opacity"
+                  style={{ background: converting ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+                  {converting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
+                  {converting ? 'Procesando…' : 'Convertir'}
+                </button>
+              )}
+              {isPendiente && (
+                <button onClick={() => setConfirmAnular(true)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-red-700 border-2 border-red-200 hover:bg-red-50 transition-colors">
+                  <Ban size={15} />Anular
+                </button>
+              )}
+              <button onClick={onClose}
+                className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                Cerrar
+              </button>
+            </div>
           )}
-          <button onClick={onClose}
-            className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-            Cerrar
-          </button>
         </div>
       </div>
     </div>
@@ -116,28 +146,35 @@ function BorradorDetailModal({ b, onClose, onConvert, converting }) {
 
 function BorradorRow({ b, onDetail }) {
   const isPendiente = b.status === 'Pendiente';
+  const isAnulado   = b.status === 'Anulado';
   return (
     <div
       className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer hover:shadow-md transition-shadow ${
-        isPendiente ? 'border-amber-200 bg-amber-50 hover:border-amber-300' : 'border-slate-200 bg-white hover:border-slate-300'
+        isPendiente ? 'border-amber-200 bg-amber-50 hover:border-amber-300'
+        : isAnulado  ? 'border-red-200 bg-red-50 hover:border-red-300'
+        : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
       onClick={() => onDetail(b)}
     >
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-        isPendiente ? 'bg-amber-100' : 'bg-green-100'
+        isPendiente ? 'bg-amber-100' : isAnulado ? 'bg-red-100' : 'bg-green-100'
       }`}>
         {isPendiente
           ? <AlertCircle size={16} className="text-amber-600" />
-          : <CheckCircle2 size={16} className="text-green-600" />}
+          : isAnulado
+            ? <Ban size={16} className="text-red-500" />
+            : <CheckCircle2 size={16} className="text-green-600" />}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-bold text-slate-800 truncate">{b.clientName}</p>
           <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
-            isPendiente ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'
+            isPendiente ? 'bg-amber-200 text-amber-800'
+            : isAnulado  ? 'bg-red-100 text-red-700'
+            : 'bg-green-100 text-green-700'
           }`}>
-            {isPendiente ? 'Pendiente' : 'Convertido'}
+            {isPendiente ? 'Pendiente' : isAnulado ? 'Anulado' : 'Convertido'}
           </span>
         </div>
         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -166,13 +203,18 @@ function BorradorRow({ b, onDetail }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function BorradoresAdmin({ user }) {
-  const { borradores, isLoading, convertBorrador } = useBorradores(user);
+  const { borradores, isLoading, convertBorrador, anuladoBorrador } = useBorradores(user);
   const addToast     = useAppStore(s => s.addToast);
   const addTask      = useAppStore(s => s.addTask);
   const clients      = useAppStore(s => s.clients);
   const serviceTypes = useAppStore(s => s.serviceTypes);
   const { tecnicos }        = useTecnicos(user);
   const { tiposParaSelect } = useTiposVisita(user);
+
+  const adminName = useMemo(
+    () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
+    [tecnicos, user.email, user.displayName]
+  );
 
   const [filter,      setFilter]      = useState('pendientes');
   const [search,      setSearch]      = useState('');
@@ -185,6 +227,7 @@ export default function BorradoresAdmin({ user }) {
     let list = borradores;
     if (filter === 'pendientes')  list = list.filter(b => b.status === 'Pendiente');
     if (filter === 'convertidos') list = list.filter(b => b.status === 'Convertido');
+    if (filter === 'anulados')    list = list.filter(b => b.status === 'Anulado');
     if (dateFilter) list = list.filter(b => b.scheduledDate === dateFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -200,6 +243,12 @@ export default function BorradoresAdmin({ user }) {
   }, [borradores, filter, dateFilter, search]);
 
   const pendientesCount = borradores.filter(b => b.status === 'Pendiente').length;
+
+  const handleAnular = async (b) => {
+    const ok = await anuladoBorrador(b.id, { nombre: adminName, email: user.email });
+    if (ok) addToast({ type: 'success', title: '🚫 Borrador anulado', body: `El borrador de ${b.clientName} fue anulado.` });
+    else    addToast({ type: 'error',   title: '❌ Error',            body: 'No se pudo anular el borrador.' });
+  };
 
   // Paso 0: abrir flujo de conversión → busca cliente en catálogo y muestra TaskForm
   const startConvert = (b) => {
@@ -283,6 +332,7 @@ export default function BorradoresAdmin({ user }) {
             {[
               { id: 'pendientes',  label: 'Pendientes' },
               { id: 'convertidos', label: 'Convertidos' },
+              { id: 'anulados',    label: 'Anulados' },
               { id: 'todos',       label: 'Todos' },
             ].map(f => (
               <button key={f.id} onClick={() => setFilter(f.id)}
@@ -356,6 +406,7 @@ export default function BorradoresAdmin({ user }) {
           b={detail}
           onClose={() => setDetail(null)}
           onConvert={startConvert}
+          onAnular={handleAnular}
           converting={false}
         />
       )}

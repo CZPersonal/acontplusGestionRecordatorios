@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle, Search } from 'lucide-react';
+import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle, Search, Ban } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useAppStore } from '../lib/store';
@@ -377,10 +377,17 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
 
 // ─── Tarjeta de borrador (lista del técnico) ──────────────────────────────────
 
-function BorradorCard({ b, onEdit }) {
+function BorradorCard({ b, onEdit, onAnular }) {
   const isPendiente = b.status === 'Pendiente';
+  const isAnulado   = b.status === 'Anulado';
+  const [confirmAnular, setConfirmAnular] = useState(false);
+
   return (
-    <div className={`rounded-2xl border shadow-sm overflow-hidden ${isPendiente ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+    <div className={`rounded-2xl border shadow-sm overflow-hidden ${
+      isPendiente ? 'border-amber-200 bg-amber-50'
+      : isAnulado  ? 'border-red-200 bg-red-50'
+      : 'border-slate-200 bg-white'
+    }`}>
       <div className="px-4 pt-3 pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -392,9 +399,11 @@ function BorradorCard({ b, onEdit }) {
             )}
           </div>
           <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-            isPendiente ? 'bg-amber-200 text-amber-800' : 'bg-green-100 text-green-700'
+            isPendiente ? 'bg-amber-200 text-amber-800'
+            : isAnulado  ? 'bg-red-100 text-red-700'
+            : 'bg-green-100 text-green-700'
           }`}>
-            {isPendiente ? '⏳ Pendiente' : '✅ Convertido'}
+            {isPendiente ? '⏳ Pendiente' : isAnulado ? '🚫 Anulado' : '✅ Convertido'}
           </span>
         </div>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -409,18 +418,43 @@ function BorradorCard({ b, onEdit }) {
         {b.motivo && (
           <p className="text-xs text-slate-500 italic mt-1 line-clamp-2">📝 {b.motivo}</p>
         )}
-        {!isPendiente && b.convertedAt && (
+        {b.status === 'Convertido' && b.convertedAt && (
           <p className="text-xs text-green-600 mt-1.5">
             Convertido el {formatDateTime(b.convertedAt)} por {b.convertedBy}
+          </p>
+        )}
+        {isAnulado && b.anuladoAt && (
+          <p className="text-xs text-red-600 mt-1.5">
+            Anulado el {formatDateTime(b.anuladoAt)} por {b.anuladoPor}
           </p>
         )}
       </div>
       {isPendiente && (
         <div className="px-4 pb-3">
-          <button onClick={() => onEdit(b)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
-            <Pencil size={12} />Editar borrador
-          </button>
+          {confirmAnular ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-red-700">¿Confirmar anulación?</span>
+              <button onClick={() => { onAnular(b); setConfirmAnular(false); }}
+                className="text-xs font-bold text-white bg-red-600 px-2.5 py-1 rounded-lg">
+                Sí
+              </button>
+              <button onClick={() => setConfirmAnular(false)}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-700">
+                No
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <button onClick={() => onEdit(b)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
+                <Pencil size={12} />Editar borrador
+              </button>
+              <button onClick={() => setConfirmAnular(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-800 transition-colors">
+                <Ban size={12} />Anular
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -430,9 +464,10 @@ function BorradorCard({ b, onEdit }) {
 // ─── Componente principal exportado ──────────────────────────────────────────
 
 export default function BorradorSheet({ user, showList = false }) {
-  const { borradores, isLoading, addBorrador, updateBorrador } = useBorradores(user, { onlyMine: true });
+  const { borradores, isLoading, addBorrador, updateBorrador, anuladoBorrador } = useBorradores(user, { onlyMine: true });
   const { tecnicos }  = useTecnicos(user);
   const saveClient    = useAppStore(s => s.saveClient);
+  const addToast      = useAppStore(s => s.addToast);
 
   const technicianName = useMemo(
     () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
@@ -456,6 +491,12 @@ export default function BorradorSheet({ user, showList = false }) {
   const openEdit = (b) => { setEditing(b); setOpen(true); };
   const closeSheet = () => { setOpen(false); setEditing(null); };
 
+  const handleAnular = async (b) => {
+    const ok = await anuladoBorrador(b.id, { nombre: technicianName, email: user.email });
+    if (ok) addToast({ type: 'success', title: '🚫 Borrador anulado', body: `El borrador de ${b.clientName} fue anulado.` });
+    else    addToast({ type: 'error',   title: '❌ Error',            body: 'No se pudo anular el borrador.' });
+  };
+
   const handleSave = async (data) => {
     if (data.clientIdNumber?.trim() && data.clientName) {
       await saveClient({
@@ -476,6 +517,7 @@ export default function BorradorSheet({ user, showList = false }) {
     let list = borradores;
     if (statusFilter === 'pendiente')  list = list.filter(b => b.status === 'Pendiente');
     if (statusFilter === 'convertido') list = list.filter(b => b.status === 'Convertido');
+    if (statusFilter === 'anulado')    list = list.filter(b => b.status === 'Anulado');
     if (dateFilter) list = list.filter(b => b.scheduledDate === dateFilter);
     return list;
   }, [borradores, statusFilter, dateFilter]);
@@ -494,6 +536,7 @@ export default function BorradorSheet({ user, showList = false }) {
                 { id: 'todos',      label: 'Todos' },
                 { id: 'pendiente',  label: 'Pendientes' },
                 { id: 'convertido', label: 'Convertidos' },
+                { id: 'anulado',    label: 'Anulados' },
               ].map(f => (
                 <button key={f.id} onClick={() => setStatusFilter(f.id)}
                   className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -543,7 +586,7 @@ export default function BorradorSheet({ user, showList = false }) {
           ) : (
             <div className="space-y-3">
               {filtered.map(b => (
-                <BorradorCard key={b.id} b={b} onEdit={openEdit} />
+                <BorradorCard key={b.id} b={b} onEdit={openEdit} onAnular={handleAnular} />
               ))}
             </div>
           )}

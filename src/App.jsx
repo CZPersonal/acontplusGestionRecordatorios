@@ -27,20 +27,24 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        // Actualizar lastLogin sin sobreescribir tenantId existente
-        await setDoc(
-          doc(db, 'users', u.uid),
-          { email: u.email, lastLogin: new Date().toISOString() },
-          { merge: true }
-        );
-        const snap     = await getDoc(doc(db, 'users', u.uid));
-        const userData = snap.exists() ? snap.data() : {};
+        // Fire-and-forget: se encola offline, no bloquea el arranque
+        setDoc(doc(db, 'users', u.uid), { email: u.email, lastLogin: new Date().toISOString() }, { merge: true })
+          .catch(() => {});
+
+        let userData = {};
+        try {
+          const snap = await getDoc(doc(db, 'users', u.uid));
+          userData = snap.exists() ? snap.data() : {};
+        } catch {
+          // Sin red y sin caché — continuar con datos vacíos
+        }
 
         // Migrar tenantId (string) → tenantIds (array) si es necesario
         let ids = userData.tenantIds ?? [];
         if (ids.length === 0 && userData.tenantId) {
           ids = [userData.tenantId];
-          await setDoc(doc(db, 'users', u.uid), { tenantIds: arrayUnion(userData.tenantId) }, { merge: true });
+          setDoc(doc(db, 'users', u.uid), { tenantIds: arrayUnion(userData.tenantId) }, { merge: true })
+            .catch(() => {});
         }
 
         if (ids.length === 0) {
@@ -48,25 +52,33 @@ export default function App() {
           useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
         } else if (ids.length === 1) {
           // Una sola empresa — seleccionar automáticamente
-          const [td, memberSnap] = await Promise.all([
-            getDoc(doc(db, 'tenants', ids[0])),
-            getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
-          ]);
-          let role = 'admin';
-          if (memberSnap.exists()) {
-            role = memberSnap.data().role || 'admin';
-          } else {
-            // Usuario existente sin registro de rol → crearlo como admin
-            await setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
-              uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
-            });
+          try {
+            const [td, memberSnap] = await Promise.all([
+              getDoc(doc(db, 'tenants', ids[0])),
+              getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
+            ]);
+            let role = 'admin';
+            if (memberSnap.exists()) {
+              role = memberSnap.data().role || 'admin';
+            } else {
+              setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
+                uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
+              }).catch(() => {});
+            }
+            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', userRole: role, isAuthLoading: false });
+          } catch {
+            // Sin red: usar tenant conocido con rol por defecto
+            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: '', tenantRuc: '', userRole: 'tecnico', isAuthLoading: false });
           }
-          useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName: td.data()?.name ?? '', tenantRuc: td.data()?.ruc ?? '', userRole: role, isAuthLoading: false });
         } else {
           // Múltiples empresas — cargar lista y mostrar selector
-          const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'tenants', id))));
-          const available = docs.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' }));
-          useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: available, tenantName: '', tenantRuc: '', isAuthLoading: false });
+          try {
+            const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'tenants', id))));
+            const available = docs.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' }));
+            useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: available, tenantName: '', tenantRuc: '', isAuthLoading: false });
+          } catch {
+            useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
+          }
         }
       } else {
         useAppStore.setState({ user: null, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
