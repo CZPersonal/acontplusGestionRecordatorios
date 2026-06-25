@@ -8,7 +8,7 @@ import { useBorradores } from '../hooks/useBorradores';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
-  LogOut, MapPin, Phone, Wrench, X,
+  LogOut, Mail, MapPin, Phone, Wrench, X,
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
@@ -227,11 +227,25 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
             <span>{task.clientAddress}</span>
           </p>
         )}
-        {task.clientPhone && (
-          <a href={`tel:${task.clientPhone}`}
-            className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-            <Phone size={14} />{task.clientPhone}
-          </a>
+        {(task.clientPhone || task.clientEmail) && (
+          <div className="flex gap-2 pt-1">
+            {task.clientPhone && (
+              <a href={`tel:${task.clientPhone}`}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-95 min-w-0"
+                style={{ background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}>
+                <Phone size={15} className="flex-shrink-0" />
+                <span className="truncate">{task.clientPhone}</span>
+              </a>
+            )}
+            {task.clientEmail && (
+              <a href={`mailto:${task.clientEmail}`}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border transition-all active:scale-95 min-w-0"
+                style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}>
+                <Mail size={15} className="flex-shrink-0" />
+                <span className="truncate">{task.clientEmail}</span>
+              </a>
+            )}
+          </div>
         )}
         {visit.observations && (
           <p className="text-xs text-slate-400 italic">📝 {visit.observations}</p>
