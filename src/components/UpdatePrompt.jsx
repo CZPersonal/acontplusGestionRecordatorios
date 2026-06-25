@@ -33,18 +33,26 @@ export default function UpdatePrompt() {
   if (!needRefresh) return null;
 
   return (
-    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 animate-fade-in">
+    <div
+      className="fixed left-0 right-0 md:left-auto md:right-4 md:w-80 z-[9999]"
+      style={{
+        top: 'env(safe-area-inset-top, 0px)',
+      }}
+    >
       <div
-        className="rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3"
-        style={{ background: '#1e293b' }}
+        className="mx-4 md:mx-0 mt-3 rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3"
+        style={{
+          background: '#1e293b',
+          animation: 'slideDown 0.3s ease-out',
+        }}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white">Nueva versión disponible</p>
+          <p className="text-sm font-bold text-white">🔄 Nueva versión disponible</p>
           <p className="text-xs text-slate-400 mt-0.5">Toca Actualizar para aplicar los cambios</p>
         </div>
         <button
           onClick={() => updateServiceWorker(true)}
-          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-80 active:scale-95"
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white active:scale-95 transition-transform"
           style={{ background: '#D61672' }}
         >
           <RefreshCw size={12} />
@@ -58,6 +66,12 @@ export default function UpdatePrompt() {
           <X size={14} />
         </button>
       </div>
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
