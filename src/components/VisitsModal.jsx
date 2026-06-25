@@ -8,6 +8,7 @@ import { useVisits } from '../hooks/useVisits';
 import { useAppStore } from '../lib/store';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useTecnicos } from '../hooks/useTecnicos';
+import { useBorradores } from '../hooks/useBorradores';
 import TiposVisitaForm from './TiposVisitaForm.jsx';
 import TecnicosForm from './TecnicosForm.jsx';
 
@@ -237,6 +238,8 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
   const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
   const tasks = useAppStore(s => s.tasks);
+  const user  = useAppStore(s => s.user);
+  const { borradores } = useBorradores(user);
 
   const [formData, setFormData] = useState({
     scheduledDate:   initial?.scheduledDate   || today,
@@ -268,6 +271,18 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
     });
     return result.sort((a, b) => (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || ''));
   }, [tasks, formData.technician, formData.scheduledDate, initial?.id]);
+
+  // Borradores pendientes del técnico seleccionado en la fecha seleccionada
+  const borradoresAgenda = useMemo(() => {
+    if (!formData.technicianEmail || !formData.scheduledDate) return [];
+    return borradores
+      .filter(b =>
+        b.technicianEmail === formData.technicianEmail &&
+        b.scheduledDate   === formData.scheduledDate &&
+        b.status          === 'Pendiente'
+      )
+      .sort((a, b) => (a.scheduledTime || '99:99').localeCompare(b.scheduledTime || '99:99'));
+  }, [borradores, formData.technicianEmail, formData.scheduledDate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -374,36 +389,71 @@ export function VisitFormModal({ initial, onSave, onClose, isEdit, tiposParaSele
               {formData.technician && formData.scheduledDate && (
                 <div className="mb-4 rounded-xl border-2 overflow-hidden"
                   style={{ borderColor: `${accentColor}30` }}>
+
+                  {/* Cabecera */}
                   <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: `${accentColor}12` }}>
                     <Clock size={13} style={{ color: accentColor }} />
                     <p className="text-xs font-bold text-slate-700">
                       Agenda de <span style={{ color: accentColor }}>{formData.technician}</span> — {formData.scheduledDate}
                     </p>
                   </div>
-                  {techSchedule.length === 0 ? (
+
+                  {techSchedule.length === 0 && borradoresAgenda.length === 0 ? (
                     <div className="px-4 py-3 text-xs text-slate-400 italic flex items-center gap-1.5">
-                      <span className="text-green-500 font-bold">✓</span> Día libre — sin visitas programadas
+                      <span className="text-green-500 font-bold">✓</span> Día libre — sin visitas ni borradores
                     </div>
                   ) : (
-                    <div className="divide-y divide-slate-100">
-                      {techSchedule.map(({ visit, clientName }) => (
-                        <div key={visit.id} className="px-4 py-2.5 flex items-center gap-3">
-                          <span className="flex-shrink-0 text-xs font-bold font-mono w-12"
-                            style={{ color: accentColor }}>
-                            {visit.scheduledTime || '——:——'}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-700 truncate">{clientName}</p>
-                            {visit.type && <p className="text-xs text-slate-400 truncate">🔧 {visit.type}</p>}
+                    <>
+                      {/* Visitas programadas */}
+                      {techSchedule.length > 0 && (
+                        <div className="border-b border-slate-100">
+                          <p className="px-4 pt-2 pb-1 text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                            <AlertCircle size={11} />Visitas programadas — {techSchedule.length}
+                          </p>
+                          <div className="divide-y divide-slate-100">
+                            {techSchedule.map(({ visit, clientName }) => (
+                              <div key={visit.id} className="px-4 py-2.5 flex items-center gap-3">
+                                <span className="flex-shrink-0 text-xs font-bold font-mono w-12"
+                                  style={{ color: accentColor }}>
+                                  {visit.scheduledTime || '——:——'}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-700 truncate">{clientName}</p>
+                                  {visit.type && <p className="text-xs text-slate-400 truncate">🔧 {visit.type}</p>}
+                                </div>
+                                <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
+                                  visit.urgency === 'Alta'  ? 'bg-red-100 text-red-700' :
+                                  visit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-green-100 text-green-700'
+                                }`}>{visit.urgency || '—'}</span>
+                              </div>
+                            ))}
                           </div>
-                          <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
-                            visit.urgency === 'Alta'  ? 'bg-red-100 text-red-700' :
-                            visit.urgency === 'Media' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>{visit.urgency || '—'}</span>
                         </div>
-                      ))}
-                    </div>
+                      )}
+
+                      {/* Borradores pendientes */}
+                      {borradoresAgenda.length > 0 && (
+                        <div className="bg-blue-50">
+                          <p className="px-4 pt-2 pb-1 text-xs font-bold text-blue-700 flex items-center gap-1.5">
+                            <FileText size={11} />Borradores pendientes — {borradoresAgenda.length}
+                          </p>
+                          <div className="divide-y divide-blue-100">
+                            {borradoresAgenda.map(b => (
+                              <div key={b.id} className="px-4 py-2.5 flex items-center gap-3">
+                                <span className="flex-shrink-0 text-xs font-bold font-mono w-12 text-blue-600">
+                                  {b.scheduledTime || '——:——'}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-700 truncate">{b.clientName}</p>
+                                  {b.motivo && <p className="text-xs text-slate-400 truncate">📝 {b.motivo}</p>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

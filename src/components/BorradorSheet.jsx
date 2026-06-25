@@ -21,7 +21,7 @@ const EMPTY_FORM = {
 
 // ─── Formulario (reutilizado para crear y editar) ─────────────────────────────
 
-function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }) {
+function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, borradores }) {
   const [form, setForm] = useState(initial || { ...EMPTY_FORM, scheduledDate: localToday() });
   const [errors, setErrors] = useState({});
   const tasks   = useAppStore(s => s.tasks);
@@ -85,6 +85,16 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }
       (a.visit.scheduledTime || '99:99').localeCompare(b.visit.scheduledTime || '99:99')
     );
   }, [tasks, form.scheduledDate, userEmail]);
+
+  // Borradores propios pendientes para el día seleccionado (excluye el borrador en edición)
+  const borradoresDelDia = useMemo(() => {
+    if (!form.scheduledDate) return [];
+    return (borradores || []).filter(b =>
+      b.scheduledDate === form.scheduledDate &&
+      b.status === 'Pendiente' &&
+      b.id !== initial?.id
+    ).sort((a, b) => (a.scheduledTime || '99:99').localeCompare(b.scheduledTime || '99:99'));
+  }, [borradores, form.scheduledDate, initial?.id]);
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -272,35 +282,55 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }
 
         {/* Mini-agenda del día */}
         {form.scheduledDate && (
-          <div className={`rounded-xl px-3 py-2.5 border ${
-            visitasDelDia.length > 0
-              ? 'bg-amber-50 border-amber-200'
-              : 'bg-green-50 border-green-200'
-          }`}>
-            <p className={`text-xs font-bold mb-1.5 flex items-center gap-1.5 ${
-              visitasDelDia.length > 0 ? 'text-amber-700' : 'text-green-700'
-            }`}>
-              {visitasDelDia.length > 0
-                ? <><AlertCircle size={12} />Horas ocupadas — {visitasDelDia.length} visita{visitasDelDia.length !== 1 ? 's' : ''}</>
-                : <><CheckCircle2 size={12} />Día libre — sin visitas programadas</>}
-            </p>
-            {visitasDelDia.length > 0 && (
-              <div className="space-y-1">
-                {visitasDelDia.map(({ visit, task }) => (
-                  <div key={visit.id || task.id + visit.scheduledTime}
-                    className="flex items-center gap-2 text-xs text-amber-800">
-                    <span className="font-bold w-10 flex-shrink-0">
-                      {visit.scheduledTime || 'S/H'}
-                    </span>
-                    <span className="truncate">{task.clientName}</span>
-                    {visit.confirmed && (
-                      <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
-                    )}
+          visitasDelDia.length === 0 && borradoresDelDia.length === 0 ? (
+            <div className="rounded-xl px-3 py-2.5 border bg-green-50 border-green-200">
+              <p className="text-xs font-bold text-green-700 flex items-center gap-1.5">
+                <CheckCircle2 size={12} />Día libre — sin visitas ni borradores
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+
+              {/* Visitas programadas */}
+              {visitasDelDia.length > 0 && (
+                <div className="bg-amber-50 border-b border-amber-100">
+                  <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+                    <AlertCircle size={12} />Visitas programadas — {visitasDelDia.length}
+                  </p>
+                  <div className="space-y-1 px-3 pb-2.5">
+                    {visitasDelDia.map(({ visit, task }) => (
+                      <div key={visit.id || task.id + visit.scheduledTime}
+                        className="flex items-center gap-2 text-xs text-amber-800">
+                        <span className="font-bold w-10 flex-shrink-0">{visit.scheduledTime || 'S/H'}</span>
+                        <span className="truncate">{task.clientName}</span>
+                        {visit.confirmed && (
+                          <span className="flex-shrink-0 font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+
+              {/* Borradores pendientes */}
+              {borradoresDelDia.length > 0 && (
+                <div className="bg-blue-50">
+                  <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+                    <FileText size={12} />Borradores pendientes — {borradoresDelDia.length}
+                  </p>
+                  <div className="space-y-1 px-3 pb-2.5">
+                    {borradoresDelDia.map(b => (
+                      <div key={b.id} className="flex items-center gap-2 text-xs text-blue-800">
+                        <span className="font-bold w-10 flex-shrink-0">{b.scheduledTime || 'S/H'}</span>
+                        <span className="truncate">{b.clientName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )
         )}
 
         <div>
@@ -538,6 +568,7 @@ export default function BorradorSheet({ user, showList = false }) {
 
             <BorradorForm
               initial={editing ? {
+                id:            editing.id,
                 clientName:    editing.clientName    || '',
                 clientIdNumber:editing.clientIdNumber|| '',
                 clientAddress: editing.clientAddress || '',
@@ -552,6 +583,7 @@ export default function BorradorSheet({ user, showList = false }) {
               isEdit={!!editing}
               isLoading={isLoading}
               userEmail={user.email}
+              borradores={borradores}
             />
           </div>
         </div>
