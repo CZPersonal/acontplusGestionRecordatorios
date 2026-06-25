@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2 } from 'lucide-react';
+import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
+import { useAppStore } from '../lib/store';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 
 function localToday() {
@@ -20,9 +21,27 @@ const EMPTY_FORM = {
 
 // ─── Formulario (reutilizado para crear y editar) ─────────────────────────────
 
-function BorradorForm({ initial, onSave, onClose, isEdit, isLoading }) {
+function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }) {
   const [form, setForm] = useState(initial || { ...EMPTY_FORM, scheduledDate: localToday() });
   const [errors, setErrors] = useState({});
+  const tasks = useAppStore(s => s.tasks);
+
+  // Visitas propias programadas o confirmadas para el día seleccionado
+  const visitasDelDia = useMemo(() => {
+    if (!form.scheduledDate || !userEmail) return [];
+    const lista = [];
+    tasks.forEach(task => {
+      (task.visits || []).forEach(visit => {
+        const esMia = visit.technicianEmail === userEmail || visit.technician === userEmail;
+        const activa = visit.status === 'Programada' || visit.status === 'Confirmada';
+        const esHoy  = visit.scheduledDate === form.scheduledDate;
+        if (esMia && activa && esHoy) lista.push({ visit, task });
+      });
+    });
+    return lista.sort((a, b) =>
+      (a.visit.scheduledTime || '99:99').localeCompare(b.visit.scheduledTime || '99:99')
+    );
+  }, [tasks, form.scheduledDate, userEmail]);
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -153,6 +172,39 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading }) {
           </div>
           {errors.scheduledDate && <p className="text-xs text-red-600 mt-1">⚠️ {errors.scheduledDate}</p>}
         </div>
+
+        {/* Mini-agenda del día */}
+        {form.scheduledDate && (
+          <div className={`rounded-xl px-3 py-2.5 border ${
+            visitasDelDia.length > 0
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-green-50 border-green-200'
+          }`}>
+            <p className={`text-xs font-bold mb-1.5 flex items-center gap-1.5 ${
+              visitasDelDia.length > 0 ? 'text-amber-700' : 'text-green-700'
+            }`}>
+              {visitasDelDia.length > 0
+                ? <><AlertCircle size={12} />Horas ocupadas — {visitasDelDia.length} visita{visitasDelDia.length !== 1 ? 's' : ''}</>
+                : <><CheckCircle2 size={12} />Día libre — sin visitas programadas</>}
+            </p>
+            {visitasDelDia.length > 0 && (
+              <div className="space-y-1">
+                {visitasDelDia.map(({ visit, task }) => (
+                  <div key={visit.id || task.id + visit.scheduledTime}
+                    className="flex items-center gap-2 text-xs text-amber-800">
+                    <span className="font-bold w-10 flex-shrink-0">
+                      {visit.scheduledTime || 'S/H'}
+                    </span>
+                    <span className="truncate">{task.clientName}</span>
+                    {visit.confirmed && (
+                      <span className="flex-shrink-0 text-xs font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className={lbl}>Hora <span className="text-slate-400 font-normal normal-case">(Ej. 10:30)</span></label>
@@ -402,6 +454,7 @@ export default function BorradorSheet({ user, showList = false }) {
               onClose={closeSheet}
               isEdit={!!editing}
               isLoading={isLoading}
+              userEmail={user.email}
             />
           </div>
         </div>
