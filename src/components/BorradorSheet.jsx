@@ -115,47 +115,47 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lbl}>Teléfono</label>
-            <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="tel" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)}
-                placeholder="09XXXXXXXX"
-                className={`${inp(false)} pl-9`} />
-            </div>
+        <div>
+          <label className={lbl}>Teléfono</label>
+          <div className="relative">
+            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="tel" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)}
+              placeholder="09XXXXXXXX"
+              className={`${inp(false)} pl-9`} />
           </div>
-          <div>
-            <label className={lbl}>Email</label>
-            <div className="relative">
-              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)}
-                placeholder="correo@ejemplo.com"
-                className={`${inp(false)} pl-9`} />
-            </div>
+        </div>
+
+        <div>
+          <label className={lbl}>Email</label>
+          <div className="relative">
+            <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)}
+              placeholder="correo@ejemplo.com"
+              className={`${inp(false)} pl-9`} />
           </div>
         </div>
 
         {/* ── Sección visita ── */}
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
-            <div className="relative">
-              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="date" value={form.scheduledDate} onChange={e => set('scheduledDate', e.target.value)}
-                required className={`${inp(errors.scheduledDate)} pl-9`} />
-            </div>
-            {errors.scheduledDate && <p className="text-xs text-red-600 mt-1">⚠️ {errors.scheduledDate}</p>}
+        <div>
+          <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
+          <div className="relative">
+            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="date" value={form.scheduledDate} onChange={e => set('scheduledDate', e.target.value)}
+              required className={`${inp(errors.scheduledDate)} pl-9`} />
           </div>
-          <div>
-            <label className={lbl}>Hora</label>
-            <div className="relative">
-              <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="time" value={form.scheduledTime} onChange={e => set('scheduledTime', e.target.value)}
-                className={`${inp(false)} pl-9`} />
-            </div>
+          {errors.scheduledDate && <p className="text-xs text-red-600 mt-1">⚠️ {errors.scheduledDate}</p>}
+        </div>
+
+        <div>
+          <label className={lbl}>Hora <span className="text-slate-400 font-normal normal-case">(Ej. 10:30)</span></label>
+          <div className="relative">
+            <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" value={form.scheduledTime} onChange={e => set('scheduledTime', e.target.value)}
+              placeholder="10:30"
+              inputMode="numeric"
+              className={`${inp(false)} pl-9`} />
           </div>
         </div>
 
