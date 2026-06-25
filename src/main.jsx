@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import UpdatePrompt from './components/UpdatePrompt.jsx'
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      <UpdatePrompt />
     </ErrorBoundary>
   </StrictMode>,
 )

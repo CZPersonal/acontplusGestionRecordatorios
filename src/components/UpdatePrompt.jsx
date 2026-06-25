@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, X } from 'lucide-react';
 
@@ -7,13 +8,27 @@ export default function UpdatePrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      // Verificar actualizaciones cada hora
-      r && setInterval(() => r.update(), 60 * 60 * 1000);
+      if (!r) return;
+      // Verificar inmediatamente al registrar
+      r.update();
+      // Verificar cada hora
+      setInterval(() => r.update(), 60 * 60 * 1000);
     },
     onRegisterError(e) {
       console.error('SW registration error:', e);
     },
   });
+
+  useEffect(() => {
+    // Verificar actualizacion cada vez que el usuario vuelve a la app
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker?.getRegistration().then(r => r?.update());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   if (!needRefresh) return null;
 
