@@ -54,6 +54,12 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading }) {
     if (ok) onClose();
   };
 
+  const handleTimeInput = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 4);
+    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+    set('scheduledTime', formatted);
+  };
+
   const inp = (hasErr) =>
     `w-full border-2 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors bg-white ${
       hasErr ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-pink-400'
@@ -152,9 +158,10 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading }) {
           <label className={lbl}>Hora <span className="text-slate-400 font-normal normal-case">(Ej. 10:30)</span></label>
           <div className="relative">
             <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" value={form.scheduledTime} onChange={e => set('scheduledTime', e.target.value)}
+            <input type="text" value={form.scheduledTime} onChange={handleTimeInput}
               placeholder="10:30"
               inputMode="numeric"
+              maxLength={5}
               className={`${inp(false)} pl-9`} />
           </div>
         </div>
