@@ -4,9 +4,17 @@ import {
   FileText, CheckCircle2, Search, X, AlertCircle, Loader2,
   ArrowRight, Eye,
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
 import { useBorradores } from '../hooks/useBorradores';
+import { useTecnicos } from '../hooks/useTecnicos';
+import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useAppStore } from '../lib/store';
+import { getVisitsRef } from '../lib/tenantDb';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
+import TaskForm from './TaskForm.jsx';
+import { VisitFormModal } from './VisitsModal.jsx';
+
+const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
@@ -159,13 +167,20 @@ function BorradorRow({ b, onDetail }) {
 
 export default function BorradoresAdmin({ user }) {
   const { borradores, isLoading, convertBorrador } = useBorradores(user);
-  const addToast = useAppStore(s => s.addToast);
+  const addToast     = useAppStore(s => s.addToast);
+  const addTask      = useAppStore(s => s.addTask);
+  const saveClient   = useAppStore(s => s.saveClient);
+  const clients      = useAppStore(s => s.clients);
+  const serviceTypes = useAppStore(s => s.serviceTypes);
+  const { tecnicos }        = useTecnicos(user);
+  const { tiposParaSelect } = useTiposVisita(user);
 
-  const [filter,     setFilter]     = useState('pendientes'); // 'pendientes' | 'convertidos' | 'todos'
-  const [search,     setSearch]     = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [detail,     setDetail]     = useState(null);
-  const [converting, setConverting] = useState(false);
+  const [filter,      setFilter]      = useState('pendientes');
+  const [search,      setSearch]      = useState('');
+  const [dateFilter,  setDateFilter]  = useState('');
+  const [detail,      setDetail]      = useState(null);
+  // convertFlow: null | { borrador, step: 'task'|'visit', taskId: string|null }
+  const [convertFlow, setConvertFlow] = useState(null);
 
   const filtered = useMemo(() => {
     let list = borradores;
@@ -187,18 +202,52 @@ export default function BorradoresAdmin({ user }) {
 
   const pendientesCount = borradores.filter(b => b.status === 'Pendiente').length;
 
-  const handleConvert = async (b) => {
-    setConverting(true);
+  // Paso 0: abrir flujo de conversión → muestra TaskForm
+  const startConvert = (b) => {
+    setDetail(null);
+    setConvertFlow({ borrador: b, step: 'task', taskId: null });
+  };
+
+  // Paso 1: tarea guardada → abrir VisitFormModal
+  const handleTaskSaved = async (formData) => {
+    if (formData.identification?.trim() && formData.clientName) await saveClient(formData);
+    const taskId = await addTask(formData, user.email);
+    if (!taskId) {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo crear la tarea.' });
+      return;
+    }
+    setConvertFlow(prev => ({ ...prev, step: 'visit', taskId }));
+  };
+
+  // Paso 2: visita guardada → marcar borrador como convertido
+  const handleVisitSaved = async (visitData) => {
+    const { borrador, taskId } = convertFlow;
+    const visitId = crypto.randomUUID();
     try {
-      const ok = await convertBorrador(b.id, { adminEmail: user.email });
-      if (ok) {
-        addToast({ type: 'success', title: '✅ Borrador convertido', body: `El borrador de ${b.clientName} fue marcado como convertido.` });
-        setDetail(null);
-      } else {
-        addToast({ type: 'error', title: '❌ Error', body: 'No se pudo convertir el borrador. Intenta de nuevo.' });
-      }
+      await setDoc(doc(getVisitsRef(taskId), visitId), {
+        id:                  visitId,
+        scheduledDate:       visitData.scheduledDate       || '',
+        scheduledTime:       visitData.scheduledTime       || '',
+        type:                visitData.type                || '',
+        urgency:             visitData.urgency             || 'Media',
+        observations:        visitData.observations        || '',
+        technician:          visitData.technician          || '',
+        technicianEmail:     visitData.technicianEmail     || '',
+        technicianPhone:     visitData.technicianPhone     || '',
+        status:              'Programada',
+        createdBy:           user.email,
+        createdAt:           new Date().toISOString(),
+        completedAt:         null,
+        completedBy:         null,
+        closingObservations: '',
+      });
+      await convertBorrador(borrador.id, { taskId, visitId, adminEmail: user.email });
+      addToast({ type: 'success', title: '✅ Visita registrada', body: `La visita de ${borrador.clientName} fue creada correctamente.` });
+    } catch (e) {
+      console.error('handleVisitSaved:', e);
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo registrar la visita. Intenta de nuevo.' });
     } finally {
-      setConverting(false);
+      setConvertFlow(null);
     }
   };
 
@@ -307,8 +356,67 @@ export default function BorradoresAdmin({ user }) {
         <BorradorDetailModal
           b={detail}
           onClose={() => setDetail(null)}
-          onConvert={handleConvert}
-          converting={converting}
+          onConvert={startConvert}
+          converting={false}
+        />
+      )}
+
+      {/* ── Flujo conversión Paso 1: Nueva Tarea ── */}
+      {convertFlow?.step === 'task' && (
+        <div className="fixed inset-0 z-[70] bg-slate-50 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-4 bg-white border-b border-slate-200 flex-shrink-0">
+            <button onClick={() => setConvertFlow(null)}
+              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+              <X size={20} />
+            </button>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#D61672' }}>
+                Paso 1 de 2 — Convertir borrador
+              </p>
+              <p className="text-sm font-bold text-slate-800">{convertFlow.borrador.clientName}</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <TaskForm
+              onSubmit={handleTaskSaved}
+              initialData={{
+                clientName:     convertFlow.borrador.clientName     || '',
+                identification: convertFlow.borrador.clientIdNumber || '',
+                clientPhone:    convertFlow.borrador.clientPhone    || '',
+                clientEmail:    convertFlow.borrador.clientEmail    || '',
+                clientAddress:  convertFlow.borrador.clientAddress  || '',
+                serviceOrder:   '',
+                serviceType:    '',
+                foreign:        false,
+                status:         'Pendiente',
+                observations:   '',
+              }}
+              statuses={STATUSES}
+              onCancel={() => setConvertFlow(null)}
+              clients={clients}
+              serviceTypes={serviceTypes}
+              user={user}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Flujo conversión Paso 2: Nueva Visita ── */}
+      {convertFlow?.step === 'visit' && (
+        <VisitFormModal
+          initial={{
+            scheduledDate:   convertFlow.borrador.scheduledDate   || '',
+            scheduledTime:   convertFlow.borrador.scheduledTime   || '',
+            observations:    convertFlow.borrador.motivo          || '',
+            technician:      convertFlow.borrador.technicianName  || '',
+            technicianEmail: convertFlow.borrador.technicianEmail || '',
+            technicianPhone: '',
+          }}
+          onSave={handleVisitSaved}
+          onClose={() => setConvertFlow(null)}
+          isEdit={false}
+          tiposParaSelect={tiposParaSelect}
+          tecnicosParaSelect={tecnicos}
         />
       )}
     </div>
