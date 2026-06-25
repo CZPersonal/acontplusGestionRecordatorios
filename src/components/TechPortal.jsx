@@ -639,7 +639,12 @@ export default function TechPortal({ user }) {
               {tenantRuc && (
                 <p className="text-xs text-slate-400 leading-tight">RUC: {tenantRuc}</p>
               )}
-              <p className="text-xs text-slate-500 leading-tight truncate">{user.email}</p>
+              {user.displayName && (
+                <p className="text-xs font-bold leading-tight truncate" style={{ color: '#D61672' }}>
+                  {user.displayName}
+                </p>
+              )}
+              <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
             </div>
           </div>
           {/* Derecha: refrescar + salir */}

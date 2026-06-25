@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2 } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
@@ -245,9 +245,10 @@ function BorradorCard({ b, onEdit }) {
 export default function BorradorSheet({ user, showList = false }) {
   const { borradores, isLoading, addBorrador, updateBorrador } = useBorradores(user, { onlyMine: true });
 
-  const [open,      setOpen]      = useState(false);
-  const [editing,   setEditing]   = useState(null); // borrador object o null
-  const [showAll,   setShowAll]   = useState(false);
+  const [open,         setOpen]         = useState(false);
+  const [editing,      setEditing]      = useState(null);
+  const [statusFilter, setStatusFilter] = useState('todos');   // 'todos' | 'pendiente' | 'convertido'
+  const [dateFilter,   setDateFilter]   = useState('');        // 'YYYY-MM-DD' | ''
 
   // Cerrar con Escape
   useEffect(() => {
@@ -262,52 +263,87 @@ export default function BorradorSheet({ user, showList = false }) {
   const closeSheet = () => { setOpen(false); setEditing(null); };
 
   const handleSave = async (data) => {
-    if (editing) {
-      return await updateBorrador(editing.id, data);
-    }
+    if (editing) return await updateBorrador(editing.id, data);
     return await addBorrador(data);
   };
 
-  const pendientes   = borradores.filter(b => b.status === 'Pendiente');
-  const convertidos  = borradores.filter(b => b.status === 'Convertido');
-  const recentConv   = convertidos.slice(0, 3);
-  const shown        = showAll ? borradores : [...pendientes, ...recentConv];
+  const pendientesCount = useMemo(() => borradores.filter(b => b.status === 'Pendiente').length, [borradores]);
+
+  const filtered = useMemo(() => {
+    let list = borradores;
+    if (statusFilter === 'pendiente')  list = list.filter(b => b.status === 'Pendiente');
+    if (statusFilter === 'convertido') list = list.filter(b => b.status === 'Convertido');
+    if (dateFilter) list = list.filter(b => b.scheduledDate === dateFilter);
+    return list;
+  }, [borradores, statusFilter, dateFilter]);
 
   return (
     <>
-      {/* ── Lista de borradores propios (solo cuando showList=true) ── */}
-      {showList && borradores.length > 0 && (
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-              Mis borradores
-            </p>
-            {convertidos.length > 3 && (
-              <button onClick={() => setShowAll(v => !v)}
-                className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors">
-                {showAll ? 'Ver menos' : `Ver todos (${borradores.length})`}
-                <ChevronDown size={12} className={`transition-transform ${showAll ? 'rotate-180' : ''}`} />
-              </button>
-            )}
+      {/* ── Lista con filtros (solo cuando showList=true) ── */}
+      {showList && (
+        <div className="mt-4 space-y-3">
+
+          {/* Filtros */}
+          <div className="flex flex-col gap-2">
+            {/* Filtro estado */}
+            <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+              {[
+                { id: 'todos',      label: 'Todos' },
+                { id: 'pendiente',  label: 'Pendientes' },
+                { id: 'convertido', label: 'Convertidos' },
+              ].map(f => (
+                <button key={f.id} onClick={() => setStatusFilter(f.id)}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    statusFilter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  {f.label}
+                  {f.id === 'pendiente' && pendientesCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                      {pendientesCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* Filtro por día */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={e => setDateFilter(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-xs border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+                />
+              </div>
+              {dateFilter && (
+                <button onClick={() => setDateFilter('')}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 border-2 border-slate-200 bg-white transition-colors">
+                  <X size={12} />Limpiar
+                </button>
+              )}
+            </div>
           </div>
-          <div className="space-y-3">
-            {shown.map(b => (
-              <BorradorCard key={b.id} b={b} onEdit={openEdit} />
-            ))}
-          </div>
-          {pendientes.length === 0 && convertidos.length > 0 && (
-            <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
-              <CheckCircle2 size={14} className="text-green-600 flex-shrink-0" />
-              <p className="text-xs text-green-700 font-medium">Todos tus borradores fueron procesados</p>
+
+          {/* Lista */}
+          {borradores.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <FileText size={40} className="mx-auto mb-3 opacity-20" />
+              <p className="text-sm font-medium">Sin borradores registrados</p>
+              <p className="text-xs mt-1">Usa el botón <span className="font-bold text-pink-500">+</span> para registrar tu primer borrador</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-10 text-slate-400">
+              <FileText size={32} className="mx-auto mb-2 opacity-20" />
+              <p className="text-sm font-medium">Sin resultados para este filtro</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(b => (
+                <BorradorCard key={b.id} b={b} onEdit={openEdit} />
+              ))}
             </div>
           )}
-        </div>
-      )}
-      {showList && borradores.length === 0 && (
-        <div className="mt-6 text-center py-12 text-slate-400">
-          <FileText size={40} className="mx-auto mb-3 opacity-20" />
-          <p className="text-sm font-medium">Sin borradores registrados</p>
-          <p className="text-xs mt-1">Usa el botón <span className="font-bold text-pink-500">+</span> para registrar tu primer borrador</p>
         </div>
       )}
 
