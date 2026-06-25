@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle, Search } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
+import { useTecnicos } from '../hooks/useTecnicos';
 import { useAppStore } from '../lib/store';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 
@@ -430,6 +431,12 @@ function BorradorCard({ b, onEdit }) {
 
 export default function BorradorSheet({ user, showList = false }) {
   const { borradores, isLoading, addBorrador, updateBorrador } = useBorradores(user, { onlyMine: true });
+  const { tecnicos } = useTecnicos(user);
+
+  const technicianName = useMemo(
+    () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
+    [tecnicos, user.email, user.displayName]
+  );
 
   const [open,         setOpen]         = useState(false);
   const [editing,      setEditing]      = useState(null);
@@ -450,7 +457,7 @@ export default function BorradorSheet({ user, showList = false }) {
 
   const handleSave = async (data) => {
     if (editing) return await updateBorrador(editing.id, data);
-    return await addBorrador(data);
+    return await addBorrador({ ...data, technicianName });
   };
 
   const pendientesCount = useMemo(() => borradores.filter(b => b.status === 'Pendiente').length, [borradores]);

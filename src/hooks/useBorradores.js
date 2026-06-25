@@ -32,11 +32,12 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     if (!user || !tenantId) return false;
     setIsLoading(true);
     try {
+      const { technicianName: nameOverride, ...rest } = data;
       await addDoc(getCollectionRef('borradores'), {
-        ...data,
+        ...rest,
         status:          'Pendiente',
         technicianEmail: user.email,
-        technicianName:  user.displayName || user.email,
+        technicianName:  nameOverride || user.displayName || user.email,
         createdAt:       new Date().toISOString(),
         updatedAt:       new Date().toISOString(),
         convertedAt:     null,
