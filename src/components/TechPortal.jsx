@@ -5,6 +5,7 @@ import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { getVisitsRef } from '../lib/tenantDb';
 import { useBorradores } from '../hooks/useBorradores';
+import { useTecnicos } from '../hooks/useTecnicos';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
@@ -517,6 +518,12 @@ export default function TechPortal({ user }) {
 
   const today = useMemo(() => localToday(), []);
 
+  const { tecnicos } = useTecnicos(user);
+  const techName = useMemo(
+    () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || null,
+    [tecnicos, user.email, user.displayName]
+  );
+
   const { borradores: misBorradores } = useBorradores(user, { onlyMine: true });
   const pendientesBorradores = useMemo(
     () => misBorradores.filter(b => b.status === 'Pendiente').length,
@@ -639,9 +646,9 @@ export default function TechPortal({ user }) {
               {tenantRuc && (
                 <p className="text-xs text-slate-400 leading-tight">RUC: {tenantRuc}</p>
               )}
-              {user.displayName && (
+              {techName && (
                 <p className="text-xs font-bold leading-tight truncate" style={{ color: '#D61672' }}>
-                  {user.displayName}
+                  {techName}
                 </p>
               )}
               <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
