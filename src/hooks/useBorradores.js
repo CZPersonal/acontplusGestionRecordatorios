@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { doc, addDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
@@ -9,16 +9,25 @@ const loadPending = () => { try { return JSON.parse(localStorage.getItem(PENDING
 const savePending = (l) => { try { localStorage.setItem(PENDING_KEY, JSON.stringify(l)); } catch {} };
 
 export function useBorradores(user, { onlyMine = false } = {}) {
-  const [borradores, setBorradores] = useState([]);
-  const [isLoading,  setIsLoading]  = useState(false);
+  const [firestoreDocs, setFirestoreDocs] = useState([]);
+  const [localPending,  setLocalPending]  = useState([]);
+  const [isLoading,     setIsLoading]     = useState(false);
   const tenantId = useAppStore(s => s.tenantId);
+
+  // ─── Cargar pendientes de localStorage al arrancar ─────────────────────────
+  useEffect(() => {
+    if (!tenantId || !user) return;
+    const items = loadPending().filter(p =>
+      p.tenantId === tenantId &&
+      (!onlyMine || p.data.technicianEmail === user.email)
+    );
+    setLocalPending(items.map(p => ({ ...p.data, id: `pending_${p.data.createdAt}`, _pending: true })));
+  }, [tenantId, user?.email, onlyMine]);
 
   // ─── Listener Firestore ────────────────────────────────────────────────────
   useEffect(() => {
     if (!user || !tenantId) return;
     const col = getCollectionRef('borradores');
-    // Sin orderBy en Firestore: documentos sin el campo quedan excluidos silenciosamente.
-    // Se ordena siempre en el cliente para garantizar que todos los docs aparecen.
     const q = onlyMine
       ? query(col, where('technicianEmail', '==', user.email), limit(50))
       : query(col, limit(200));
@@ -27,7 +36,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
       snap => {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        setBorradores(docs);
+        setFirestoreDocs(docs);
       },
       err => console.error('useBorradores onSnapshot:', err)
     );
@@ -41,7 +50,10 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     const sync = async () => {
       if (!navigator.onLine) return;
       const all  = loadPending();
-      const mine = all.filter(p => p.tenantId === tenantId);
+      const mine = all.filter(p =>
+        p.tenantId === tenantId &&
+        (!onlyMine || p.data.technicianEmail === user.email)
+      );
       if (!mine.length) return;
 
       const failed = [];
@@ -52,13 +64,31 @@ export function useBorradores(user, { onlyMine = false } = {}) {
           failed.push(item);
         }
       }
-      savePending([...all.filter(p => p.tenantId !== tenantId), ...failed]);
+      // Guardar de vuelta solo los que fallaron + los de otros tenants/usuarios
+      savePending([
+        ...all.filter(p => p.tenantId !== tenantId || (onlyMine && p.data.technicianEmail !== user.email)),
+        ...failed,
+      ]);
+      // Limpiar los que se sincronizaron de la vista local
+      if (failed.length < mine.length) {
+        const failedIds = new Set(failed.map(f => f.data.createdAt));
+        setLocalPending(prev => prev.filter(b => failedIds.has(b.createdAt)));
+      }
     };
 
     window.addEventListener('online', sync);
-    sync(); // También al montar: sincroniza borradores de sesiones anteriores
+    sync(); // También al montar: sincroniza pendientes de sesiones anteriores
     return () => window.removeEventListener('online', sync);
-  }, [user, tenantId]);
+  }, [user, tenantId, onlyMine]);
+
+  // ─── Merge: pendientes locales + Firestore (sin duplicados) ───────────────
+  const borradores = useMemo(() => {
+    const fsCreatedAts = new Set(firestoreDocs.map(b => b.createdAt));
+    const uniqueLocal  = localPending.filter(b => !fsCreatedAts.has(b.createdAt));
+    return [...uniqueLocal, ...firestoreDocs].sort(
+      (a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')
+    );
+  }, [firestoreDocs, localPending]);
 
   // ─── Escrituras ────────────────────────────────────────────────────────────
   const addBorrador = (data) => {
@@ -78,10 +108,11 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     };
 
     if (!navigator.onLine) {
-      // Sin red: guardar en localStorage; el efecto de sync lo enviará cuando vuelva
+      // Sin red: encolar en localStorage y mostrar en la lista con indicador visual
       const pending = loadPending();
       pending.push({ tenantId, data: docData });
       savePending(pending);
+      setLocalPending(prev => [{ ...docData, id: `pending_${docData.createdAt}`, _pending: true }, ...prev]);
     } else {
       addDoc(getCollectionRef('borradores'), docData)
         .catch(e => console.error('addBorrador:', e));

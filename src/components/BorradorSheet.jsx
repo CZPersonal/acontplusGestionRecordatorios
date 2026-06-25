@@ -378,8 +378,9 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
 // ─── Tarjeta de borrador (lista del técnico) ──────────────────────────────────
 
 function BorradorCard({ b, onEdit, onAnular }) {
-  const isPendiente = b.status === 'Pendiente';
-  const isAnulado   = b.status === 'Anulado';
+  const isPendiente  = b.status === 'Pendiente';
+  const isAnulado    = b.status === 'Anulado';
+  const isOffline    = b._pending === true;
   const [confirmAnular, setConfirmAnular] = useState(false);
 
   return (
@@ -431,7 +432,11 @@ function BorradorCard({ b, onEdit, onAnular }) {
       </div>
       {isPendiente && (
         <div className="px-4 pb-3">
-          {confirmAnular ? (
+          {isOffline ? (
+            <p className="text-xs text-slate-400 flex items-center gap-1">
+              📶 Sin conexión — se enviará cuando haya internet
+            </p>
+          ) : confirmAnular ? (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-red-700">¿Confirmar anulación?</span>
               <button onClick={() => { onAnular(b); setConfirmAnular(false); }}
@@ -498,23 +503,24 @@ export default function BorradorSheet({ user, showList = false }) {
   };
 
   const handleSave = async (data) => {
-    const offline = !navigator.onLine;
-    if (data.clientIdNumber?.trim() && data.clientName && !offline) {
-      await saveClient({
-        identification: data.clientIdNumber,
-        clientName:     data.clientName,
-        clientPhone:    data.clientPhone    || '',
-        clientAddress:  data.clientAddress  || '',
-        clientEmail:    data.clientEmail    || '',
-      });
+    try {
+      const offline = !navigator.onLine;
+      if (data.clientIdNumber?.trim() && data.clientName && !offline) {
+        await saveClient({
+          identification: data.clientIdNumber,
+          clientName:     data.clientName,
+          clientPhone:    data.clientPhone    || '',
+          clientAddress:  data.clientAddress  || '',
+          clientEmail:    data.clientEmail    || '',
+        });
+      }
+      const ok = editing
+        ? await updateBorrador(editing.id, data)
+        : await addBorrador({ ...data, technicianName });
+      return ok;
+    } catch {
+      return false;
     }
-    const ok = editing
-      ? await updateBorrador(editing.id, data)
-      : await addBorrador({ ...data, technicianName });
-    if (ok && offline) {
-      addToast({ type: 'success', title: '📶 Sin conexión', body: 'Borrador guardado localmente. Se enviará cuando haya internet.' });
-    }
-    return ok;
   };
 
   const pendientesCount = useMemo(() => borradores.filter(b => b.status === 'Pendiente').length, [borradores]);
