@@ -379,6 +379,7 @@ export default function BorradoresAdmin({ user }) {
             <TaskForm
               onSubmit={handleTaskSaved}
               initialData={{
+                clientId:       convertFlow.client?.id             || '',
                 clientName:     convertFlow.client?.name           || convertFlow.borrador.clientName     || '',
                 identification: convertFlow.client?.identification || convertFlow.borrador.clientIdNumber || '',
                 clientPhone:    convertFlow.client?.phone          || convertFlow.borrador.clientPhone    || '',
