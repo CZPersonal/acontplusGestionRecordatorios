@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle, Search } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useAppStore } from '../lib/store';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
@@ -24,7 +24,50 @@ const EMPTY_FORM = {
 function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }) {
   const [form, setForm] = useState(initial || { ...EMPTY_FORM, scheduledDate: localToday() });
   const [errors, setErrors] = useState({});
-  const tasks = useAppStore(s => s.tasks);
+  const tasks   = useAppStore(s => s.tasks);
+  const clients = useAppStore(s => s.clients);
+
+  const [clientSearch,    setClientSearch]    = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef(null);
+
+  const suggestions = useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+    return clients
+      .filter(c => c.active !== false)
+      .filter(c =>
+        (c.name           || '').toLowerCase().includes(q) ||
+        (c.identification || '').toLowerCase().includes(q) ||
+        (c.phone          || '').toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [clients, clientSearch]);
+
+  const selectClient = (c) => {
+    setForm(prev => ({
+      ...prev,
+      clientName:    c.name           || '',
+      clientIdNumber:c.identification || '',
+      clientPhone:   c.phone          || '',
+      clientEmail:   c.email          || '',
+      clientAddress: c.address        || '',
+    }));
+    setErrors(prev => ({ ...prev, clientName: null }));
+    setClientSearch('');
+    setShowSuggestions(false);
+  };
+
+  // Cerrar sugerencias al hacer clic fuera
+  useEffect(() => {
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Visitas propias programadas o confirmadas para el día seleccionado
   const visitasDelDia = useMemo(() => {
@@ -108,6 +151,60 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail }
 
         {/* ── Sección cliente ── */}
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos del cliente</p>
+
+        {/* Buscador de clientes existentes */}
+        <div ref={searchRef} className="relative">
+          <label className={lbl}>Buscar cliente existente</label>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={clientSearch}
+              onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
+              placeholder="Nombre, cédula o teléfono…"
+              className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+            />
+            {clientSearch && (
+              <button type="button" onClick={() => { setClientSearch(''); setShowSuggestions(false); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {/* Dropdown de sugerencias */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-pink-200 rounded-2xl shadow-xl overflow-hidden">
+              {suggestions.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={() => selectClient(c)}
+                  className="w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-slate-100 last:border-0"
+                >
+                  <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {c.identification && (
+                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                        <Hash size={10} />{c.identification}
+                      </span>
+                    )}
+                    {c.phone && (
+                      <span className="text-xs text-slate-400 flex items-center gap-1">
+                        <Phone size={10} />{c.phone}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {showSuggestions && clientSearch.trim().length >= 2 && suggestions.length === 0 && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-2xl shadow-xl px-4 py-3">
+              <p className="text-sm text-slate-400">Sin resultados para "{clientSearch}"</p>
+            </div>
+          )}
+        </div>
 
         <div>
           <label className={lbl}>Nombre y apellido <span className="text-red-400">*</span></label>
