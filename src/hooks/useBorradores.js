@@ -28,47 +28,37 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     return () => unsub();
   }, [user, tenantId, onlyMine]);
 
-  const addBorrador = async (data) => {
-    if (!user || !tenantId) return false;
+  const addBorrador = (data) => {
+    if (!user || !tenantId) return Promise.resolve(false);
     setIsLoading(true);
-    try {
-      const { technicianName: nameOverride, ...rest } = data;
-      await addDoc(getCollectionRef('borradores'), {
-        ...rest,
-        status:          'Pendiente',
-        technicianEmail: user.email,
-        technicianName:  nameOverride || user.displayName || user.email,
-        createdAt:       new Date().toISOString(),
-        updatedAt:       new Date().toISOString(),
-        convertedAt:     null,
-        convertedBy:     null,
-        taskId:          null,
-        visitId:         null,
-      });
-      return true;
-    } catch (e) {
-      console.error('addBorrador:', e);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
+    const { technicianName: nameOverride, ...rest } = data;
+    // Fire-and-forget: persistentLocalCache escribe en IndexedDB y sincroniza
+    // cuando vuelve la red. No esperamos confirmación del servidor.
+    addDoc(getCollectionRef('borradores'), {
+      ...rest,
+      status:          'Pendiente',
+      technicianEmail: user.email,
+      technicianName:  nameOverride || user.displayName || user.email,
+      createdAt:       new Date().toISOString(),
+      updatedAt:       new Date().toISOString(),
+      convertedAt:     null,
+      convertedBy:     null,
+      taskId:          null,
+      visitId:         null,
+    }).catch(e => console.error('addBorrador sync:', e));
+    setIsLoading(false);
+    return Promise.resolve(true);
   };
 
-  const updateBorrador = async (id, data) => {
-    if (!user) return false;
+  const updateBorrador = (id, data) => {
+    if (!user) return Promise.resolve(false);
     setIsLoading(true);
-    try {
-      await updateDoc(doc(getCollectionRef('borradores'), id), {
-        ...data,
-        updatedAt: new Date().toISOString(),
-      });
-      return true;
-    } catch (e) {
-      console.error('updateBorrador:', e);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
+    updateDoc(doc(getCollectionRef('borradores'), id), {
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }).catch(e => console.error('updateBorrador sync:', e));
+    setIsLoading(false);
+    return Promise.resolve(true);
   };
 
   const convertBorrador = async (id, { taskId = null, visitId = null, adminEmail }) => {
@@ -88,20 +78,15 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     }
   };
 
-  const anuladoBorrador = async (id, { nombre, email }) => {
-    try {
-      await updateDoc(doc(getCollectionRef('borradores'), id), {
-        status:          'Anulado',
-        anuladoAt:       new Date().toISOString(),
-        anuladoPor:      nombre,
-        anuladoPorEmail: email,
-        updatedAt:       new Date().toISOString(),
-      });
-      return true;
-    } catch (e) {
-      console.error('anuladoBorrador:', e);
-      return false;
-    }
+  const anuladoBorrador = (id, { nombre, email }) => {
+    updateDoc(doc(getCollectionRef('borradores'), id), {
+      status:          'Anulado',
+      anuladoAt:       new Date().toISOString(),
+      anuladoPor:      nombre,
+      anuladoPorEmail: email,
+      updatedAt:       new Date().toISOString(),
+    }).catch(e => console.error('anuladoBorrador sync:', e));
+    return Promise.resolve(true);
   };
 
   return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };

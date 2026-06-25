@@ -498,7 +498,8 @@ export default function BorradorSheet({ user, showList = false }) {
   };
 
   const handleSave = async (data) => {
-    if (data.clientIdNumber?.trim() && data.clientName) {
+    const offline = !navigator.onLine;
+    if (data.clientIdNumber?.trim() && data.clientName && !offline) {
       await saveClient({
         identification: data.clientIdNumber,
         clientName:     data.clientName,
@@ -507,8 +508,13 @@ export default function BorradorSheet({ user, showList = false }) {
         clientEmail:    data.clientEmail    || '',
       });
     }
-    if (editing) return await updateBorrador(editing.id, data);
-    return await addBorrador({ ...data, technicianName });
+    const ok = editing
+      ? await updateBorrador(editing.id, data)
+      : await addBorrador({ ...data, technicianName });
+    if (ok && offline) {
+      addToast({ type: 'success', title: '📶 Sin conexión', body: 'Borrador guardado localmente. Se enviará cuando haya internet.' });
+    }
+    return ok;
   };
 
   const pendientesCount = useMemo(() => borradores.filter(b => b.status === 'Pendiente').length, [borradores]);
