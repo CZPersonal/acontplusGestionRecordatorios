@@ -138,7 +138,7 @@ service cloud.firestore {
         && request.resource.data.clientName is string
         && request.resource.data.clientName.size() > 0;
       allow update: if request.auth != null && isMember(tenantId);
-      allow delete: if false;
+      allow delete: if request.auth != null && isAdmin(tenantId);
     }
 
     match /tenants/{tenantId}/abonos/{abonoId} {

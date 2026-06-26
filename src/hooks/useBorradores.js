@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc, updateDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -251,5 +251,15 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     return Promise.resolve(true);
   };
 
-  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
+  const deleteBorrador = async (id) => {
+    try {
+      await deleteDoc(doc(getCollectionRef('borradores'), id));
+      return true;
+    } catch (e) {
+      console.error('deleteBorrador:', e);
+      return false;
+    }
+  };
+
+  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador, deleteBorrador };
 }

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, CheckCircle2, Search, X, AlertCircle, Loader2,
-  ArrowRight, Eye, Ban,
+  ArrowRight, Eye, Ban, Trash2,
 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { useBorradores } from '../hooks/useBorradores';
@@ -18,10 +18,11 @@ const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
-function BorradorDetailModal({ b, onClose, onConvert, onAnular, converting }) {
+function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, converting }) {
   const isPendiente = b.status === 'Pendiente';
   const isAnulado   = b.status === 'Anulado';
   const [confirmAnular, setConfirmAnular] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const row = (icon, label, value) => value ? (
     <div className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
@@ -100,7 +101,22 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, converting }) {
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-100 flex-shrink-0">
-          {confirmAnular ? (
+          {confirmDelete ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-bold text-red-700 text-center">¿Eliminar permanentemente este borrador?</p>
+              <p className="text-xs text-slate-500 text-center">Esta acción no se puede deshacer.</p>
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => { onDelete(b); setConfirmDelete(false); }}
+                  className="flex-1 py-3 rounded-xl text-white text-sm font-bold bg-red-600 hover:bg-red-700 transition-colors">
+                  Sí, eliminar
+                </button>
+                <button onClick={() => setConfirmDelete(false)}
+                  className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : confirmAnular ? (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-bold text-red-700 text-center">¿Confirmar anulación del borrador?</p>
               <div className="flex gap-2">
@@ -115,24 +131,30 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, converting }) {
               </div>
             </div>
           ) : (
-            <div className="flex gap-2">
-              {isPendiente && (
-                <button onClick={() => onConvert(b)} disabled={converting}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60 transition-opacity"
-                  style={{ background: converting ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-                  {converting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
-                  {converting ? 'Procesando…' : 'Convertir'}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                {isPendiente && (
+                  <button onClick={() => onConvert(b)} disabled={converting}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60 transition-opacity"
+                    style={{ background: converting ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+                    {converting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
+                    {converting ? 'Procesando…' : 'Convertir'}
+                  </button>
+                )}
+                {isPendiente && (
+                  <button onClick={() => setConfirmAnular(true)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-red-700 border-2 border-red-200 hover:bg-red-50 transition-colors">
+                    <Ban size={15} />Anular
+                  </button>
+                )}
+                <button onClick={onClose}
+                  className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  Cerrar
                 </button>
-              )}
-              {isPendiente && (
-                <button onClick={() => setConfirmAnular(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-red-700 border-2 border-red-200 hover:bg-red-50 transition-colors">
-                  <Ban size={15} />Anular
-                </button>
-              )}
-              <button onClick={onClose}
-                className="flex-1 py-3 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                Cerrar
+              </div>
+              <button onClick={() => setConfirmDelete(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-red-500 hover:bg-red-50 border border-red-100 transition-colors">
+                <Trash2 size={13} />Eliminar borrador permanentemente
               </button>
             </div>
           )}
@@ -203,7 +225,7 @@ function BorradorRow({ b, onDetail }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function BorradoresAdmin({ user }) {
-  const { borradores, isLoading, convertBorrador, anuladoBorrador } = useBorradores(user);
+  const { borradores, isLoading, convertBorrador, anuladoBorrador, deleteBorrador } = useBorradores(user);
   const addToast     = useAppStore(s => s.addToast);
   const addTask      = useAppStore(s => s.addTask);
   const clients      = useAppStore(s => s.clients);
@@ -248,6 +270,16 @@ export default function BorradoresAdmin({ user }) {
     const ok = await anuladoBorrador(b.id, { nombre: adminName, email: user.email });
     if (ok) addToast({ type: 'success', title: '🚫 Borrador anulado', body: `El borrador de ${b.clientName} fue anulado.` });
     else    addToast({ type: 'error',   title: '❌ Error',            body: 'No se pudo anular el borrador.' });
+  };
+
+  const handleDelete = async (b) => {
+    const ok = await deleteBorrador(b.id);
+    if (ok) {
+      setDetail(null);
+      addToast({ type: 'success', title: '🗑️ Borrador eliminado', body: `El borrador de ${b.clientName} fue eliminado.` });
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el borrador.' });
+    }
   };
 
   // Paso 0: abrir flujo de conversión → busca cliente en catálogo y muestra TaskForm
@@ -407,6 +439,7 @@ export default function BorradoresAdmin({ user }) {
           onClose={() => setDetail(null)}
           onConvert={startConvert}
           onAnular={handleAnular}
+          onDelete={handleDelete}
           converting={false}
         />
       )}
