@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc, onSnapshot, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
@@ -82,23 +82,64 @@ export function useClients(user) {
   };
 
   // ─── Editar cliente existente ──────────────────────────────────────────────
-  const updateClient = async (id, { name, phone, address, email, foreign, ciudad, ubicacion, observacion }) => {
+  // Si identification cambia: crea nuevo doc con nuevo ID, actualiza tareas
+  // que referencian el ID viejo (en batches de 500) y elimina el doc viejo.
+  const updateClient = async (id, { name, phone, address, email, foreign, ciudad, ubicacion, observacion, identification }) => {
     if (!user || !name?.trim()) return false;
+
+    const newId      = identification?.trim().replace(/\s/g, '') || id;
+    const idChanged  = newId !== id;
+
+    const fieldData = {
+      name:        name.trim(),
+      phone:       phone?.trim()        || '',
+      address:     address?.trim()      || '',
+      email:       email?.trim()        || '',
+      foreign:     foreign              ?? false,
+      ciudad:      ciudad?.trim()       || '',
+      ubicacion:   ubicacion?.trim()    || '',
+      observacion: observacion?.trim()  || '',
+      updatedAt:   new Date().toISOString(),
+    };
+
     try {
-      await updateDoc(
-        doc(getCollectionRef('clients'), id),
-        {
-          name:       name.trim(),
-          phone:      phone?.trim()       || '',
-          address:    address?.trim()     || '',
-          email:      email?.trim()       || '',
-          foreign:    foreign             ?? false,
-          ciudad:     ciudad?.trim()      || '',
-          ubicacion:  ubicacion?.trim()   || '',
-          observacion: observacion?.trim() || '',
-          updatedAt:  new Date().toISOString(),
-        }
+      if (!idChanged) {
+        await updateDoc(doc(getCollectionRef('clients'), id), fieldData);
+        return true;
+      }
+
+      // — Rename: el identification cambió —
+      const existingClient = clients.find(c => c.id === id);
+      const oldIdentification = existingClient?.identification || id;
+
+      // 1. Crear doc con nuevo ID
+      await setDoc(doc(getCollectionRef('clients'), newId), {
+        ...fieldData,
+        id:             newId,
+        identification: identification.trim(),
+        active:         existingClient?.active ?? true,
+        createdAt:      existingClient?.createdAt || new Date().toISOString(),
+      });
+
+      // 2. Actualizar tareas que tienen el identification viejo
+      const tasksSnap = await getDocs(
+        query(getCollectionRef('water_filter_tasks'), where('identification', '==', oldIdentification))
       );
+      if (!tasksSnap.empty) {
+        const BATCH_LIMIT = 500;
+        const taskDocs = tasksSnap.docs;
+        for (let i = 0; i < taskDocs.length; i += BATCH_LIMIT) {
+          const batch = writeBatch(db);
+          taskDocs.slice(i, i + BATCH_LIMIT).forEach(taskDoc =>
+            batch.update(taskDoc.ref, { identification: identification.trim() })
+          );
+          await batch.commit();
+        }
+      }
+
+      // 3. Eliminar doc viejo
+      await deleteDoc(doc(getCollectionRef('clients'), id));
+
       return true;
     } catch (error) {
       console.error('Error al actualizar cliente:', error);

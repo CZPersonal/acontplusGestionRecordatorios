@@ -25,20 +25,27 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
   const [errors, setErrors] = useState({});
 
   const validate = () => {
-    const errs = {};
+    const errs  = {};
+    const newId = form.identification.replace(/\s/g, '');
+    const oldId = initial?.identification?.replace(/\s/g, '') || '';
+    const identificationChanged = newId !== oldId;
+
     if (!form.name.trim())
       errs.name = 'El nombre es obligatorio';
-    if (!form.identification.trim())
+
+    if (!form.identification.trim()) {
       errs.identification = 'La cédula/RUC o pasaporte es obligatorio';
-    else if (!isEdit && existingIds.has(form.identification.replace(/\s/g, '')))
+    } else if (existingIds.has(newId) && newId !== oldId) {
       errs.identification = 'Ya existe un cliente con este documento';
-    else if (!form.foreign) {
-      const digits = form.identification.replace(/\s/g, '');
+    } else if (!form.foreign && (!isEdit || identificationChanged)) {
+      // Validar formato solo al crear o cuando el identification fue modificado
+      const digits = newId;
       if (!/^\d+$/.test(digits))
         errs.identification = 'Solo se permiten números para clientes nacionales';
       else if (digits.length !== 10 && digits.length !== 13)
         errs.identification = 'Debe tener 10 dígitos (cédula) o 13 dígitos (RUC)';
     }
+
     if (!form.phone.trim())
       errs.phone = 'El teléfono es obligatorio';
     if (!form.address.trim())
@@ -107,10 +114,8 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
               }}
               placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
               className={`${inp(errors.identification)} font-mono`}
-              disabled={isEdit}
               maxLength={form.foreign ? 30 : 13}
             />
-            {isEdit && <p className="text-xs text-slate-400 mt-0.5">No puede modificarse</p>}
             {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
           </div>
         </div>
