@@ -3,8 +3,12 @@ import { doc, setDoc, updateDoc, onSnapshot, query, limit, where } from 'firebas
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
-// Guarda el cliente en Firestore si el borrador tiene cédula y nombre.
-// merge:true evita sobreescribir datos de un cliente que ya exista.
+// ─── Flag global de sync ───────────────────────────────────────────────────────
+// Compartido entre TODAS las instancias del hook (TechPortal + BorradorSheet +
+// VisitsModal pueden estar montados simultáneamente). Un solo sync corre a la vez.
+let _globalSyncing = false;
+
+// ─── Guardar cliente al sincronizar borrador ───────────────────────────────────
 async function syncClientFromBorrador(docData) {
   const id = docData.clientIdNumber?.replace(/\s/g, '');
   if (!id || !docData.clientName) return;
@@ -35,8 +39,7 @@ function buildDocId(uid, createdAt) {
   return `${uid}_${createdAt.replace(/[:.]/g, '-')}`;
 }
 
-// ID determinístico para items viejos sin docId: email + createdAt
-// Garantiza que reintentos del sync no creen documentos duplicados
+// ID determinístico para items viejos sin docId almacenado
 function buildFallbackDocId(data) {
   const email = (data.technicianEmail || 'unknown').replace(/[.@]/g, '_');
   const ts    = (data.createdAt       || '').replace(/[:.]/g, '-');
@@ -46,7 +49,6 @@ function buildFallbackDocId(data) {
 export function useBorradores(user, { onlyMine = false } = {}) {
   const [firestoreDocs, setFirestoreDocs] = useState([]);
   const [localPending,  setLocalPending]  = useState([]);
-  const [isLoading,     setIsLoading]     = useState(false);
   const tenantId = useAppStore(s => s.tenantId);
 
   // ─── Cargar pendientes de localStorage al arrancar ─────────────────────────
@@ -88,15 +90,37 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     return () => unsub();
   }, [user, tenantId, onlyMine]);
 
+  // ─── Auto-limpiar localPending cuando el borrador ya llegó a Firestore ─────
+  // Cubre el caso en que el sync corrió en OTRA instancia del hook y esta
+  // instancia no llegó a llamar setLocalPending.
+  useEffect(() => {
+    if (!localPending.length || !firestoreDocs.length) return;
+    const fsKeys = new Set(
+      firestoreDocs.map(d => `${d.technicianEmail ?? ''}|${d.createdAt ?? ''}`)
+    );
+    const synced = localPending.filter(b =>
+      fsKeys.has(`${b.technicianEmail ?? ''}|${b.createdAt ?? ''}`)
+    );
+    if (!synced.length) return;
+    const syncedKeys = new Set(synced.map(b => `${b.technicianEmail ?? ''}|${b.createdAt ?? ''}`));
+    setLocalPending(prev =>
+      prev.filter(b => !syncedKeys.has(`${b.technicianEmail ?? ''}|${b.createdAt ?? ''}`))
+    );
+    // Limpiar también de localStorage para no volver a encolarlos
+    const all = loadPending();
+    const remaining = all.filter(p =>
+      !syncedKeys.has(`${p.data.technicianEmail ?? ''}|${p.data.createdAt ?? ''}`)
+    );
+    if (remaining.length < all.length) savePending(remaining);
+  }, [firestoreDocs]);
+
   // ─── Sincronizar cola localStorage → Firestore al recuperar red ───────────
   useEffect(() => {
     if (!user || !tenantId) return;
 
-    let syncing = false;
-
     const sync = async () => {
-      if (!navigator.onLine || syncing) return;
-      syncing = true;
+      if (!navigator.onLine || _globalSyncing) return;
+      _globalSyncing = true;
       try {
         const all  = loadPending();
         const mine = all.filter(p =>
@@ -107,9 +131,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
         const failed = [];
         for (const item of mine) {
-          // ── Paso 1: borrador (siempre setDoc idempotente, nunca addDoc) ──
-          // Tanto items nuevos (con docId) como viejos (sin docId) usan un ID
-          // determinístico → reintentar el sync nunca crea documentos duplicados.
+          // ── Borrador: siempre setDoc con ID determinístico ──────────────
           const docId = item.docId || buildFallbackDocId(item.data);
           let borradorOk = false;
           try {
@@ -119,8 +141,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
             failed.push(item);
           }
 
-          // ── Paso 2: cliente (try-catch independiente) ─────────────────────
-          // Si falla, se loga pero NO impide limpiar el borrador de la cola.
+          // ── Cliente: try/catch separado — fallo no afecta la cola ──────
           if (borradorOk) {
             try {
               await syncClientFromBorrador(item.data);
@@ -131,7 +152,10 @@ export function useBorradores(user, { onlyMine = false } = {}) {
         }
 
         savePending([
-          ...all.filter(p => p.tenantId !== tenantId || (onlyMine && p.data.technicianEmail !== user.email)),
+          ...all.filter(p =>
+            p.tenantId !== tenantId ||
+            (onlyMine && p.data.technicianEmail !== user.email)
+          ),
           ...failed,
         ]);
         if (failed.length < mine.length) {
@@ -139,7 +163,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
           setLocalPending(prev => prev.filter(b => failedCreatedAts.has(b.createdAt)));
         }
       } finally {
-        syncing = false;
+        _globalSyncing = false;
       }
     };
 
@@ -150,8 +174,10 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
   // ─── Merge: pendientes locales + Firestore (sin duplicados) ───────────────
   const borradores = useMemo(() => {
-    const fsCreatedAts = new Set(firestoreDocs.map(b => b.createdAt));
-    const uniqueLocal  = localPending.filter(b => !fsCreatedAts.has(b.createdAt));
+    const fsKeys    = new Set(firestoreDocs.map(b => `${b.technicianEmail ?? ''}|${b.createdAt ?? ''}`));
+    const uniqueLocal = localPending.filter(
+      b => !fsKeys.has(`${b.technicianEmail ?? ''}|${b.createdAt ?? ''}`)
+    );
     return [...uniqueLocal, ...firestoreDocs].sort(
       (a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')
     );
@@ -225,5 +251,5 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     return Promise.resolve(true);
   };
 
-  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
+  return { borradores, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
 }
