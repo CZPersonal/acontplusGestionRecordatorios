@@ -151,7 +151,19 @@ export default function App() {
 
   // ─── Network ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    const on  = () => useAppStore.setState({ isOnline: true });
+    const on = () => {
+      useAppStore.setState({ isOnline: true });
+      // Si el usuario fue restaurado desde localStorage (sin sesión Firebase real)
+      // y el internet acaba de volver, limpiar el store para que vaya a Login y
+      // se re-autentique con credenciales reales — de lo contrario Firestore
+      // rechaza todas las lecturas con PERMISSION_DENIED.
+      if (!auth.currentUser && useAppStore.getState().user) {
+        useAppStore.setState({
+          user: null, tenantId: null, tenantIds: [], availableTenants: [],
+          tenantName: '', tenantRuc: '', isAuthLoading: false,
+        });
+      }
+    };
     const off = () => useAppStore.setState({ isOnline: false });
     window.addEventListener('online',  on);
     window.addEventListener('offline', off);
