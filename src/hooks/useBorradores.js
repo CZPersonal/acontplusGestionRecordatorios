@@ -49,6 +49,7 @@ function buildFallbackDocId(data) {
 export function useBorradores(user, { onlyMine = false } = {}) {
   const [firestoreDocs, setFirestoreDocs] = useState([]);
   const [localPending,  setLocalPending]  = useState([]);
+  const [isLoading,     setIsLoading]     = useState(true);
   const tenantId = useAppStore(s => s.tenantId);
 
   // ─── Cargar pendientes de localStorage al arrancar ─────────────────────────
@@ -71,8 +72,6 @@ export function useBorradores(user, { onlyMine = false } = {}) {
 
     const unsub = onSnapshot(q,
       snap => {
-        // Deduplicar por technicianEmail|createdAt para ocultar duplicados
-        // que pudieran existir en BD de versiones anteriores
         const seen = new Set();
         const docs = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
@@ -84,8 +83,9 @@ export function useBorradores(user, { onlyMine = false } = {}) {
           });
         docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setFirestoreDocs(docs);
+        setIsLoading(false);
       },
-      err => console.error('useBorradores onSnapshot:', err)
+      err => { console.error('useBorradores onSnapshot:', err); setIsLoading(false); }
     );
     return () => unsub();
   }, [user, tenantId, onlyMine]);
@@ -109,7 +109,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     // Limpiar también de localStorage para no volver a encolarlos
     const all = loadPending();
     const remaining = all.filter(p =>
-      !syncedKeys.has(`${p.data.technicianEmail ?? ''}|${p.data.createdAt ?? ''}`)
+      !syncedKeys.has(`${p.data?.technicianEmail ?? ''}|${p.data?.createdAt ?? ''}`)
     );
     if (remaining.length < all.length) savePending(remaining);
   }, [firestoreDocs]);
@@ -251,5 +251,5 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     return Promise.resolve(true);
   };
 
-  return { borradores, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
+  return { borradores, isLoading, addBorrador, updateBorrador, convertBorrador, anuladoBorrador };
 }
