@@ -18,6 +18,9 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
     address:        initial?.address        || '',
     email:          initial?.email          || '',
     foreign:        initial?.foreign        ?? false,
+    ciudad:         initial?.ciudad         || '',
+    ubicacion:      initial?.ubicacion      || '',
+    observacion:    initial?.observacion    || '',
   });
   const [errors, setErrors] = useState({});
 
@@ -136,7 +139,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
           {errors.address && <p className="text-xs text-red-500 mt-1">⚠️ {errors.address}</p>}
         </div>
 
-        {/* Fila 4: Teléfono + Email */}
+        {/* Fila 4: Teléfono + Ciudad */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
@@ -150,13 +153,47 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-              Email
+              Ciudad
             </label>
-            <input type="email" value={form.email}
-              onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-              placeholder="correo@ejemplo.com"
+            <input type="text" value={form.ciudad}
+              onChange={e => setForm(p => ({ ...p, ciudad: e.target.value }))}
+              placeholder="Quito, Guayaquil..."
               className={inp(false)} />
           </div>
+        </div>
+
+        {/* Fila 5: Ubicación — ancho completo */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+            Ubicación
+          </label>
+          <input type="text" value={form.ubicacion}
+            onChange={e => setForm(p => ({ ...p, ubicacion: e.target.value }))}
+            placeholder="Sector, barrio, referencia de ubicación..."
+            className={inp(false)} />
+        </div>
+
+        {/* Fila 6: Email — ancho completo */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+            Email
+          </label>
+          <input type="email" value={form.email}
+            onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+            placeholder="correo@ejemplo.com"
+            className={inp(false)} />
+        </div>
+
+        {/* Fila 7: Observación — textarea */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
+            Observación
+          </label>
+          <textarea value={form.observacion}
+            onChange={e => setForm(p => ({ ...p, observacion: e.target.value }))}
+            placeholder="Notas adicionales sobre el cliente..."
+            rows={2}
+            className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
         </div>
 
       </div>
@@ -199,6 +236,11 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
                 <span className="text-xs font-mono text-slate-500">{client.identification}</span>
               </div>
             )}
+            {client.observacion && (
+              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={client.observacion}>
+                {client.observacion}
+              </p>
+            )}
           </div>
         </div>
       </td>
@@ -210,9 +252,23 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
       </td>
 
       <td className="px-4 py-3">
-        {client.address
-          ? <div className="flex items-center gap-1 text-xs text-slate-500"><MapPin size={11} className="text-slate-400 flex-shrink-0" /><span className="truncate max-w-xs">{client.address}</span></div>
-          : <span className="text-slate-300 text-xs">—</span>}
+        {client.address || client.ciudad || client.ubicacion ? (
+          <div className="space-y-0.5">
+            {client.address && (
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <MapPin size={11} className="text-slate-400 flex-shrink-0" />
+                <span className="truncate max-w-xs">{client.address}</span>
+              </div>
+            )}
+            {(client.ciudad || client.ubicacion) && (
+              <p className="text-xs text-slate-400 ml-3.5 truncate max-w-xs">
+                {[client.ciudad, client.ubicacion].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        )}
       </td>
 
       <td className="px-4 py-3 text-center">

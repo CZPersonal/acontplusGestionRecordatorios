@@ -31,6 +31,9 @@ export function useClients(user) {
       email:          clientData.clientEmail   || clientData.email || '',
       identification: clientData.identification,
       foreign:        clientData.foreign       ?? false,
+      ciudad:         clientData.ciudad        || '',
+      ubicacion:      clientData.ubicacion     || '',
+      observacion:    clientData.observacion   || '',
       active:         true,
       createdAt:      new Date().toISOString(),
       updatedAt:      new Date().toISOString(),
@@ -49,7 +52,7 @@ export function useClients(user) {
   };
 
   // ─── Crear cliente directamente desde ClientsManager ──────────────────────
-  const createClient = async ({ name, identification, phone, address, email, foreign }) => {
+  const createClient = async ({ name, identification, phone, address, email, foreign, ciudad, ubicacion, observacion }) => {
     if (!user || !identification?.trim() || !name?.trim()) return false;
     const clientId = identification.replace(/\s/g, '');
     try {
@@ -59,10 +62,13 @@ export function useClients(user) {
           id:             clientId,
           name:           name.trim(),
           identification: identification.trim(),
-          phone:          phone?.trim()   || '',
-          address:        address?.trim() || '',
-          email:          email?.trim()   || '',
-          foreign:        foreign         ?? false,
+          phone:          phone?.trim()      || '',
+          address:        address?.trim()    || '',
+          email:          email?.trim()      || '',
+          foreign:        foreign            ?? false,
+          ciudad:         ciudad?.trim()     || '',
+          ubicacion:      ubicacion?.trim()  || '',
+          observacion:    observacion?.trim() || '',
           active:         true,
           createdAt:      new Date().toISOString(),
           updatedAt:      new Date().toISOString(),
@@ -76,18 +82,21 @@ export function useClients(user) {
   };
 
   // ─── Editar cliente existente ──────────────────────────────────────────────
-  const updateClient = async (id, { name, phone, address, email, foreign }) => {
+  const updateClient = async (id, { name, phone, address, email, foreign, ciudad, ubicacion, observacion }) => {
     if (!user || !name?.trim()) return false;
     try {
       await updateDoc(
         doc(getCollectionRef('clients'), id),
         {
-          name:      name.trim(),
-          phone:     phone?.trim()   || '',
-          address:   address?.trim() || '',
-          email:     email?.trim()   || '',
-          foreign:   foreign         ?? false,
-          updatedAt: new Date().toISOString(),
+          name:       name.trim(),
+          phone:      phone?.trim()       || '',
+          address:    address?.trim()     || '',
+          email:      email?.trim()       || '',
+          foreign:    foreign             ?? false,
+          ciudad:     ciudad?.trim()      || '',
+          ubicacion:  ubicacion?.trim()   || '',
+          observacion: observacion?.trim() || '',
+          updatedAt:  new Date().toISOString(),
         }
       );
       return true;
@@ -138,10 +147,13 @@ export function useClients(user) {
           id:             clientId,
           name:           row.name.trim(),
           identification: row.identification.trim(),
-          phone:          row.phone?.trim()   || '',
-          address:        row.address?.trim() || '',
-          email:          row.email?.trim()   || '',
-          foreign:        row.foreign         ?? false,
+          phone:          row.phone?.trim()        || '',
+          address:        row.address?.trim()      || '',
+          email:          row.email?.trim()        || '',
+          foreign:        row.foreign              ?? false,
+          ciudad:         row.ciudad?.trim()       || '',
+          ubicacion:      row.ubicacion?.trim()    || '',
+          observacion:    row.observacion?.trim()  || '',
           active:         true,
           createdAt:      new Date().toISOString(),
           updatedAt:      new Date().toISOString(),
