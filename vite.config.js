@@ -6,12 +6,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       manifest: false, // ya existe public/manifest.json
       devOptions: { enabled: false },
       workbox: {
+        cacheId: 'acontplus-v2',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js/],
       },
