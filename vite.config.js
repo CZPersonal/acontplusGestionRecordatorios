@@ -10,11 +10,12 @@ export default defineConfig({
       manifest: false, // ya existe public/manifest.json
       devOptions: { enabled: false },
       workbox: {
-        cacheId: 'acontplus-v2',
+        cacheId: 'acontplus-v3',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
-        clientsClaim: true,
+        // clientsClaim eliminado: tomaba control de tabs existentes y borraba
+        // el cache viejo mientras seguían en uso → pantalla en blanco
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js/],
       },

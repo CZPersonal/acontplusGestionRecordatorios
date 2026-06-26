@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { CheckCircle, X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 
 export default function UpdatePrompt() {
   const [showBanner, setShowBanner] = useState(false);
-  const [isUpdated,  setIsUpdated]  = useState(false);
 
   // Verificar actualizaciones cada hora
   useRegisterSW({
@@ -18,22 +17,27 @@ export default function UpdatePrompt() {
     onOfflineReady() {},
   });
 
-  // Mostrar aviso cuando el nuevo SW toma control (autoUpdate)
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
-    // Si ya había un SW activo, el próximo controllerchange es una actualización
+    // Guardar si había un SW activo al cargar la página (si no, es primera instalación)
     const hadController = !!navigator.serviceWorker.controller;
 
-    const handleControllerChange = () => {
-      if (!hadController) return; // primera instalación, no es actualización
-      setIsUpdated(true);
-      setShowBanner(true);
-      setTimeout(() => setShowBanner(false), 6000);
-    };
+    navigator.serviceWorker.ready.then(registration => {
+      registration.addEventListener('updatefound', () => {
+        const newSW = registration.installing;
+        if (!newSW) return;
 
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-    return () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+        newSW.addEventListener('statechange', () => {
+          // Solo mostrar banner cuando el nuevo SW está completamente activado
+          // y había uno anterior (no es primera instalación).
+          // En este punto el nuevo cache está completo y es seguro recargar.
+          if (newSW.state === 'activated' && hadController) {
+            setShowBanner(true);
+          }
+        });
+      });
+    });
   }, []);
 
   if (!showBanner) return null;
@@ -45,24 +49,24 @@ export default function UpdatePrompt() {
     >
       <div
         className="mx-4 md:mx-0 mt-3 rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3"
-        style={{
-          background: isUpdated ? '#0f766e' : '#1e293b',
-          animation: 'slideDown 0.3s ease-out',
-        }}
+        style={{ background: '#1e293b', animation: 'slideDown 0.3s ease-out' }}
       >
-        <CheckCircle size={20} className={isUpdated ? 'text-teal-200 flex-shrink-0' : 'text-slate-400 flex-shrink-0'} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-white">
-            {isUpdated ? 'App actualizada' : 'Nueva versión disponible'}
-          </p>
-          <p className={`text-xs mt-0.5 ${isUpdated ? 'text-teal-200' : 'text-slate-400'}`}>
-            {isUpdated ? 'Ya estás usando la última versión' : 'Recarga la página para aplicar los cambios'}
-          </p>
+          <p className="text-sm font-bold text-white">🔄 Nueva versión disponible</p>
+          <p className="text-xs text-slate-400 mt-0.5">Toca Recargar para aplicar la actualización</p>
         </div>
         <button
+          onClick={() => window.location.reload()}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white active:scale-95 transition-transform"
+          style={{ background: '#D61672' }}
+        >
+          <RefreshCw size={12} />
+          Recargar
+        </button>
+        <button
           onClick={() => setShowBanner(false)}
-          className="flex-shrink-0 p-1.5 rounded-lg text-white/50 hover:text-white transition-colors"
-          title="Cerrar"
+          className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors"
+          title="Ignorar"
         >
           <X size={14} />
         </button>
