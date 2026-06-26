@@ -11,13 +11,23 @@ export default defineConfig({
       devOptions: { enabled: false },
       workbox: {
         cacheId: 'acontplus-v3',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        cleanupOutdatedCaches: true,
+        // index.html excluido del precache: siempre se pide a la red (NetworkFirst)
+        // para evitar que el SW sirva HTML con hashes de JS que ya no existen.
+        // JS/CSS/imágenes tienen hash en el nombre → seguros para cache-first.
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        cleanupOutdatedCaches: false,
         skipWaiting: true,
-        // clientsClaim eliminado: tomaba control de tabs existentes y borraba
-        // el cache viejo mientras seguían en uso → pantalla en blanco
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/firebase-messaging-sw\.js/],
+        runtimeCaching: [
+          {
+            // Navegación SPA → NetworkFirst: siempre HTML fresco de Firebase Hosting
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages-cache',
+              networkTimeoutSeconds: 3,
+            },
+          },
+        ],
       },
     }),
   ],

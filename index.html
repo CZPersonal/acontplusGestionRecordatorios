@@ -13,6 +13,26 @@
     <title>Acontplus Recordatorios</title>
   </head>
   <body>
+    <!-- Limpieza única del SW al cambiar de versión.
+         Corre antes de React para rescatar usuarios con cache corrupto. -->
+    <script>
+      (function () {
+        var SW_VER = '3';
+        try {
+          if (localStorage.getItem('sw_ver') !== SW_VER && 'serviceWorker' in navigator) {
+            localStorage.setItem('sw_ver', SW_VER);
+            Promise.all([
+              navigator.serviceWorker.getRegistrations().then(function (rs) {
+                return Promise.all(rs.map(function (r) { return r.unregister(); }));
+              }),
+              caches.keys().then(function (ns) {
+                return Promise.all(ns.map(function (n) { return caches.delete(n); }));
+              })
+            ]).then(function () { window.location.reload(); });
+          }
+        } catch (e) {}
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
