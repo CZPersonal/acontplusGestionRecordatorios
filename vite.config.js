@@ -1,35 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+
+// VitePWA eliminado: el registerType:'autoUpdate' forzaba clientsClaim() en el
+// SW generado sin importar la config de workbox, tomando control de todos los
+// tabs y borrando el cache viejo mientras seguían en uso -> pantalla en blanco.
+// El SW ahora es public/sw.js (kill-switch que limpia caches y no cachea nada).
 
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: false, // ya existe public/manifest.json
-      devOptions: { enabled: false },
-      workbox: {
-        cacheId: 'acontplus-v3',
-        // index.html excluido del precache: siempre se pide a la red (NetworkFirst)
-        // para evitar que el SW sirva HTML con hashes de JS que ya no existen.
-        // JS/CSS/imágenes tienen hash en el nombre → seguros para cache-first.
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
-        cleanupOutdatedCaches: false,
-        skipWaiting: true,
-        runtimeCaching: [
-          {
-            // Navegación SPA → NetworkFirst: siempre HTML fresco de Firebase Hosting
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'pages-cache',
-              networkTimeoutSeconds: 3,
-            },
-          },
-        ],
-      },
-    }),
   ],
   server: {
     host: true,
