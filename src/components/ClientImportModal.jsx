@@ -7,13 +7,13 @@ import {
 import { normalizeRow, validateRow } from '../utils/importValidation.js';
 
 // ─── Paso 1: Plantilla CSV ─────────────────────────────────────────────────────
-// Orden: Extranjero | Cedula_RUC | Nombre | Direccion | Telefono | Email
+// Orden: Extranjero | Cedula_RUC | Nombre | Direccion | Telefono | Email | Ciudad | Ubicacion | Observacion
 function downloadTemplate() {
-  const headers = ['Extranjero', 'Cedula_RUC', 'Nombre', 'Direccion', 'Telefono', 'Email'];
+  const headers = ['Extranjero', 'Cedula_RUC', 'Nombre', 'Direccion', 'Telefono', 'Email', 'Ciudad', 'Ubicacion', 'Observacion'];
   const example = [
-    ['NO', '1712345678',    'Juan Pérez',        'Av. Principal 123',       '0991234567', 'juan@email.com'],
-    ['NO', '1790123456001', 'Empresa ABC S.A.',   'Calle 5 de Junio 456',   '022345678',  ''],
-    ['SI', 'A1234567',      'John Smith',          'Edificio Centro Piso 3', '0998765432', 'john@email.com'],
+    ['NO', '1712345678',    'Juan Pérez',        'Av. Principal 123',       '0991234567', 'juan@email.com', 'Quito',     'Norte - La Carolina', ''],
+    ['NO', '1790123456001', 'Empresa ABC S.A.',   'Calle 5 de Junio 456',   '022345678',  '',               'Guayaquil', 'Centro histórico',    'Cliente preferencial'],
+    ['SI', 'A1234567',      'John Smith',          'Edificio Centro Piso 3', '0998765432', 'john@email.com', '',          '',                    ''],
   ];
   const csv = [headers, ...example]
     .map(r => r.map(c => `"${c}"`).join(','))
@@ -166,14 +166,18 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-blue-800">Paso 1 — Descarga la plantilla</p>
                   <p className="text-xs text-blue-600 mt-0.5">
-                    Columnas requeridas en orden:
-                    <span className="font-bold ml-1">Extranjero · Cedula_RUC · Nombre · Direccion · Telefono · Email</span>
+                    Columnas obligatorias:
+                    <span className="font-bold ml-1">Extranjero · Cedula_RUC · Nombre · Direccion · Telefono</span>
+                  </p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    Columnas opcionales:
+                    <span className="font-bold ml-1">Email · Ciudad · Ubicacion · Observacion</span>
                   </p>
                   <p className="text-xs text-blue-500 mt-1">
                     • <strong>Extranjero</strong>: <strong>SI</strong> o <strong>NO</strong> (obligatorio)<br/>
                     • <strong>Nacionales</strong>: solo números, 10 dígitos (cédula) o 13 (RUC)<br/>
                     • <strong>Extranjeros</strong>: cualquier valor alfanumérico<br/>
-                    • <strong>Email</strong>: opcional — el resto de campos son obligatorios
+                    • <strong>Ciudad / Ubicacion / Observacion</strong>: opcionales, texto libre
                   </p>
                 </div>
                 <button onClick={downloadTemplate}
@@ -271,6 +275,9 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Dirección</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Teléfono</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Email</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Ciudad</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Ubicación</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Observación</th>
                         <th className="px-3 py-2.5"></th>
                       </tr>
                     </thead>
@@ -317,6 +324,16 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                           </td>
 
                           <td className="px-3 py-2 text-slate-400">{row.email || '—'}</td>
+
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.ciudad || '—'}</td>
+
+                          <td className="px-3 py-2 max-w-[120px] truncate text-slate-500" title={row.ubicacion}>
+                            {row.ubicacion || '—'}
+                          </td>
+
+                          <td className="px-3 py-2 max-w-[150px] truncate text-slate-400 italic" title={row.observacion}>
+                            {row.observacion || '—'}
+                          </td>
 
                           <td className="px-3 py-2">
                             <button onClick={() => handleRemoveRow(idx)}

@@ -25,6 +25,9 @@ export function normalizeRow(raw) {
     address:        get('direccion', 'address', 'domicilio'),
     phone:          get('telefono', 'phone', 'celular', 'movil'),
     email:          get('email', 'correo', 'mail'),
+    ciudad:         get('ciudad', 'city', 'canton'),
+    ubicacion:      get('ubicacion', 'sector', 'barrio', 'location', 'referencia'),
+    observacion:    get('observacion', 'observaciones', 'notas', 'notes', 'observation'),
   };
 }
 
