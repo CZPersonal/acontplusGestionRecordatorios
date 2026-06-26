@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
@@ -9,15 +9,32 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState('login'); // 'login' | 'reset'
   const [resetSent, setResetSent] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const on  = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener('online',  on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!isOnline) {
+      setError('Sin conexión a internet. Para iniciar sesión necesitas estar conectado a la red.');
+      return;
+    }
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
-      setError('Email o contraseña incorrectos.');
+      if (err.code === 'auth/network-request-failed') {
+        setError('Error de red. Verifica tu conexión a internet e intenta de nuevo.');
+      } else {
+        setError('Email o contraseña incorrectos.');
+      }
     } finally {
       setLoading(false);
     }
@@ -71,6 +88,11 @@ export default function Login() {
           {/* ── Login ── */}
           {view === 'login' && (
             <div className="space-y-4">
+              {!isOnline && (
+                <div className="text-sm text-amber-700 bg-amber-50 px-4 py-2.5 rounded-xl border border-amber-200 text-center">
+                  Sin conexión — necesitas internet para ingresar.
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
                   Email
@@ -120,7 +142,7 @@ export default function Login() {
 
               <button
                 onClick={handleSubmit}
-                disabled={loading || !email || !password}
+                disabled={loading || !email || !password || !isOnline}
                 className="w-full text-white font-bold py-3 rounded-xl transition-all text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg, #D61672, #FFA901)' }}
               >

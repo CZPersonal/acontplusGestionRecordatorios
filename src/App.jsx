@@ -88,7 +88,7 @@ export default function App() {
             }
             const tenantName = td.data()?.name ?? '';
             const tenantRuc  = td.data()?.ruc  ?? '';
-            saveSession({ tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
+            saveSession({ uid: u.uid, email: u.email, displayName: u.displayName || '', tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
             useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, isAuthLoading: false });
           } catch {
             // Sin red: usar tenant conocido, priorizar rol guardado en localStorage
@@ -110,7 +110,22 @@ export default function App() {
           }
         }
       } else {
-        useAppStore.setState({ user: null, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
+        // Sin sesión Firebase: si estamos offline y hay sesión guardada, restaurar
+        // sin mostrar pantalla de login (técnico de campo sin red)
+        const s = loadSession();
+        if (!navigator.onLine && s.uid && s.tenantId) {
+          useAppStore.setState({
+            user:          { uid: s.uid, email: s.email, displayName: s.displayName || s.email },
+            tenantId:      s.tenantId,
+            tenantIds:     s.tenantIds  || [s.tenantId],
+            tenantName:    s.tenantName || '',
+            tenantRuc:     s.tenantRuc  || '',
+            userRole:      s.userRole   || 'tecnico',
+            isAuthLoading: false,
+          });
+        } else {
+          useAppStore.setState({ user: null, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
+        }
       }
     });
     return () => unsub();
