@@ -2,33 +2,33 @@ import { useState, useMemo } from 'react';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
-  MapPin, CreditCard, ChevronDown, ChevronUp, Filter
+  MapPin, CreditCard, Filter
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import ClientImportModal from './ClientImportModal.jsx';
+import { emptyContact, getClientContacts } from '../hooks/useClients.js';
 
 // ─── Formulario inline crear / editar ─────────────────────────────────────────
 function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
   const isEdit = !!initial;
-  const [form,  setForm]  = useState({
+
+  const [form, setForm] = useState({
     name:           initial?.name           || '',
     identification: initial?.identification || '',
-    phone:          initial?.phone          || '',
-    address:        initial?.address        || '',
-    email:          initial?.email          || '',
     foreign:        initial?.foreign        ?? false,
-    ciudad:         initial?.ciudad         || '',
-    ubicacion:      initial?.ubicacion      || '',
-    observacion:    initial?.observacion    || '',
   });
-  const [errors, setErrors] = useState({});
+  const [errors,   setErrors]   = useState({});
+  const [contacts, setContacts] = useState(() => {
+    const existing = getClientContacts(initial || {});
+    return existing.length > 0 ? existing.map(c => ({ ...c })) : [emptyContact()];
+  });
 
   const validate = () => {
     const errs  = {};
     const newId = form.identification.replace(/\s/g, '');
     const oldId = initial?.identification?.replace(/\s/g, '') || '';
-    const identificationChanged = newId !== oldId;
+    const idChanged = newId !== oldId;
 
     if (!form.name.trim())
       errs.name = 'El nombre es obligatorio';
@@ -37,8 +37,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
       errs.identification = 'La cédula/RUC o pasaporte es obligatorio';
     } else if (existingIds.has(newId) && newId !== oldId) {
       errs.identification = 'Ya existe un cliente con este documento';
-    } else if (!form.foreign && (!isEdit || identificationChanged)) {
-      // Validar formato solo al crear o cuando el identification fue modificado
+    } else if (!form.foreign && (!isEdit || idChanged)) {
       const digits = newId;
       if (!/^\d+$/.test(digits))
         errs.identification = 'Solo se permiten números para clientes nacionales';
@@ -46,10 +45,6 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
         errs.identification = 'Debe tener 10 dígitos (cédula) o 13 dígitos (RUC)';
     }
 
-    if (!form.phone.trim())
-      errs.phone = 'El teléfono es obligatorio';
-    if (!form.address.trim())
-      errs.address = 'La dirección es obligatoria';
     return errs;
   };
 
@@ -57,152 +52,168 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    await onSave(form);
+    await onSave({ ...form, contacts });
   };
+
+  const addContact    = () => setContacts(prev => [...prev, emptyContact()]);
+  const removeContact = (idx) => setContacts(prev => prev.filter((_, i) => i !== idx));
+  const setContactField = (idx, field, value) =>
+    setContacts(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
 
   const inp = (err) =>
     `w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors ${
       err ? 'border-red-400' : 'border-slate-200 focus:border-pink-400'
     }`;
+  const lbl = 'block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1';
 
   return (
     <form onSubmit={handleSubmit}
-      className="bg-pink-50 border-2 border-pink-200 rounded-2xl p-5 mb-4 space-y-3">
+      className="bg-pink-50 border-2 border-pink-200 rounded-2xl p-5 mb-4 space-y-4">
       <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#D61672' }}>
-        {isEdit ? '✏️ Editar cliente' : '➕ Nuevo cliente'}
+        {isEdit ? 'Editar cliente' : 'Nuevo cliente'}
       </p>
 
-      <div className="space-y-3">
-
-        {/* Fila 1: Toggle extranjero + Cédula/RUC */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setForm(p => ({ ...p, foreign: !p.foreign, identification: '' }));
-                setErrors(p => ({ ...p, identification: '' }));
-              }}
-              disabled={isEdit}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                form.foreign ? 'bg-blue-500' : 'bg-slate-200'
-              } ${isEdit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                form.foreign ? 'translate-x-4' : 'translate-x-0.5'
-              }`} />
-            </button>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-blue-800 truncate">🌐 Cliente extranjero</p>
-              <p className="text-xs text-blue-600 leading-tight">
-                {form.foreign ? 'Pasaporte / doc. extranjero' : 'Solo números, 10 o 13 dígitos'}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-              {form.foreign ? 'Pasaporte / ID' : 'Cédula / RUC'} <span className="text-red-400">*</span>
-            </label>
-            <input
-              type={form.foreign ? 'text' : 'tel'}
-              value={form.identification}
-              onChange={e => {
-                const val = form.foreign ? e.target.value : e.target.value.replace(/\D/g, '');
-                setForm(p => ({ ...p, identification: val }));
-                setErrors(p => ({ ...p, identification: '' }));
-              }}
-              placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
-              className={`${inp(errors.identification)} font-mono`}
-              maxLength={form.foreign ? 30 : 13}
-            />
-            {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
+      {/* ── Fila 1: Toggle + Cédula/RUC ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+          <button type="button"
+            onClick={() => {
+              setForm(p => ({ ...p, foreign: !p.foreign, identification: '' }));
+              setErrors(p => ({ ...p, identification: '' }));
+            }}
+            disabled={isEdit}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+              form.foreign ? 'bg-blue-500' : 'bg-slate-200'
+            } ${isEdit ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+              form.foreign ? 'translate-x-4' : 'translate-x-0.5'
+            }`} />
+          </button>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-blue-800 truncate">🌐 Extranjero</p>
+            <p className="text-xs text-blue-600 leading-tight">
+              {form.foreign ? 'Pasaporte / doc. extranjero' : '10 o 13 dígitos'}
+            </p>
           </div>
         </div>
 
-        {/* Fila 2: Nombre — ancho completo */}
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Nombre <span className="text-red-400">*</span>
+          <label className={lbl}>
+            {form.foreign ? 'Pasaporte / ID' : 'Cédula / RUC'} <span className="text-red-400">*</span>
           </label>
-          <input type="text" value={form.name}
-            onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setErrors(p => ({ ...p, name: '' })); }}
-            placeholder="Nombre completo o razón social"
-            className={inp(errors.name)} autoFocus />
-          {errors.name && <p className="text-xs text-red-500 mt-1">⚠️ {errors.name}</p>}
+          <input
+            type={form.foreign ? 'text' : 'tel'}
+            value={form.identification}
+            onChange={e => {
+              const val = form.foreign ? e.target.value : e.target.value.replace(/\D/g, '');
+              setForm(p => ({ ...p, identification: val }));
+              setErrors(p => ({ ...p, identification: '' }));
+            }}
+            placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
+            className={`${inp(errors.identification)} font-mono`}
+            maxLength={form.foreign ? 30 : 13}
+          />
+          {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
         </div>
-
-        {/* Fila 3: Dirección — ancho completo */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Dirección <span className="text-red-400">*</span>
-          </label>
-          <input type="text" value={form.address}
-            onChange={e => { setForm(p => ({ ...p, address: e.target.value })); setErrors(p => ({ ...p, address: '' })); }}
-            placeholder="Dirección del cliente"
-            className={inp(errors.address)} />
-          {errors.address && <p className="text-xs text-red-500 mt-1">⚠️ {errors.address}</p>}
-        </div>
-
-        {/* Fila 4: Teléfono + Ciudad */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-              Teléfono <span className="text-red-400">*</span>
-            </label>
-            <input type="tel" value={form.phone}
-              onChange={e => { setForm(p => ({ ...p, phone: e.target.value })); setErrors(p => ({ ...p, phone: '' })); }}
-              placeholder="0991234567"
-              className={inp(errors.phone)} />
-            {errors.phone && <p className="text-xs text-red-500 mt-1">⚠️ {errors.phone}</p>}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-              Ciudad
-            </label>
-            <input type="text" value={form.ciudad}
-              onChange={e => setForm(p => ({ ...p, ciudad: e.target.value }))}
-              placeholder="Quito, Guayaquil..."
-              className={inp(false)} />
-          </div>
-        </div>
-
-        {/* Fila 5: Ubicación — ancho completo */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Ubicación
-          </label>
-          <input type="text" value={form.ubicacion}
-            onChange={e => setForm(p => ({ ...p, ubicacion: e.target.value }))}
-            placeholder="Sector, barrio, referencia de ubicación..."
-            className={inp(false)} />
-        </div>
-
-        {/* Fila 6: Email — ancho completo */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Email
-          </label>
-          <input type="email" value={form.email}
-            onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-            placeholder="correo@ejemplo.com"
-            className={inp(false)} />
-        </div>
-
-        {/* Fila 7: Observación — textarea */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">
-            Observación
-          </label>
-          <textarea value={form.observacion}
-            onChange={e => setForm(p => ({ ...p, observacion: e.target.value }))}
-            placeholder="Notas adicionales sobre el cliente..."
-            rows={2}
-            className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
-        </div>
-
       </div>
 
+      {/* ── Fila 2: Nombre ── */}
+      <div>
+        <label className={lbl}>Nombre <span className="text-red-400">*</span></label>
+        <input type="text" value={form.name} autoFocus
+          onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setErrors(p => ({ ...p, name: '' })); }}
+          placeholder="Nombre completo o razón social"
+          className={inp(errors.name)} />
+        {errors.name && <p className="text-xs text-red-500 mt-1">⚠️ {errors.name}</p>}
+      </div>
+
+      {/* ── Sección Contactos / Ubicaciones ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Ubicaciones / Contactos
+          </p>
+          <button type="button" onClick={addContact}
+            className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg text-white"
+            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            <Plus size={11} /> Agregar
+          </button>
+        </div>
+
+        {contacts.map((contact, idx) => (
+          <div key={contact.id}
+            className="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5 relative">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                Ubicación {idx + 1}
+              </span>
+              {contacts.length > 1 && (
+                <button type="button" onClick={() => removeContact(idx)}
+                  className="p-0.5 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Ubicación + Ciudad */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={lbl}>Ubicación</label>
+                <input type="text" value={contact.ubicacion}
+                  onChange={e => setContactField(idx, 'ubicacion', e.target.value)}
+                  placeholder="Sector, barrio, referencia..."
+                  className={inp(false)} />
+              </div>
+              <div>
+                <label className={lbl}>Ciudad</label>
+                <input type="text" value={contact.ciudad}
+                  onChange={e => setContactField(idx, 'ciudad', e.target.value)}
+                  placeholder="Quito, Coca..."
+                  className={inp(false)} />
+              </div>
+            </div>
+
+            {/* Dirección */}
+            <div>
+              <label className={lbl}>Dirección</label>
+              <input type="text" value={contact.address}
+                onChange={e => setContactField(idx, 'address', e.target.value)}
+                placeholder="Calle, número, edificio..."
+                className={inp(false)} />
+            </div>
+
+            {/* Teléfono + Email */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className={lbl}>Teléfono</label>
+                <input type="tel" value={contact.phone}
+                  onChange={e => setContactField(idx, 'phone', e.target.value)}
+                  placeholder="0991234567"
+                  className={inp(false)} />
+              </div>
+              <div>
+                <label className={lbl}>Email</label>
+                <input type="email" value={contact.email}
+                  onChange={e => setContactField(idx, 'email', e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  className={inp(false)} />
+              </div>
+            </div>
+
+            {/* Observación */}
+            <div>
+              <label className={lbl}>Observación</label>
+              <textarea value={contact.observacion}
+                onChange={e => setContactField(idx, 'observacion', e.target.value)}
+                placeholder="Notas sobre esta ubicación..."
+                rows={2}
+                className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Botones ── */}
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={isLoading}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-60"
@@ -221,6 +232,10 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
 function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
+  const contacts    = getClientContacts(client);
+  const firstC      = contacts[0] || {};
+  const extraCount  = contacts.length - 1;
+
   return (
     <tr className={`hover:bg-slate-50 transition-colors group ${!client.active ? 'opacity-60' : ''}`}>
       <td className="px-4 py-3">
@@ -241,9 +256,9 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
                 <span className="text-xs font-mono text-slate-500">{client.identification}</span>
               </div>
             )}
-            {client.observacion && (
-              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={client.observacion}>
-                {client.observacion}
+            {firstC.observacion && (
+              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={firstC.observacion}>
+                {firstC.observacion}
               </p>
             )}
           </div>
@@ -251,23 +266,30 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
       </td>
 
       <td className="px-4 py-3">
-        {client.phone
-          ? <div className="flex items-center gap-1 text-sm text-slate-600"><Phone size={12} className="text-slate-400" />{client.phone}</div>
-          : <span className="text-slate-300 text-xs">—</span>}
+        <div className="space-y-0.5">
+          {firstC.phone
+            ? <div className="flex items-center gap-1 text-sm text-slate-600">
+                <Phone size={12} className="text-slate-400" />{firstC.phone}
+              </div>
+            : <span className="text-slate-300 text-xs">—</span>}
+          {extraCount > 0 && (
+            <span className="text-xs text-slate-400">+{extraCount} ubicación{extraCount > 1 ? 'es' : ''}</span>
+          )}
+        </div>
       </td>
 
       <td className="px-4 py-3">
-        {client.address || client.ciudad || client.ubicacion ? (
+        {firstC.address || firstC.ciudad || firstC.ubicacion ? (
           <div className="space-y-0.5">
-            {client.address && (
+            {firstC.address && (
               <div className="flex items-center gap-1 text-xs text-slate-500">
                 <MapPin size={11} className="text-slate-400 flex-shrink-0" />
-                <span className="truncate max-w-xs">{client.address}</span>
+                <span className="truncate max-w-xs">{firstC.address}</span>
               </div>
             )}
-            {(client.ciudad || client.ubicacion) && (
+            {(firstC.ciudad || firstC.ubicacion) && (
               <p className="text-xs text-slate-400 ml-3.5 truncate max-w-xs">
-                {[client.ciudad, client.ubicacion].filter(Boolean).join(' · ')}
+                {[firstC.ciudad, firstC.ubicacion].filter(Boolean).join(' · ')}
               </p>
             )}
           </div>
@@ -332,7 +354,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
     [clients]
   );
 
-  // Tareas por cliente
   const taskCountMap = useMemo(() => {
     const map = {};
     tasks.forEach(t => {
@@ -346,23 +367,27 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
     const q = search.trim().toLowerCase();
     return clients
       .filter(c => showInactive ? true : c.active !== false)
-      .filter(c => !q ||
-        c.name?.toLowerCase().includes(q) ||
-        c.identification?.includes(q) ||
-        c.phone?.includes(q)
-      )
+      .filter(c => {
+        if (!q) return true;
+        const firstPhone = getClientContacts(c)[0]?.phone || '';
+        return (
+          c.name?.toLowerCase().includes(q) ||
+          c.identification?.includes(q) ||
+          firstPhone.includes(q)
+        );
+      })
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [clients, search, showInactive]);
 
   const pagination = usePagination(filtered, 15);
 
-  const handleSave = async (form) => {
+  const handleSave = async (formData) => {
     setIsLoading(true);
     try {
       if (editing) {
-        await updateClient(editing.id, form);
+        await updateClient(editing.id, formData);
       } else {
-        await createClient(form);
+        await createClient(formData);
       }
       setShowForm(false);
       setEditing(null);
@@ -385,10 +410,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
     }
   };
 
-  const handleImport = async (rows) => {
-    return await importClients(rows);
-  };
-
   const activeCount   = clients.filter(c => c.active !== false).length;
   const inactiveCount = clients.filter(c => c.active === false).length;
 
@@ -406,14 +427,12 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Importar */}
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
             <Upload size={15} />
             <span>Importar Excel</span>
           </button>
 
-          {/* Nuevo cliente */}
           {!showForm && (
             <button
               onClick={() => { setEditing(null); setShowForm(true); }}
@@ -531,7 +550,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
       {showImport && (
         <ClientImportModal
           existingClients={clients}
-          onImport={handleImport}
+          onImport={async (rows) => await importClients(rows)}
           onClose={() => setShowImport(false)}
         />
       )}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, User, Phone, MapPin, CreditCard, X, Plus } from 'lucide-react';
+import { getClientContacts } from '../hooks/useClients.js';
 
 export default function ClientSearch({ clients, onSelect, selectedClient, onClear }) {
   const [query, setQuery] = useState('');
@@ -17,11 +18,15 @@ export default function ClientSearch({ clients, onSelect, selectedClient, onClea
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const filtered = clients.filter(c =>
-    c.name?.toLowerCase().includes(query.toLowerCase()) ||
-    c.identification?.includes(query) ||
-    c.phone?.includes(query)
-  ).slice(0, 8);
+  const filtered = clients.filter(c => {
+    const q = query.toLowerCase();
+    const firstPhone = getClientContacts(c)[0]?.phone || '';
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.identification?.includes(query) ||
+      firstPhone.includes(query)
+    );
+  }).slice(0, 8);
 
   const handleSelect = (client) => {
     onSelect(client);
@@ -35,8 +40,10 @@ export default function ClientSearch({ clients, onSelect, selectedClient, onClea
     setIsOpen(false);
   };
 
-  // Si hay cliente seleccionado, mostrar tarjeta
+  // Si hay cliente seleccionado, mostrar tarjeta (sin info de contacto — la muestra TaskForm)
   if (selectedClient) {
+    const contacts    = getClientContacts(selectedClient);
+    const contactCount = contacts.length;
     return (
       <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
         <div className="flex justify-between items-start">
@@ -47,6 +54,11 @@ export default function ClientSearch({ clients, onSelect, selectedClient, onClea
             <div>
               <p className="font-bold text-slate-800">{selectedClient.name}</p>
               <p className="text-xs text-blue-600 font-mono font-semibold">{selectedClient.identification}</p>
+              {contactCount > 0 && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {contactCount} ubicación{contactCount !== 1 ? 'es' : ''} registrada{contactCount !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -57,20 +69,6 @@ export default function ClientSearch({ clients, onSelect, selectedClient, onClea
           >
             <X size={16} />
           </button>
-        </div>
-        <div className="mt-3 space-y-1">
-          {selectedClient.phone && (
-            <div className="flex items-center space-x-2 text-xs text-slate-600">
-              <Phone size={12} className="text-slate-400" />
-              <span>{selectedClient.phone}</span>
-            </div>
-          )}
-          {selectedClient.address && (
-            <div className="flex items-center space-x-2 text-xs text-slate-600">
-              <MapPin size={12} className="text-slate-400" />
-              <span>{selectedClient.address}</span>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -104,37 +102,40 @@ export default function ClientSearch({ clients, onSelect, selectedClient, onClea
         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
           {filtered.length > 0 ? (
             <div className="max-h-64 overflow-y-auto">
-              {filtered.map(client => (
-                <button
-                  key={client.id}
-                  type="button"
-                  onClick={() => handleSelect(client)}
-                  className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-slate-800 text-sm">{client.name}</p>
-                      <div className="flex items-center space-x-3 mt-0.5">
-                        <span className="flex items-center space-x-1 text-xs text-purple-600 font-mono">
-                          <CreditCard size={10} />
-                          <span>{client.identification}</span>
-                        </span>
-                        {client.phone && (
-                          <span className="flex items-center space-x-1 text-xs text-slate-400">
-                            <Phone size={10} />
-                            <span>{client.phone}</span>
+              {filtered.map(client => {
+                const firstC = getClientContacts(client)[0] || {};
+                return (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleSelect(client)}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-slate-800 text-sm">{client.name}</p>
+                        <div className="flex items-center space-x-3 mt-0.5">
+                          <span className="flex items-center space-x-1 text-xs text-purple-600 font-mono">
+                            <CreditCard size={10} />
+                            <span>{client.identification}</span>
                           </span>
-                        )}
+                          {firstC.phone && (
+                            <span className="flex items-center space-x-1 text-xs text-slate-400">
+                              <Phone size={10} />
+                              <span>{firstC.phone}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {firstC.address && (
+                        <span className="text-xs text-slate-400 truncate max-w-24 ml-2">
+                          {firstC.address}
+                        </span>
+                      )}
                     </div>
-                    {client.address && (
-                      <span className="text-xs text-slate-400 truncate max-w-24 ml-2">
-                        {client.address}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           ) : query.length > 0 ? (
             <div className="px-4 py-3 text-center">

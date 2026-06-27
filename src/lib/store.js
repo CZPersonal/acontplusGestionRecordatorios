@@ -85,7 +85,9 @@ export const useAppStore = create((set, get) => ({
   handleAddTask: async (task) => {
     const { saveClient, addTask, user, addToast } = get();
     if (task.identification?.trim() && task.clientName) await saveClient(task);
-    const savedId = await addTask(task, user.email);
+    // Quitar campos de contactos antes de guardar la tarea (van al cliente, no a la tarea)
+    const { contacts: _c, additionalContacts: _ac, ...taskData } = task;
+    const savedId = await addTask(taskData, user.email);
     if (savedId) set({ activeTab: 'all-visits', editingTask: null, formSource: null, highlightedTaskId: savedId });
     else addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo guardar la tarea. Verifica tu conexión o los permisos.' });
   },
