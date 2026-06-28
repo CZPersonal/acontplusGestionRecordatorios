@@ -162,8 +162,8 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const closeNewVisitModal = useAppStore(s => s.closeNewVisitModal);
   const user               = useAppStore(s => s.user);
 
-  const { tecnicos }        = useTecnicos(user);
-  const { tiposVisita }     = useTiposVisita(user);
+  const { tecnicos }               = useTecnicos(user);
+  const { tipos: tiposVisita = [] } = useTiposVisita(user);
 
   // isEdit: solo cuando hay un id de Firestore existente con status (visita real, no defaults de soporte)
   const isEdit = !!(initialVisit?.id && initialVisit?.status);
@@ -531,13 +531,13 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                 <label className={lbl}>Técnico asignado</label>
                 <select value={form.technician}
                   onChange={e => {
-                    const t = tecnicos.find(tc => tc.name === e.target.value);
-                    setF('technician', t?.name || '');
+                    const t = tecnicos.find(tc => tc.nombre === e.target.value);
+                    setF('technician', t?.nombre || '');
                     setForm(p => ({ ...p, technicianEmail: t?.email || '', technicianPhone: t?.phone || '' }));
                   }}
                   className={inp}>
                   <option value="">— Sin asignar —</option>
-                  {tecnicos.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
                 </select>
               </div>
 
@@ -546,7 +546,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                 <label className={lbl}>Tipo de visita</label>
                 <select value={form.type} onChange={e => setF('type', e.target.value)} className={inp}>
                   <option value="">— Seleccionar —</option>
-                  {tiposVisita.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {tiposVisita.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
                 </select>
               </div>
 
