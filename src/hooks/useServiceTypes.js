@@ -78,5 +78,10 @@ export function useServiceTypes(user) {
     useAppStore.setState({ serviceTypes });
   }, [serviceTypes]);
 
+  useEffect(() => {
+    useAppStore.setState({ addServiceType });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   return { serviceTypes, isLoading, addServiceType, updateServiceType, deleteServiceType };
 }

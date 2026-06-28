@@ -74,7 +74,8 @@ export const useAppStore = create((set, get) => ({
   importClients:   async () => ({ ok: 0, errors: [] }),
 
   // ─── Service Types (poblado por useServiceTypes) ──────────────────────────
-  serviceTypes: [],
+  serviceTypes:    [],
+  addServiceType:  async () => false,
 
   // ─── Configuración de empresa (poblado por useConfiguracion) ────────────────
   empresaConfig: {

@@ -10,9 +10,82 @@ import ClientImportModal from './ClientImportModal.jsx';
 import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/useClients.js';
 import { useAppStore } from '../lib/store';
 
+// ─── Selector de tipo de equipo/instalación/servicio con botón "+" ───────────
+function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd }) {
+  const [adding,   setAdding]   = useState(false);
+  const [newName,  setNewName]  = useState('');
+  const [saving,   setSaving]   = useState(false);
+
+  const handleAdd = async () => {
+    if (!newName.trim()) return;
+    setSaving(true);
+    const ok = await onAdd({ name: newName.trim(), description: '' });
+    if (ok) {
+      onChange(newName.trim());
+      setNewName('');
+      setAdding(false);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-1.5">
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white"
+        >
+          <option value="">— Seleccionar tipo —</option>
+          {serviceTypes.map(st => (
+            <option key={st.id} value={st.name}>{st.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => { setAdding(p => !p); setNewName(''); }}
+          title="Crear nuevo tipo"
+          className="flex-shrink-0 px-2 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors text-xs font-bold"
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+      {adding && (
+        <div className="flex gap-1.5 items-center">
+          <input
+            autoFocus
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } if (e.key === 'Escape') setAdding(false); }}
+            placeholder="Nombre del tipo..."
+            className="flex-1 border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-500 bg-white"
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={saving || !newName.trim()}
+            className="px-2.5 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? '...' : 'Crear'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdding(false)}
+            className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-slate-600 text-xs"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Formulario inline crear / editar ─────────────────────────────────────────
 function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
-  const isEdit = !!initial;
+  const isEdit       = !!initial;
+  const serviceTypes  = useAppStore(s => s.serviceTypes);
+  const addServiceType = useAppStore(s => s.addServiceType);
 
   const [form, setForm] = useState({
     name:           initial?.name           || '',
@@ -229,30 +302,35 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
                 className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
             </div>
 
-            {/* ── Instalaciones ── */}
+            {/* ── Equipo / Instalación / Servicio ── */}
             <div className="mt-1 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚙️ Instalaciones</p>
+                <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚙️ Equipo / Instalación / Servicio</p>
                 <button type="button" onClick={() => addInstallation(idx)}
                   className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
-                  <Plus size={10} /> Agregar instalación
+                  <Plus size={10} /> Agregar
                 </button>
               </div>
               {(contact.installations || []).length === 0 && (
-                <p className="text-xs text-slate-300 italic">Sin instalaciones registradas</p>
+                <p className="text-xs text-slate-300 italic">Sin equipos/instalaciones registrados</p>
               )}
               {(contact.installations || []).map((inst, instIdx) => (
                 <div key={inst.id}
                   className="flex items-start gap-2 mb-2 p-2 bg-amber-50/60 border border-amber-100 rounded-lg">
-                  <div className="flex-1 grid grid-cols-2 gap-2">
-                    <input value={inst.serviceType}
-                      onChange={e => setInstField(idx, instIdx, 'serviceType', e.target.value)}
-                      placeholder="Tipo de servicio / equipo"
-                      className="border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                  <div className="flex-1 space-y-1.5">
+                    <div>
+                      <p className="text-xs text-amber-700 font-semibold mb-1">Tipo de Equipo / Instalación / Servicio</p>
+                      <ServiceTypeSelector
+                        value={inst.serviceType}
+                        onChange={v => setInstField(idx, instIdx, 'serviceType', v)}
+                        serviceTypes={serviceTypes}
+                        onAdd={addServiceType}
+                      />
+                    </div>
                     <input value={inst.observacion}
                       onChange={e => setInstField(idx, instIdx, 'observacion', e.target.value)}
-                      placeholder="Observación (capacidad, marca...)"
-                      className="border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                      placeholder="Observación (capacidad, marca, modelo...)"
+                      className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
                   </div>
                   <button type="button" onClick={() => removeInstallation(idx, instIdx)}
                     className="mt-1 p-0.5 rounded text-amber-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0">

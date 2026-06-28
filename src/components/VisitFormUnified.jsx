@@ -5,8 +5,56 @@ import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import {
   X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench,
-  ChevronRight, Calendar, Clock, AlertTriangle,
 } from 'lucide-react';
+
+// ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
+function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd, className = '' }) {
+  const [adding,  setAdding]  = useState(false);
+  const [newName, setNewName] = useState('');
+  const [saving,  setSaving]  = useState(false);
+
+  const handleAdd = async () => {
+    if (!newName.trim()) return;
+    setSaving(true);
+    const ok = await onAdd({ name: newName.trim(), description: '' });
+    if (ok) { onChange(newName.trim()); setNewName(''); setAdding(false); }
+    setSaving(false);
+  };
+
+  const baseInp = `border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 bg-white transition-colors ${className}`;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        <select value={value} onChange={e => onChange(e.target.value)} className={`flex-1 ${baseInp}`}>
+          <option value="">— Seleccionar tipo —</option>
+          {serviceTypes.map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
+        </select>
+        <button type="button" onClick={() => { setAdding(p => !p); setNewName(''); }}
+          title="Crear nuevo tipo"
+          className="flex-shrink-0 px-3 py-2.5 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors text-sm font-bold">
+          <Plus size={14} />
+        </button>
+      </div>
+      {adding && (
+        <div className="flex gap-2 items-center">
+          <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } if (e.key === 'Escape') setAdding(false); }}
+            placeholder="Nombre del tipo..."
+            className="flex-1 border-2 border-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 bg-white" />
+          <button type="button" onClick={handleAdd} disabled={saving || !newName.trim()}
+            className="px-3 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+            {saving ? '...' : 'Crear'}
+          </button>
+          <button type="button" onClick={() => setAdding(false)}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const today = () => {
   const d = new Date();
@@ -103,14 +151,16 @@ function ClientPicker({ clients, selected, onSelect, onClear }) {
 // ─── Formulario principal ─────────────────────────────────────────────────────
 
 export default function VisitFormUnified({ initialVisit, onClose }) {
-  const clients           = useAppStore(s => s.clients);
-  const handleAddVisit    = useAppStore(s => s.handleAddVisit);
-  const handleEditVisit   = useAppStore(s => s.handleEditVisit);
-  const addToast          = useAppStore(s => s.addToast);
-  const openNewVisit      = useAppStore(s => s.openNewVisit);
-  const newVisitDefaults  = useAppStore(s => s.newVisitDefaults);
+  const clients            = useAppStore(s => s.clients);
+  const serviceTypes       = useAppStore(s => s.serviceTypes);
+  const addServiceType     = useAppStore(s => s.addServiceType);
+  const handleAddVisit     = useAppStore(s => s.handleAddVisit);
+  const handleEditVisit    = useAppStore(s => s.handleEditVisit);
+  const addToast           = useAppStore(s => s.addToast);
+  const openNewVisit       = useAppStore(s => s.openNewVisit);
+  const newVisitDefaults   = useAppStore(s => s.newVisitDefaults);
   const closeNewVisitModal = useAppStore(s => s.closeNewVisitModal);
-  const user              = useAppStore(s => s.user);
+  const user               = useAppStore(s => s.user);
 
   const { tecnicos }        = useTecnicos(user);
   const { tiposVisita }     = useTiposVisita(user);
@@ -393,7 +443,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
             <div>
               <p className={sectionTitle}>
                 <Wrench size={16} className="text-amber-500" />
-                Instalación / Servicio
+                Equipo / Instalación / Servicio
               </p>
 
               {installations.length > 0 && (
@@ -420,15 +470,18 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
               {isAddingInst ? (
                 <div className="border-2 border-dashed border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/50">
-                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Nueva instalación</p>
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Nuevo equipo / instalación / servicio</p>
                   <div>
-                    <label className={lbl}>Tipo de servicio / equipo</label>
-                    <input value={instDraft.serviceType} onChange={e => setInstDraft(p => ({ ...p, serviceType: e.target.value }))}
-                      placeholder="Ej: Filtro de agua, Tanque 500L, Bomba sumergible..."
-                      className={inp} />
+                    <label className={lbl}>Tipo de Equipo / Instalación / Servicio</label>
+                    <ServiceTypeSelector
+                      value={instDraft.serviceType}
+                      onChange={v => setInstDraft(p => ({ ...p, serviceType: v }))}
+                      serviceTypes={serviceTypes}
+                      onAdd={addServiceType}
+                    />
                   </div>
                   <div>
-                    <label className={lbl}>Observación</label>
+                    <label className={lbl}>Observación (capacidad, marca, modelo...)</label>
                     <input value={instDraft.observacion} onChange={e => setInstDraft(p => ({ ...p, observacion: e.target.value }))}
                       className={inp} />
                   </div>
@@ -445,7 +498,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                 </div>
               ) : (
                 <button type="button" onClick={() => { setInstDraft(emptyInstallation()); setAddInst(true); }} className={accentBtn}>
-                  <Plus size={13} /> Agregar instalación
+                  <Plus size={13} /> Agregar equipo / instalación
                 </button>
               )}
             </div>
