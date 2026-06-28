@@ -141,6 +141,18 @@ service cloud.firestore {
       allow delete: if request.auth != null && isAdmin(tenantId);
     }
 
+    // ─── Nueva colección plana de visitas (reemplaza subcollecciones de tasks) ──
+    match /tenants/{tenantId}/visits/{visitId} {
+      allow read:   if request.auth != null && isMember(tenantId);
+      allow create: if request.auth != null
+        && isMember(tenantId)
+        && request.resource.data.clientName is string
+        && request.resource.data.clientName.size() > 0
+        && request.resource.data.status is string;
+      allow update: if request.auth != null && isMember(tenantId);
+      allow delete: if request.auth != null && isMember(tenantId);
+    }
+
     match /tenants/{tenantId}/abonos/{abonoId} {
       allow read:   if request.auth != null && isMember(tenantId);
       allow create: if request.auth != null && isMember(tenantId);
