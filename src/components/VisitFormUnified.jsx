@@ -4,7 +4,7 @@ import { getClientContacts, emptyContact, emptyInstallation } from '../hooks/use
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import {
-  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench,
+  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar,
 } from 'lucide-react';
 
 // ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
