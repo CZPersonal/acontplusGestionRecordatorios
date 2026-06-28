@@ -1,189 +1,247 @@
 import { useState, useEffect } from 'react';
-import { doc, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { getVisitsRef } from '../lib/tenantDb';
+import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { getVisitsFlatRef } from '../lib/tenantDb';
+import { useAppStore } from '../lib/store';
+import { logAudit } from '../services/auditService';
 
-export function useVisits(task, user) {
-  const [visits,    setVisits]    = useState(task?.visits || []);
-  const [isLoading, setIsLoading] = useState(false);
+const VISITS_PAGE_SIZE = 200;
+
+export function useVisits(user) {
+  const [visits,        setVisits]        = useState([]);
+  const [isLoadingVisits, setIsLoading]   = useState(true);
 
   useEffect(() => {
-    setVisits(task?.visits || []);
-  }, [task]);
-
-  // Persiste todos los documentos de visita en la subcollección.
-  // Al escribir el array completo, los datos legacy del campo embebido quedan migrados.
-  const saveAllVisits = async (updatedVisits) => {
-    const batch = writeBatch(db);
-    updatedVisits.forEach(v => {
-      batch.set(doc(getVisitsRef(task.id), v.id), v);
-    });
-    await batch.commit();
-    setVisits(updatedVisits);
-  };
-
-  // ─── Agregar visita ──────────────────────────────────────────────────────────
-  const addVisit = async (visitData) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
-    const newVisit = {
-      id:            crypto.randomUUID(),
-      scheduledDate: visitData.scheduledDate,
-      scheduledTime: visitData.scheduledTime || '',
-      type:          visitData.type          || '',
-      urgency:       visitData.urgency       || 'Media',
-      visitStatus:   visitData.visitStatus   || 'Pendiente',
-      observations:  visitData.observations  || '',
-      technician:      visitData.technician      || user.email,
-      technicianEmail: visitData.technicianEmail || '',
-      technicianPhone: visitData.technicianPhone || '',
-      status:          'Programada',
-      createdBy:     user.email,
-      createdAt:     new Date().toISOString(),
-      completedAt:   null,
-      completedBy:   null,
-      closingObservations: '',
-    };
-    try {
-      await saveAllVisits([...visits, newVisit]);
-      return true;
-    } catch (error) {
-      console.error('Error al agregar visita:', error);
-      return false;
-    } finally {
+    if (!user) {
+      setVisits([]);
       setIsLoading(false);
+      return;
+    }
+
+    const q = query(
+      getVisitsFlatRef(),
+      orderBy('createdAt', 'desc'),
+      limit(VISITS_PAGE_SIZE),
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      setVisits(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setIsLoading(false);
+    }, (err) => {
+      console.error('Error cargando visitas:', err);
+      setIsLoading(false);
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  // ─── Crear visita ────────────────────────────────────────────────────────────
+  const addVisit = async (data) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    const visitId = crypto.randomUUID();
+    try {
+      await setDoc(doc(getVisitsFlatRef(), visitId), {
+        ...data,
+        id:        visitId,
+        status:    data.status    || 'Programada',
+        urgency:   data.urgency   || 'Media',
+        createdBy: u.email,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        // Campos de cierre — vacíos al crear
+        completedAt:         null,
+        completedBy:         null,
+        closingObservations: '',
+        // Campos de confirmación técnico
+        confirmed:   false,
+        confirmedAt: null,
+        confirmedBy: null,
+        // Soporte: referencia a visita original
+        parentVisitId: data.parentVisitId || null,
+      });
+      logAudit(u, 'visit_created', 'visit', visitId, { clientName: data.clientName });
+      return visitId;
+    } catch (err) {
+      console.error('Error al crear visita:', err);
+      return false;
     }
   };
 
   // ─── Editar visita ───────────────────────────────────────────────────────────
-  const editVisit = async (visitId, visitData) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
+  const editVisit = async (visitId, data) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     try {
-      const updated = visits.map(v =>
-        v.id === visitId
-          ? {
-              ...v,
-              scheduledDate: visitData.scheduledDate,
-              scheduledTime: visitData.scheduledTime || '',
-              type:          visitData.type          || v.type,
-              urgency:       visitData.urgency       || v.urgency,
-              observations:  visitData.observations  ?? v.observations,
-              technician:      visitData.technician      || v.technician,
-              technicianEmail: visitData.technicianEmail !== undefined ? visitData.technicianEmail : (v.technicianEmail || ''),
-              technicianPhone: visitData.technicianPhone !== undefined ? visitData.technicianPhone : (v.technicianPhone || ''),
-              updatedAt:       new Date().toISOString(),
-              updatedBy:     user.email,
-            }
-          : v
-      );
-      await saveAllVisits(updated);
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        ...data,
+        updatedAt: new Date().toISOString(),
+        updatedBy: u.email,
+      });
       return true;
-    } catch (error) {
-      console.error('Error al editar visita:', error);
+    } catch (err) {
+      console.error('Error al editar visita:', err);
       return false;
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  // ─── Eliminar visita ─────────────────────────────────────────────────────────
+  const deleteVisit = async (visitId) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    try {
+      await deleteDoc(doc(getVisitsFlatRef(), visitId));
+      logAudit(u, 'visit_deleted', 'visit', visitId);
+      return true;
+    } catch (err) {
+      console.error('Error al eliminar visita:', err);
+      return false;
     }
   };
 
   // ─── Completar visita ────────────────────────────────────────────────────────
   const completeVisit = async (visitId, closingData) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     try {
-      const updated = visits.map(v =>
-        v.id === visitId
-          ? {
-              ...v,
-              status:              'Realizada',
-              closingObservations: closingData.closingObservations || '',
-              completedAt:         new Date().toISOString(),
-              completedBy:         user.email,
-            }
-          : v
-      );
-      await saveAllVisits(updated);
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        status:              'Realizada',
+        closingObservations: closingData.closingObservations || '',
+        completedAt:         new Date().toISOString(),
+        completedBy:         u.email,
+        updatedAt:           new Date().toISOString(),
+      });
+      logAudit(u, 'visit_completed', 'visit', visitId, { completedBy: u.email });
       return true;
-    } catch (error) {
-      console.error('Error al completar visita:', error);
+    } catch (err) {
+      console.error('Error al completar visita:', err);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // ─── Cancelar visita (reversible) ───────────────────────────────────────────
+  // ─── Cancelar visita ─────────────────────────────────────────────────────────
   const cancelVisit = async (visitId) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     try {
-      const updated = visits.map(v =>
-        v.id === visitId ? { ...v, status: 'Cancelada' } : v
-      );
-      await saveAllVisits(updated);
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        status:    'Cancelada',
+        updatedAt: new Date().toISOString(),
+      });
       return true;
-    } catch (error) {
-      console.error('Error al cancelar visita:', error);
+    } catch (err) {
+      console.error('Error al cancelar visita:', err);
       return false;
-    } finally {
-      setIsLoading(false);
+    }
+  };
+
+  // ─── Anular visita ────────────────────────────────────────────────────────────
+  const annulVisit = async (visitId) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    try {
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        status:     'Anulada',
+        annulledAt: new Date().toISOString(),
+        annulledBy: u.email,
+        updatedAt:  new Date().toISOString(),
+      });
+      return true;
+    } catch (err) {
+      console.error('Error al anular visita:', err);
+      return false;
     }
   };
 
   // ─── Revertir visita → Programada ────────────────────────────────────────────
   const revertVisit = async (visitId) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     try {
-      const updated = visits.map(v =>
-        v.id === visitId
-          ? {
-              ...v,
-              status:     'Programada',
-              revertedAt: new Date().toISOString(),
-              revertedBy: user.email,
-            }
-          : v
-      );
-      await saveAllVisits(updated);
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        status:     'Programada',
+        revertedAt: new Date().toISOString(),
+        revertedBy: u.email,
+        updatedAt:  new Date().toISOString(),
+      });
       return true;
-    } catch (error) {
-      console.error('Error al revertir visita:', error);
+    } catch (err) {
+      console.error('Error al revertir visita:', err);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // ─── Anular visita (más fuerte que cancelar) ─────────────────────────────────
-  const annulVisit = async (visitId) => {
-    if (!user || !task) return false;
-    setIsLoading(true);
+  // ─── Confirmar visita (portal técnico) ───────────────────────────────────────
+  const confirmVisit = async (visitId) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
     try {
-      const updated = visits.map(v =>
-        v.id === visitId
-          ? {
-              ...v,
-              status:     'Anulada',
-              annulledAt: new Date().toISOString(),
-              annulledBy: user.email,
-            }
-          : v
-      );
-      await saveAllVisits(updated);
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        confirmed:   true,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: u.email,
+        updatedAt:   new Date().toISOString(),
+      });
       return true;
-    } catch (error) {
-      console.error('Error al anular visita:', error);
+    } catch (err) {
+      console.error('Error al confirmar visita:', err);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // ─── Generar visita de soporte ────────────────────────────────────────────────
+  // Crea una nueva visita pre-llenada con los datos de la original
+  const generateSupportVisit = async (parentVisit) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    const today = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    })();
+    const supportData = {
+      // Referencias del cliente (misma ubicación e instalación)
+      clientId:       parentVisit.clientId,
+      contactId:      parentVisit.contactId,
+      installationId: parentVisit.installationId,
+      // Snapshot de visualización
+      clientName:  parentVisit.clientName,
+      serviceType: parentVisit.serviceType,
+      address:     parentVisit.address,
+      ubicacion:   parentVisit.ubicacion,
+      ciudad:      parentVisit.ciudad,
+      phone:       parentVisit.phone,
+      // Datos de la nueva visita
+      scheduledDate: today,
+      scheduledTime: '',
+      type:          parentVisit.type || '',
+      urgency:       'Media',
+      observations:  '',
+      technician:    parentVisit.technician || '',
+      technicianEmail: parentVisit.technicianEmail || '',
+      serviceOrder:  '',
+      // Referencia a la visita original
+      parentVisitId: parentVisit.id,
+    };
+    return await addVisit(supportData);
+  };
+
+  // ─── Sincronizar al store ─────────────────────────────────────────────────────
+  useEffect(() => {
+    useAppStore.setState({ visits, isLoadingVisits });
+  }, [visits, isLoadingVisits]);
+
+  useEffect(() => {
+    useAppStore.setState({
+      addVisit, editVisit, deleteVisit,
+      completeVisit, cancelVisit, annulVisit,
+      revertVisit, confirmVisit, generateSupportVisit,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return {
-    visits, isLoading,
-    addVisit, editVisit, completeVisit,
-    cancelVisit, revertVisit, annulVisit,
+    visits, isLoadingVisits,
+    addVisit, editVisit, deleteVisit,
+    completeVisit, cancelVisit, annulVisit,
+    revertVisit, confirmVisit, generateSupportVisit,
   };
 }

@@ -3,8 +3,6 @@ import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import NavItem from './NavItem.jsx';
 import Dashboard from './Dashboard.jsx';
-import TaskList from './TaskList.jsx';
-import TaskForm from './TaskForm.jsx';
 import Reports from './Reports.jsx';
 import VisitsReport from './VisitsReport.jsx';
 import BillingReport from './BillingReport.jsx';
@@ -15,12 +13,11 @@ import CalendarView from './CalendarView.jsx';
 import Configuracion from './Configuracion.jsx';
 import AllVisitsManager from './AllVisitsManager.jsx';
 import BorradoresAdmin from './BorradoresAdmin.jsx';
+import VisitFormUnified from './VisitFormUnified.jsx';
 import {
-  Home, Wrench, FileText, Bell, BellOff,
+  Home, FileText, Bell, BellOff,
   Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings, BookOpen,
 } from 'lucide-react';
-
-const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 export default function AppRouter() {
   const user             = useAppStore(s => s.user);
@@ -30,9 +27,13 @@ export default function AppRouter() {
   const activeTab        = useAppStore(s => s.activeTab);
   const setActiveTab     = useAppStore(s => s.setActiveTab);
   const editingTask      = useAppStore(s => s.editingTask);
+  const editingVisit     = useAppStore(s => s.editingVisit);
   const setEditingTask   = useAppStore(s => s.setEditingTask);
   const showExportConfig = useAppStore(s => s.showExportConfig);
   const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
+  const openNewVisit     = useAppStore(s => s.openNewVisit);
+  const newVisitDefaults = useAppStore(s => s.newVisitDefaults);
+  const closeNewVisitModal = useAppStore(s => s.closeNewVisitModal);
 
   const tasks        = useAppStore(s => s.tasks);
   const clients      = useAppStore(s => s.clients);
@@ -55,11 +56,12 @@ export default function AppRouter() {
   const setClientActive = useAppStore(s => s.setClientActive);
   const importClients   = useAppStore(s => s.importClients);
 
-  const handleAddTask     = useAppStore(s => s.handleAddTask);
-  const handleEdit        = useAppStore(s => s.handleEdit);
-  const handleDelete      = useAppStore(s => s.handleDelete);
-  const handleComplete    = useAppStore(s => s.handleComplete);
-  const handleVisitsUpdate = useAppStore(s => s.handleVisitsUpdate);
+  const handleAddTask      = useAppStore(s => s.handleAddTask);
+  const handleEdit         = useAppStore(s => s.handleEdit);
+  const handleDelete       = useAppStore(s => s.handleDelete);
+  const handleComplete     = useAppStore(s => s.handleComplete);
+  const handleVisitsUpdate  = useAppStore(s => s.handleVisitsUpdate);
+  const openNewVisitModal  = useAppStore(s => s.openNewVisitModal);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20 md:pb-0 md:flex">
@@ -81,7 +83,7 @@ export default function AppRouter() {
           <NavItem icon={<Users />}        label="Clientes"       isActive={activeTab === 'clients'}    onClick={() => setActiveTab('clients')} />
           <NavItem icon={<CalendarDays />} label="Calendario"     isActive={activeTab === 'calendar'}   onClick={() => setActiveTab('calendar')} />
           <NavItem icon={<FileText />}     label="Reportes"       isActive={activeTab === 'reports'}    onClick={() => setActiveTab('reports')} />
-          <NavItem icon={<ClipboardList />}label="Tareas - Visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
+          <NavItem icon={<ClipboardList />}label="Gestión de visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
           <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}      onClick={() => setActiveTab('billing')} />
           <NavItem icon={<BookOpen />}     label="Borradores"     isActive={activeTab === 'borradores'}  onClick={() => setActiveTab('borradores')} />
           <NavItem icon={<Settings />}     label="Config."        isActive={activeTab === 'config'}      onClick={() => setActiveTab('config')} />
@@ -165,22 +167,12 @@ export default function AppRouter() {
             useClientsHook={{ createClient, updateClient, setClientActive, importClients }}
           />
         )}
-        {activeTab === 'form' && (
-          <TaskForm
-            onSubmit={handleAddTask}
-            initialData={editingTask}
-            statuses={STATUSES}
-            onCancel={() => setActiveTab('list')}
-            clients={clients}
-            serviceTypes={serviceTypes}
-            user={user}
-          />
-        )}
         {activeTab === 'calendar' && (
           <CalendarView
             tasks={tasks}
             user={user}
             onNewTask={() => { useAppStore.setState({ formSource: 'calendar', editingTask: null }); setActiveTab('form'); }}
+            onNewVisit={() => openNewVisitModal()}
           />
         )}
         {activeTab === 'reports' && (
@@ -219,6 +211,14 @@ export default function AppRouter() {
 
       {/* Toasts */}
       <Toast toasts={toasts} onClose={removeToast} />
+
+      {/* Modal global nueva / editar visita */}
+      {openNewVisit && (
+        <VisitFormUnified
+          initialVisit={editingVisit || newVisitDefaults}
+          onClose={closeNewVisitModal}
+        />
+      )}
 
       {/* Modal configuración columnas exportación */}
       {showExportConfig && (

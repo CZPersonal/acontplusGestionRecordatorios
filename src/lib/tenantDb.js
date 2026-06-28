@@ -19,3 +19,9 @@ export const getAbonosRef = () => {
   const { tenantId } = useAppStore.getState();
   return collection(db, 'tenants', tenantId, 'abonos');
 };
+
+// Nueva colección plana de visitas (reemplaza subcollecciones de water_filter_tasks)
+export const getVisitsFlatRef = () => {
+  const { tenantId } = useAppStore.getState();
+  return collection(db, 'tenants', tenantId, 'visits');
+};

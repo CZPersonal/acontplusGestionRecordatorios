@@ -2,12 +2,13 @@ import { useState, useMemo } from 'react';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
-  MapPin, CreditCard, Filter
+  MapPin, CreditCard, Filter, Wrench,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import ClientImportModal from './ClientImportModal.jsx';
-import { emptyContact, getClientContacts } from '../hooks/useClients.js';
+import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/useClients.js';
+import { useAppStore } from '../lib/store';
 
 // ─── Formulario inline crear / editar ─────────────────────────────────────────
 function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
@@ -21,7 +22,9 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
   const [errors,   setErrors]   = useState({});
   const [contacts, setContacts] = useState(() => {
     const existing = getClientContacts(initial || {});
-    return existing.length > 0 ? existing.map(c => ({ ...c })) : [emptyContact()];
+    return existing.length > 0
+      ? existing.map(c => ({ ...c, installations: c.installations || [] }))
+      : [emptyContact()];
   });
 
   const validate = () => {
@@ -59,6 +62,22 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
   const removeContact = (idx) => setContacts(prev => prev.filter((_, i) => i !== idx));
   const setContactField = (idx, field, value) =>
     setContacts(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+
+  const addInstallation = (contactIdx) =>
+    setContacts(prev => prev.map((c, i) =>
+      i === contactIdx ? { ...c, installations: [...(c.installations || []), emptyInstallation()] } : c
+    ));
+  const removeInstallation = (contactIdx, instIdx) =>
+    setContacts(prev => prev.map((c, i) =>
+      i === contactIdx ? { ...c, installations: (c.installations || []).filter((_, j) => j !== instIdx) } : c
+    ));
+  const setInstField = (contactIdx, instIdx, field, value) =>
+    setContacts(prev => prev.map((c, i) =>
+      i === contactIdx
+        ? { ...c, installations: (c.installations || []).map((inst, j) =>
+            j === instIdx ? { ...inst, [field]: value } : inst) }
+        : c
+    ));
 
   const inp = (err) =>
     `w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors ${
@@ -209,6 +228,39 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
                 rows={2}
                 className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
             </div>
+
+            {/* ── Instalaciones ── */}
+            <div className="mt-1 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚙️ Instalaciones</p>
+                <button type="button" onClick={() => addInstallation(idx)}
+                  className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
+                  <Plus size={10} /> Agregar instalación
+                </button>
+              </div>
+              {(contact.installations || []).length === 0 && (
+                <p className="text-xs text-slate-300 italic">Sin instalaciones registradas</p>
+              )}
+              {(contact.installations || []).map((inst, instIdx) => (
+                <div key={inst.id}
+                  className="flex items-start gap-2 mb-2 p-2 bg-amber-50/60 border border-amber-100 rounded-lg">
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <input value={inst.serviceType}
+                      onChange={e => setInstField(idx, instIdx, 'serviceType', e.target.value)}
+                      placeholder="Tipo de servicio / equipo"
+                      className="border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                    <input value={inst.observacion}
+                      onChange={e => setInstField(idx, instIdx, 'observacion', e.target.value)}
+                      placeholder="Observación (capacidad, marca...)"
+                      className="border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                  </div>
+                  <button type="button" onClick={() => removeInstallation(idx, instIdx)}
+                    className="mt-1 p-0.5 rounded text-amber-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -231,7 +283,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
 }
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
-function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
+function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
   const contacts    = getClientContacts(client);
   const firstC      = contacts[0] || {};
   const extraCount  = contacts.length - 1;
@@ -316,6 +368,12 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
 
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+          <button onClick={() => onNewVisit(client)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white"
+            style={{ background: '#D61672' }}
+            title="Nueva visita">
+            <Wrench size={11} /> Nueva visita
+          </button>
           <button onClick={() => onEdit(client)}
             className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
             title="Editar">
@@ -341,6 +399,7 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ClientsManager({ clients, tasks, useClientsHook }) {
   const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
+  const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
 
   const [search,       setSearch]       = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -526,6 +585,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
                         onEdit={handleEdit}
                         onToggleActive={handleToggleActive}
                         isLoading={isLoading}
+                        onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
                       />
                     );
                   })}

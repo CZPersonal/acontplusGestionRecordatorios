@@ -6,14 +6,21 @@ import { useAppStore } from '../lib/store';
 
 // ─── Helpers exportados ────────────────────────────────────────────────────────
 
-export const emptyContact = (fields = {}) => ({
+export const emptyInstallation = (fields = {}) => ({
   id:          crypto.randomUUID(),
-  ubicacion:   fields.ubicacion   || '',
-  ciudad:      fields.ciudad      || '',
-  address:     fields.address     || '',
-  phone:       fields.phone       || '',
-  email:       fields.email       || '',
+  serviceType: fields.serviceType || '',
   observacion: fields.observacion || '',
+});
+
+export const emptyContact = (fields = {}) => ({
+  id:            crypto.randomUUID(),
+  ubicacion:     fields.ubicacion     || '',
+  ciudad:        fields.ciudad        || '',
+  address:       fields.address       || '',
+  phone:         fields.phone         || '',
+  email:         fields.email         || '',
+  observacion:   fields.observacion   || '',
+  installations: fields.installations || [],
 });
 
 // Compatibilidad hacia atrás: clientes con campos planos → array contacts

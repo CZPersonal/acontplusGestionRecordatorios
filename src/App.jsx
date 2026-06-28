@@ -4,6 +4,7 @@ import { doc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { useAppStore } from './lib/store';
 import { useTasks } from './hooks/useTasks';
+import { useVisits } from './hooks/useVisits';
 import { useNotifications } from './hooks/useNotifications';
 import { useClients } from './hooks/useClients';
 import { useServiceTypes } from './hooks/useServiceTypes';
@@ -177,6 +178,7 @@ export default function App() {
 
   // ─── Firestore subscriptions (sincronizan su estado al store internamente) ─
   useTasks(effectiveUser);
+  useVisits(effectiveUser);
   useClients(effectiveUser);
   useServiceTypes(effectiveUser);
   useExportConfig(effectiveUser);

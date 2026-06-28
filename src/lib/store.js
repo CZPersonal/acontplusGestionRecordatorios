@@ -21,28 +21,49 @@ export const useAppStore = create((set, get) => ({
   isOnline: navigator.onLine,
 
   // ─── UI Navigation ────────────────────────────────────────────────────────
-  activeTab:          'dashboard',
-  editingTask:        null,
-  showExportConfig:   false,
-  formSource:         null,   // 'calendar' | null — indica desde dónde se abrió el formulario
-  highlightedTaskId:  null,   // ID de tarea recién guardada para resaltar en AllVisitsManager
-  setActiveTab:       (tab)  => set({ activeTab: tab }),
-  setEditingTask:     (task) => set({ editingTask: task }),
-  setShowExportConfig: (show) => set({ showExportConfig: show }),
-  setHighlightedTaskId: (id) => set({ highlightedTaskId: id }),
+  activeTab:           'dashboard',
+  editingTask:         null,
+  editingVisit:        null,   // visita en edición en el nuevo sistema
+  showExportConfig:    false,
+  formSource:          null,   // 'calendar' | 'clients' | null
+  highlightedTaskId:   null,
+  highlightedVisitId:  null,   // ID de visita recién guardada para resaltar
+  openNewVisit:        false,  // abre el modal de nueva visita
+  newVisitDefaults:    null,   // pre-selección de cliente/contacto/instalación
+  setActiveTab:        (tab)  => set({ activeTab: tab }),
+  setEditingTask:      (task) => set({ editingTask: task }),
+  setEditingVisit:     (visit) => set({ editingVisit: visit }),
+  setShowExportConfig: (show)  => set({ showExportConfig: show }),
+  setHighlightedTaskId: (id)  => set({ highlightedTaskId: id }),
+  setHighlightedVisitId: (id) => set({ highlightedVisitId: id }),
+  openNewVisitModal: (defaults = null) => set({ openNewVisit: true,  newVisitDefaults: defaults }),
+  closeNewVisitModal: ()               => set({ openNewVisit: false, newVisitDefaults: null }),
 
-  // ─── Tasks (poblado por useTasks) ─────────────────────────────────────────
+  // ─── Tasks legacy (poblado por useTasks — solo lectura histórica) ───────────
   tasks:           [],
   rawTasks:        [],
   isLoadingTasks:  true,
   hasMoreTasks:    false,
   isLoadingMore:   false,
-  refreshKey:      0,       // incrementar para forzar recarga de listeners Firestore
+  refreshKey:      0,
   addTask:         async () => false,
   deleteTask:      async () => false,
   markAsCompleted: async () => false,
   loadMoreTasks:   async () => {},
   updateTaskVisits: async () => true,
+
+  // ─── Visits (poblado por useVisits) — nueva colección plana ──────────────
+  visits:              [],
+  isLoadingVisits:     true,
+  addVisit:            async () => false,
+  editVisit:           async () => false,
+  deleteVisit:         async () => false,
+  completeVisit:       async () => false,
+  cancelVisit:         async () => false,
+  annulVisit:          async () => false,
+  revertVisit:         async () => false,
+  confirmVisit:        async () => false,
+  generateSupportVisit: async () => false,
 
   // ─── Clients (poblado por useClients) ─────────────────────────────────────
   clients:         [],
@@ -81,11 +102,61 @@ export const useAppStore = create((set, get) => ({
   addToast:             () => {},
   removeToast:          () => {},
 
-  // ─── Handlers de app (usan get() para estado siempre fresco) ─────────────
+  // ─── Handlers de visits (nueva arquitectura) ─────────────────────────────
+  handleAddVisit: async (visitData) => {
+    const { addVisit, addToast } = get();
+    const savedId = await addVisit(visitData);
+    if (savedId) {
+      set({ openNewVisit: false, newVisitDefaults: null, editingVisit: null, highlightedVisitId: savedId });
+    } else {
+      addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo guardar la visita. Verifica tu conexión.' });
+    }
+    return savedId;
+  },
+  handleEditVisit: async (visitId, data) => {
+    const { editVisit, addToast } = get();
+    const ok = await editVisit(visitId, data);
+    if (ok) set({ editingVisit: null });
+    else addToast({ type: 'error', title: '❌ Error al editar', body: 'No se pudo actualizar la visita.' });
+    return ok;
+  },
+  handleDeleteVisit: async (visitId) => {
+    const { deleteVisit, addToast } = get();
+    if (!await deleteVisit(visitId))
+      addToast({ type: 'error', title: '❌ Error al eliminar', body: 'No se pudo eliminar la visita.' });
+  },
+  handleGenerateSupport: (parentVisit) => {
+    const todayStr = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    })();
+    const defaults = {
+      clientId:        parentVisit.clientId,
+      contactId:       parentVisit.contactId,
+      installationId:  parentVisit.installationId,
+      clientName:      parentVisit.clientName,
+      serviceType:     parentVisit.serviceType,
+      address:         parentVisit.address,
+      ubicacion:       parentVisit.ubicacion,
+      ciudad:          parentVisit.ciudad,
+      phone:           parentVisit.phone,
+      scheduledDate:   todayStr,
+      scheduledTime:   '',
+      type:            parentVisit.type            || '',
+      urgency:         'Media',
+      observations:    '',
+      technician:      parentVisit.technician      || '',
+      technicianEmail: parentVisit.technicianEmail || '',
+      serviceOrder:    '',
+      parentVisitId:   parentVisit.id,
+    };
+    set({ openNewVisit: true, newVisitDefaults: defaults, editingVisit: null });
+  },
+
+  // ─── Handlers de tasks legacy ─────────────────────────────────────────────
   handleAddTask: async (task) => {
     const { saveClient, addTask, user, addToast } = get();
     if (task.identification?.trim() && task.clientName) await saveClient(task);
-    // Quitar campos de contactos antes de guardar la tarea (van al cliente, no a la tarea)
     const { contacts: _c, additionalContacts: _ac, ...taskData } = task;
     const savedId = await addTask(taskData, user.email);
     if (savedId) set({ activeTab: 'all-visits', editingTask: null, formSource: null, highlightedTaskId: savedId });
