@@ -377,7 +377,25 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
         {/* Body scrollable */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-6">
 
-          {/* ── A. Cliente ── */}
+          {/* ── A. Establecimiento / Sucursal ── */}
+          {visibleEstablecimientos.length > 0 && (
+            <div>
+              <p className={sectionTitle}>
+                <Building2 size={16} className="text-cyan-500" />
+                Establecimiento / Sucursal
+              </p>
+              <select value={selectedEstId} onChange={e => setEstId(e.target.value)} className={inp}>
+                <option value="">— Sin especificar —</option>
+                {visibleEstablecimientos.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}{e.codigo ? ` (${e.codigo})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* ── B. Cliente ── */}
           <div>
             <p className={sectionTitle}>
               <User size={16} className="text-pink-500" />
@@ -525,24 +543,6 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                   <Plus size={13} /> Agregar equipo / instalación
                 </button>
               )}
-            </div>
-          )}
-
-          {/* ── D. Establecimiento / Sucursal ── */}
-          {visibleEstablecimientos.length > 0 && (
-            <div>
-              <p className={sectionTitle}>
-                <Building2 size={16} className="text-cyan-500" />
-                Establecimiento / Sucursal
-              </p>
-              <select value={selectedEstId} onChange={e => setEstId(e.target.value)} className={inp}>
-                <option value="">— Sin especificar —</option>
-                {visibleEstablecimientos.map(e => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre}{e.codigo ? ` (${e.codigo})` : ''}
-                  </option>
-                ))}
-              </select>
             </div>
           )}
 
