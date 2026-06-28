@@ -19,7 +19,8 @@ export const emptyContact = (fields = {}) => ({
   address:       fields.address       || '',
   phone:         fields.phone         || '',
   email:         fields.email         || '',
-  observacion:   fields.observacion   || '',
+  mapsLink:      fields.mapsLink      || '',
+  referencia:    fields.referencia    || '',
   installations: fields.installations || [],
 });
 
@@ -27,15 +28,16 @@ export const emptyContact = (fields = {}) => ({
 export const getClientContacts = (client) => {
   if (client.contacts?.length > 0) return client.contacts;
   const hasLegacy = client.phone || client.address || client.email
-    || client.ciudad || client.ubicacion || client.observacion;
+    || client.ciudad || client.ubicacion;
   if (!hasLegacy) return [];
   return [emptyContact({
-    phone:       client.phone,
-    address:     client.address,
-    email:       client.email,
-    ciudad:      client.ciudad,
-    ubicacion:   client.ubicacion,
-    observacion: client.observacion,
+    phone:      client.phone,
+    address:    client.address,
+    email:      client.email,
+    ciudad:     client.ciudad,
+    ubicacion:  client.ubicacion,
+    mapsLink:   client.mapsLink   || '',
+    referencia: client.referencia || '',
   })];
 };
 
@@ -66,12 +68,11 @@ export function useClients(user) {
       const hasLegacy = clientData.clientPhone || clientData.clientAddress;
       if (hasLegacy) {
         incoming = [emptyContact({
-          phone:       clientData.clientPhone,
-          address:     clientData.clientAddress,
-          email:       clientData.clientEmail,
-          ciudad:      clientData.ciudad,
-          ubicacion:   clientData.ubicacion,
-          observacion: clientData.observacion,
+          phone:     clientData.clientPhone,
+          address:   clientData.clientAddress,
+          email:     clientData.clientEmail,
+          ciudad:    clientData.ciudad,
+          ubicacion: clientData.ubicacion,
         })];
       }
     }
@@ -94,7 +95,8 @@ export function useClients(user) {
               ...(inc.email       ? { email:       inc.email }       : {}),
               ...(inc.ciudad      ? { ciudad:      inc.ciudad }      : {}),
               ...(inc.ubicacion   ? { ubicacion:   inc.ubicacion }   : {}),
-              ...(inc.observacion ? { observacion: inc.observacion } : {}),
+              ...(inc.mapsLink    ? { mapsLink:    inc.mapsLink }    : {}),
+              ...(inc.referencia  ? { referencia:  inc.referencia }  : {}),
             };
             // Agregar contactos adicionales (idx >= 1) si vinieron del formulario
             for (let i = 1; i < incoming.length; i++) {
@@ -252,12 +254,11 @@ export function useClients(user) {
           identification: row.identification.trim(),
           foreign:        row.foreign ?? false,
           contacts: [emptyContact({
-            phone:       row.phone,
-            address:     row.address,
-            email:       row.email,
-            ciudad:      row.ciudad,
-            ubicacion:   row.ubicacion,
-            observacion: row.observacion,
+            phone:     row.phone,
+            address:   row.address,
+            email:     row.email,
+            ciudad:    row.ciudad,
+            ubicacion: row.ubicacion,
           })],
           active:    true,
           createdAt: new Date().toISOString(),

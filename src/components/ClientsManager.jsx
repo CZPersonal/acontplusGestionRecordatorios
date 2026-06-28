@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
-  MapPin, CreditCard, Filter, Wrench,
+  MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -292,14 +292,52 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
               </div>
             </div>
 
-            {/* Observación */}
+            {/* Google Maps */}
             <div>
-              <label className={lbl}>Observación</label>
-              <textarea value={contact.observacion}
-                onChange={e => setContactField(idx, 'observacion', e.target.value)}
-                placeholder="Notas sobre esta ubicación..."
-                rows={2}
-                className="w-full border-2 rounded-xl px-3 py-2 text-sm focus:outline-none transition-colors border-slate-200 focus:border-pink-400 resize-none" />
+              <label className={lbl}>Ubicación en Google Maps</label>
+              <div className="flex gap-2">
+                <input type="url" value={contact.mapsLink}
+                  onChange={e => setContactField(idx, 'mapsLink', e.target.value)}
+                  placeholder="Pega aquí el link de Google Maps..."
+                  className={`flex-1 ${inp(false)}`} />
+                <button type="button"
+                  title="Abrir Google Maps con mi ubicación actual"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        pos => window.open(
+                          `https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`,
+                          '_blank'
+                        ),
+                        () => window.open('https://www.google.com/maps', '_blank')
+                      );
+                    } else {
+                      window.open('https://www.google.com/maps', '_blank');
+                    }
+                  }}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
+                  <Navigation size={13} /> Abrir Maps
+                </button>
+                {contact.mapsLink && (
+                  <a href={contact.mapsLink} target="_blank" rel="noopener noreferrer"
+                    title="Ver ubicación"
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
+                    <ExternalLink size={13} /> Ver
+                  </a>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Haz clic en "Abrir Maps", busca la dirección del cliente, comparte la ubicación y pega el enlace aquí.
+              </p>
+            </div>
+
+            {/* Referencia */}
+            <div>
+              <label className={lbl}>Referencia</label>
+              <input type="text" value={contact.referencia}
+                onChange={e => setContactField(idx, 'referencia', e.target.value)}
+                placeholder="Frente al parque, junto a la farmacia..."
+                className={inp(false)} />
             </div>
 
             {/* ── Equipo / Instalación / Servicio ── */}
@@ -386,9 +424,9 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
                 <span className="text-xs font-mono text-slate-500">{client.identification}</span>
               </div>
             )}
-            {firstC.observacion && (
-              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={firstC.observacion}>
-                {firstC.observacion}
+            {firstC.referencia && (
+              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={firstC.referencia}>
+                📍 {firstC.referencia}
               </p>
             )}
           </div>
