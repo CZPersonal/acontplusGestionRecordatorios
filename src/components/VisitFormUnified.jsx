@@ -4,7 +4,7 @@ import { getClientContacts, emptyContact, emptyInstallation } from '../hooks/use
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import {
-  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar,
+  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2,
 } from 'lucide-react';
 
 // ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
@@ -152,15 +152,19 @@ function ClientPicker({ clients, selected, onSelect, onClear }) {
 
 export default function VisitFormUnified({ initialVisit, onClose }) {
   const clients            = useAppStore(s => s.clients);
-  const serviceTypes       = useAppStore(s => s.serviceTypes);
-  const addServiceType     = useAppStore(s => s.addServiceType);
-  const handleAddVisit     = useAppStore(s => s.handleAddVisit);
-  const handleEditVisit    = useAppStore(s => s.handleEditVisit);
-  const addToast           = useAppStore(s => s.addToast);
-  const openNewVisit       = useAppStore(s => s.openNewVisit);
-  const newVisitDefaults   = useAppStore(s => s.newVisitDefaults);
-  const closeNewVisitModal = useAppStore(s => s.closeNewVisitModal);
-  const user               = useAppStore(s => s.user);
+  const serviceTypes                = useAppStore(s => s.serviceTypes);
+  const addServiceType              = useAppStore(s => s.addServiceType);
+  const handleAddVisit              = useAppStore(s => s.handleAddVisit);
+  const handleEditVisit             = useAppStore(s => s.handleEditVisit);
+  const addToast                    = useAppStore(s => s.addToast);
+  const openNewVisit                = useAppStore(s => s.openNewVisit);
+  const newVisitDefaults            = useAppStore(s => s.newVisitDefaults);
+  const closeNewVisitModal          = useAppStore(s => s.closeNewVisitModal);
+  const user                        = useAppStore(s => s.user);
+  const establecimientos            = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos      = useAppStore(s => s.memberEstablecimientos);
+  const memberEstablecimientoDefault = useAppStore(s => s.memberEstablecimientoDefault);
+  const userRole                    = useAppStore(s => s.userRole);
 
   const { tecnicos }               = useTecnicos(user);
   const { tipos: tiposVisita = [] } = useTiposVisita(user);
@@ -188,7 +192,8 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
     technicianPhone: '',
     serviceOrder:    '',
   });
-  const [isSaving, setIsSaving] = useState(false);
+  const [selectedEstId, setEstId] = useState('');
+  const [isSaving, setIsSaving]   = useState(false);
 
   const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -201,8 +206,9 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       const c = clients.find(cl => cl.id === defaults.clientId);
       if (c) setClient(c);
     }
-    if (defaults.contactId)  setContactId(defaults.contactId);
-    if (defaults.installationId) setInstId(defaults.installationId);
+    if (defaults.contactId)       setContactId(defaults.contactId);
+    if (defaults.installationId)  setInstId(defaults.installationId);
+    if (defaults.establecimientoId) setEstId(defaults.establecimientoId);
 
     setForm({
       scheduledDate:   defaults.scheduledDate   || today(),
@@ -223,6 +229,19 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const selectedContact = contacts.find(c => c.id === selectedContactId) || null;
   const installations = selectedContact?.installations || [];
   const selectedInst  = installations.find(i => i.id === selectedInstId) || null;
+
+  // Establecimientos visibles: admin ve todos, técnico solo los asignados
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
+
+  // Pre-seleccionar establecimiento por defecto al abrir en modo creación
+  useEffect(() => {
+    if (isEdit || selectedEstId) return;
+    if (memberEstablecimientoDefault) setEstId(memberEstablecimientoDefault);
+    else if (visibleEstablecimientos.length === 1) setEstId(visibleEstablecimientos[0].id);
+  }, [memberEstablecimientoDefault, visibleEstablecimientos.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-seleccionar si solo hay uno
   useEffect(() => {
@@ -286,6 +305,8 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
     setIsSaving(true);
 
+    const selectedEst = visibleEstablecimientos.find(e => e.id === selectedEstId) || null;
+
     const visitData = {
       // Referencias
       clientId:       client.id,
@@ -298,6 +319,9 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       ubicacion:   selectedContact?.ubicacion || '',
       ciudad:      selectedContact?.ciudad    || '',
       phone:       selectedContact?.phone     || '',
+      // Establecimiento
+      establecimientoId:     selectedEst?.id     || null,
+      establecimientoNombre: selectedEst?.nombre || '',
       // Datos de visita
       ...form,
       parentVisitId: initialVisit?.parentVisitId || null,
@@ -504,7 +528,25 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
             </div>
           )}
 
-          {/* ── D. Detalles de visita ── */}
+          {/* ── D. Establecimiento / Sucursal ── */}
+          {visibleEstablecimientos.length > 0 && (
+            <div>
+              <p className={sectionTitle}>
+                <Building2 size={16} className="text-cyan-500" />
+                Establecimiento / Sucursal
+              </p>
+              <select value={selectedEstId} onChange={e => setEstId(e.target.value)} className={inp}>
+                <option value="">— Sin especificar —</option>
+                {visibleEstablecimientos.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}{e.codigo ? ` (${e.codigo})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* ── E. Detalles de visita ── */}
           <div>
             <p className={sectionTitle}>
               <Calendar size={16} className="text-slate-500" />

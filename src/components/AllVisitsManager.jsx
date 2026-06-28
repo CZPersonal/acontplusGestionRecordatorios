@@ -8,7 +8,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
-  Wrench, UserCheck, FileText, RefreshCw,
+  Wrench, UserCheck, FileText, RefreshCw, Building2,
 } from 'lucide-react';
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
@@ -145,13 +145,16 @@ export default function AllVisitsManager({ user }) {
   const setHighlightedVisitId = useAppStore(s => s.setHighlightedVisitId);
   const { tecnicos }        = useTecnicos(user);
 
-  const [innerTab, setInnerTab]     = useState('gestion');
-  const [search, setSearch]         = useState('');
-  const [filterStatus, setFilter]   = useState('');
-  const [filterTech, setFilterTech] = useState('');
-  const [filterUrgency, setFilterU] = useState('');
-  const [filterFrom, setFilterFrom] = useState('');
-  const [filterTo, setFilterTo]     = useState('');
+  const establecimientos = useAppStore(s => s.establecimientos);
+
+  const [innerTab, setInnerTab]           = useState('gestion');
+  const [search, setSearch]               = useState('');
+  const [filterStatus, setFilter]         = useState('');
+  const [filterTech, setFilterTech]       = useState('');
+  const [filterUrgency, setFilterU]       = useState('');
+  const [filterFrom, setFilterFrom]       = useState('');
+  const [filterTo, setFilterTo]           = useState('');
+  const [filterEst, setFilterEst]         = useState('');
   const [completeModal, setCompleteModal] = useState(null);
   const [annulConfirm,  setAnnulConfirm]  = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -176,9 +179,9 @@ export default function AllVisitsManager({ user }) {
     return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
   }, [highlightedVisitId, setHighlightedVisitId]);
 
-  const hasFilters = !!(search || filterStatus || filterTech || filterUrgency || filterFrom || filterTo);
+  const hasFilters = !!(search || filterStatus || filterTech || filterUrgency || filterFrom || filterTo || filterEst);
   const clearFilters = () => {
-    setSearch(''); setFilter(''); setFilterTech(''); setFilterU(''); setFilterFrom(''); setFilterTo('');
+    setSearch(''); setFilter(''); setFilterTech(''); setFilterU(''); setFilterFrom(''); setFilterTo(''); setFilterEst('');
   };
 
   // ─── Filtrado ────────────────────────────────────────────────────────────────
@@ -190,9 +193,11 @@ export default function AllVisitsManager({ user }) {
       if (filterUrgency && v.urgency !== filterUrgency) return false;
       if (filterFrom && v.scheduledDate < filterFrom) return false;
       if (filterTo && v.scheduledDate > filterTo) return false;
+      if (filterEst && v.establecimientoId !== filterEst) return false;
       if (q) {
         return (
           v.clientName?.toLowerCase().includes(q) ||
+          v.visitNumber?.toLowerCase().includes(q) ||
           v.serviceOrder?.toLowerCase().includes(q) ||
           v.technician?.toLowerCase().includes(q) ||
           v.serviceType?.toLowerCase().includes(q) ||
@@ -202,7 +207,7 @@ export default function AllVisitsManager({ user }) {
       }
       return true;
     });
-  }, [visits, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo]);
+  }, [visits, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst]);
 
   // ─── Stats ───────────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -327,7 +332,7 @@ export default function AllVisitsManager({ user }) {
                   placeholder="Buscar por cliente, OS, técnico, servicio, ubicación, teléfono…"
                   className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" />
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                 <select value={filterStatus} onChange={e => setFilter(e.target.value)} className={sel}>
                   <option value="">Estado visita</option>
                   {['Programada','Realizada','Cancelada','Anulada'].map(s => <option key={s}>{s}</option>)}
@@ -338,8 +343,14 @@ export default function AllVisitsManager({ user }) {
                 </select>
                 <select value={filterTech} onChange={e => setFilterTech(e.target.value)} className={sel}>
                   <option value="">Técnico</option>
-                  {tecnicos.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
                 </select>
+                {establecimientos.length > 0 && (
+                  <select value={filterEst} onChange={e => setFilterEst(e.target.value)} className={sel}>
+                    <option value="">Establecimiento</option>
+                    {establecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                  </select>
+                )}
                 <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className={sel} />
                 <input type="date" value={filterTo}   onChange={e => setFilterTo(e.target.value)}   className={sel} />
               </div>
@@ -390,6 +401,11 @@ export default function AllVisitsManager({ user }) {
                       <div className="px-4 py-2.5 flex items-center justify-between gap-3"
                         style={{ borderLeft: `4px solid ${borderColor}` }}>
                         <div className="flex items-center gap-3 min-w-0">
+                          {visit.visitNumber && (
+                            <span className="flex-shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-700">
+                              {visit.visitNumber}
+                            </span>
+                          )}
                           {visit.parentVisitId && (
                             <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-semibold">
                               🔧 Soporte
@@ -441,6 +457,12 @@ export default function AllVisitsManager({ user }) {
                           <div>
                             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Ubicación</p>
                             <p className="font-medium text-slate-700 truncate">{visit.ubicacion}{visit.ciudad ? ` · ${visit.ciudad}` : ''}</p>
+                          </div>
+                        )}
+                        {visit.establecimientoNombre && (
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Building2 size={10} />Sucursal</p>
+                            <p className="font-medium text-slate-700">{visit.establecimientoNombre}</p>
                           </div>
                         )}
                         {visit.type && (

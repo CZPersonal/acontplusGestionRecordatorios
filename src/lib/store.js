@@ -77,6 +77,14 @@ export const useAppStore = create((set, get) => ({
   serviceTypes:    [],
   addServiceType:  async () => false,
 
+  // ─── Establecimientos (poblado por useEstablecimientos) ──────────────────
+  establecimientos:             [],
+  memberEstablecimientos:       [],   // IDs asignados al usuario ([] = sin restricción)
+  memberEstablecimientoDefault: null, // ID del establecimiento por defecto del usuario
+  addEstablecimiento:           async () => false,
+  updateEstablecimiento:        async () => false,
+  deleteEstablecimiento:        async () => false,
+
   // ─── Configuración de empresa (poblado por useConfiguracion) ────────────────
   empresaConfig: {
     empresaNombre:   'ACONTPLUS',

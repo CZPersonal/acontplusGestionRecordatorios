@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit, runTransaction } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { getVisitsFlatRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { logAudit } from '../services/auditService';
@@ -34,32 +35,39 @@ export function useVisits(user) {
     return () => unsub();
   }, [user]);
 
-  // ─── Crear visita ────────────────────────────────────────────────────────────
+  // ─── Crear visita (transacción atómica: contador + visita) ──────────────────
   const addVisit = async (data) => {
-    const { user: u } = useAppStore.getState();
-    if (!u) return false;
-    const visitId = crypto.randomUUID();
+    const { user: u, tenantId } = useAppStore.getState();
+    if (!u || !tenantId) return false;
+    const visitId    = crypto.randomUUID();
+    const counterRef = doc(db, 'tenants', tenantId, 'counters', 'visits');
+    const visitRef   = doc(db, 'tenants', tenantId, 'visits', visitId);
     try {
-      await setDoc(doc(getVisitsFlatRef(), visitId), {
-        ...data,
-        id:        visitId,
-        status:    data.status    || 'Programada',
-        urgency:   data.urgency   || 'Media',
-        createdBy: u.email,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        // Campos de cierre — vacíos al crear
-        completedAt:         null,
-        completedBy:         null,
-        closingObservations: '',
-        // Campos de confirmación técnico
-        confirmed:   false,
-        confirmedAt: null,
-        confirmedBy: null,
-        // Soporte: referencia a visita original
-        parentVisitId: data.parentVisitId || null,
+      let visitNumber;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(counterRef);
+        const next = (snap.exists() ? (snap.data().last ?? 0) : 0) + 1;
+        visitNumber = `V-${String(next).padStart(4, '0')}`;
+        tx.set(counterRef, { last: next }, { merge: true });
+        tx.set(visitRef, {
+          ...data,
+          id:          visitId,
+          visitNumber,
+          status:      data.status  || 'Programada',
+          urgency:     data.urgency || 'Media',
+          createdBy:   u.email,
+          createdAt:   new Date().toISOString(),
+          updatedAt:   new Date().toISOString(),
+          completedAt:         null,
+          completedBy:         null,
+          closingObservations: '',
+          confirmed:   false,
+          confirmedAt: null,
+          confirmedBy: null,
+          parentVisitId: data.parentVisitId || null,
+        });
       });
-      logAudit(u, 'visit_created', 'visit', visitId, { clientName: data.clientName });
+      logAudit(u, 'visit_created', 'visit', visitId, { clientName: data.clientName, visitNumber });
       return visitId;
     } catch (err) {
       console.error('Error al crear visita:', err);

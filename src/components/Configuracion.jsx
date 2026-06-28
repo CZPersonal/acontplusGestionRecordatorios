@@ -12,6 +12,7 @@ import TecnicosForm from './TecnicosForm.jsx';
 import ServiceTypesManager from './ServiceTypesManager.jsx';
 import TiposVisitaManager from './TiposVisitaManager.jsx';
 import UsersManager from './UsersManager.jsx';
+import EstablecimientosManager from './EstablecimientosManager.jsx';
 
 // ─── Sub-componentes de Entidad ───────────────────────────────────────────────
 
@@ -1129,10 +1130,11 @@ function TabNotificaciones({ user }) {
 // ─── Sub-menú: Catálogos ──────────────────────────────────────────────────────
 
 function TabCatalogos({ user }) {
-  const [showTecnicos,     setShowTecnicos]     = useState(false);
-  const [showServiceTypes, setShowServiceTypes] = useState(false);
-  const [showTiposVisita,  setShowTiposVisita]  = useState(false);
-  const [showUsers,        setShowUsers]        = useState(false);
+  const [showTecnicos,          setShowTecnicos]          = useState(false);
+  const [showServiceTypes,      setShowServiceTypes]      = useState(false);
+  const [showTiposVisita,       setShowTiposVisita]       = useState(false);
+  const [showUsers,             setShowUsers]             = useState(false);
+  const [showEstablecimientos,  setShowEstablecimientos]  = useState(false);
 
   const cards = [
     {
@@ -1158,6 +1160,14 @@ function TabCatalogos({ user }) {
       color: '#7c3aed',
       bg: '#ede9fe',
       onClick: () => setShowTiposVisita(true),
+    },
+    {
+      label: 'Establecimientos',
+      description: 'Sucursales y puntos de atención de la empresa',
+      icon: <Building2 size={22} />,
+      color: '#0891b2',
+      bg: '#e0f2fe',
+      onClick: () => setShowEstablecimientos(true),
     },
     {
       label: 'Usuarios y roles',
@@ -1190,10 +1200,11 @@ function TabCatalogos({ user }) {
         ))}
       </div>
 
-      {showTecnicos     && <TecnicosForm        user={user} onClose={() => setShowTecnicos(false)} />}
-      {showServiceTypes && <ServiceTypesManager  user={user} onClose={() => setShowServiceTypes(false)} />}
-      {showTiposVisita  && <TiposVisitaManager   user={user} onClose={() => setShowTiposVisita(false)} />}
-      {showUsers        && <UsersManager                     onClose={() => setShowUsers(false)} />}
+      {showTecnicos         && <TecnicosForm           user={user} onClose={() => setShowTecnicos(false)} />}
+      {showServiceTypes     && <ServiceTypesManager     user={user} onClose={() => setShowServiceTypes(false)} />}
+      {showTiposVisita      && <TiposVisitaManager      user={user} onClose={() => setShowTiposVisita(false)} />}
+      {showEstablecimientos && <EstablecimientosManager user={user} onClose={() => setShowEstablecimientos(false)} />}
+      {showUsers            && <UsersManager                        onClose={() => setShowUsers(false)} />}
     </div>
   );
 }

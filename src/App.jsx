@@ -9,6 +9,7 @@ import { useNotifications } from './hooks/useNotifications';
 import { useClients } from './hooks/useClients';
 import { useServiceTypes } from './hooks/useServiceTypes';
 import { useExportConfig } from './hooks/useExportConfig.js';
+import { useEstablecimientos } from './hooks/useEstablecimientos';
 import Login from './components/Login.jsx';
 import TenantSetup from './components/TenantSetup.jsx';
 import CompanySelector from './components/CompanySelector.jsx';
@@ -80,8 +81,13 @@ export default function App() {
               getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
             ]);
             let role = 'admin';
+            let memberEsts = [];
+            let memberEstDefault = null;
             if (memberSnap.exists()) {
-              role = memberSnap.data().role || 'admin';
+              const md = memberSnap.data();
+              role = md.role || 'admin';
+              memberEsts = md.establecimientos || [];
+              memberEstDefault = md.establecimientoDefault || null;
             } else {
               setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
                 uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
@@ -90,7 +96,7 @@ export default function App() {
             const tenantName = td.data()?.name ?? '';
             const tenantRuc  = td.data()?.ruc  ?? '';
             saveSession({ uid: u.uid, email: u.email, displayName: u.displayName || '', tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
-            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, isAuthLoading: false });
+            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, memberEstablecimientos: memberEsts, memberEstablecimientoDefault: memberEstDefault, isAuthLoading: false });
           } catch {
             // Sin red: usar tenant conocido, priorizar rol guardado en localStorage
             const s = loadSession();
@@ -132,19 +138,24 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // ─── Role refresh (multi-tenant: cuando el usuario selecciona empresa) ─────
+  // ─── Role refresh + datos de establecimientos del miembro ────────────────
   useEffect(() => {
     if (!user || !tenantId) return;
     getDoc(doc(db, 'tenants', tenantId, 'members', user.uid))
       .then(async snap => {
         if (snap.exists()) {
-          useAppStore.setState({ userRole: snap.data().role || 'admin' });
+          const d = snap.data();
+          useAppStore.setState({
+            userRole:                    d.role || 'admin',
+            memberEstablecimientos:      d.establecimientos      || [],
+            memberEstablecimientoDefault: d.establecimientoDefault || null,
+          });
         } else {
           // Usuario existente sin registro de rol → crearlo como admin
           await setDoc(doc(db, 'tenants', tenantId, 'members', user.uid), {
             uid: user.uid, email: user.email, role: 'admin', joinedAt: new Date().toISOString(),
           });
-          useAppStore.setState({ userRole: 'admin' });
+          useAppStore.setState({ userRole: 'admin', memberEstablecimientos: [], memberEstablecimientoDefault: null });
         }
       })
       .catch(() => {});
@@ -182,6 +193,7 @@ export default function App() {
   useClients(effectiveUser);
   useServiceTypes(effectiveUser);
   useExportConfig(effectiveUser);
+  useEstablecimientos(effectiveUser);
 
   // ─── Notificaciones ────────────────────────────────────────────────────────
   const {
