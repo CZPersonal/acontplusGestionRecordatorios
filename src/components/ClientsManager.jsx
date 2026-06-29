@@ -474,36 +474,80 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
 }
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
-function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
+function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
   const contacts = getClientContacts(client);
 
   return (
-    <tr className={`hover:bg-slate-50 transition-colors group align-top ${!client.active ? 'opacity-60' : ''}`}>
+    <tr className={`hover:bg-slate-50 transition-colors align-top ${!client.active ? 'opacity-60' : ''}`}>
 
-      {/* ── Cliente: nombre + identificación ── */}
-      <td className="px-4 py-3">
+      {/* ── Columna 1: Cliente + badges + botones ── */}
+      <td className="px-4 py-3 w-56">
         <div className="flex items-start gap-2">
           <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
-          <div>
+          <div className="min-w-0">
+
+            {/* Nombre */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="text-sm font-semibold text-slate-800">{client.name}</p>
+              <p className="text-sm font-semibold text-slate-800 leading-snug">{client.name}</p>
               {client.foreign && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                  🌐 Extranjero
+                  🌐 Ext.
                 </span>
               )}
             </div>
+
+            {/* Identificación */}
             {client.identification && (
               <div className="flex items-center gap-1 mt-0.5">
                 <CreditCard size={10} className="text-slate-400" />
                 <span className="text-xs font-mono text-slate-500">{client.identification}</span>
               </div>
             )}
+
+            {/* Badges: visitas + estado */}
+            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                visitCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+              }`}>
+                {visitCount} visita{visitCount !== 1 ? 's' : ''}
+              </span>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                client.active !== false ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {client.active !== false ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
+
+            {/* Botones de acción — siempre visibles */}
+            <div className="flex items-center gap-1 flex-wrap mt-2">
+              <button onClick={() => onNewVisit(client)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white"
+                style={{ background: '#D61672' }}>
+                <Wrench size={10} /> Nueva visita
+              </button>
+              <button onClick={() => onEdit(client)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                <Pencil size={10} /> Editar
+              </button>
+              <button
+                onClick={() => onToggleActive(client)}
+                disabled={isLoading}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+                  client.active !== false
+                    ? 'bg-slate-100 text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                    : 'bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600'
+                }`}>
+                {client.active !== false
+                  ? <><UserX size={10} /> Inactivar</>
+                  : <><UserCheck size={10} /> Activar</>}
+              </button>
+            </div>
+
           </div>
         </div>
       </td>
 
-      {/* ── Ubicaciones: todas las sucursales/contactos ── */}
+      {/* ── Columna 2: Ubicaciones (ocupa el espacio restante) ── */}
       <td className="px-4 py-3">
         {contacts.length === 0 ? (
           <span className="text-slate-300 text-xs">Sin ubicaciones</span>
@@ -512,18 +556,15 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
             {contacts.map((c, i) => (
               <div key={c.id}
                 className={`text-xs ${i > 0 ? 'pt-3 border-t border-slate-100' : ''}`}>
-                {/* Sector + Ciudad */}
                 {(c.ubicacion || c.ciudad) && (
                   <p className="font-semibold text-slate-700 flex items-center gap-1 mb-0.5">
                     <MapPin size={10} className="text-pink-400 flex-shrink-0" />
                     {[c.ubicacion, c.ciudad].filter(Boolean).join(' · ')}
                   </p>
                 )}
-                {/* Dirección */}
                 {c.address && (
                   <p className="text-slate-500 ml-3.5">{c.address}</p>
                 )}
-                {/* Teléfono + Email */}
                 {(c.phone || c.email) && (
                   <div className="flex flex-wrap gap-x-3 ml-3.5 mt-0.5 text-slate-500">
                     {c.phone && (
@@ -531,16 +572,14 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
                         <Phone size={9} className="text-slate-400" />{c.phone}
                       </span>
                     )}
-                    {c.email && <span className="truncate max-w-[140px]">{c.email}</span>}
+                    {c.email && <span className="truncate max-w-[180px]">{c.email}</span>}
                   </div>
                 )}
-                {/* Referencia */}
                 {c.referencia && (
-                  <p className="text-slate-400 italic ml-3.5 mt-0.5 truncate max-w-[220px]" title={c.referencia}>
+                  <p className="text-slate-400 italic ml-3.5 mt-0.5 truncate max-w-xs" title={c.referencia}>
                     📍 {c.referencia}
                   </p>
                 )}
-                {/* Maps + Equipos */}
                 {(c.mapsLink || (c.installations || []).length > 0) && (
                   <div className="flex items-center gap-3 ml-3.5 mt-1">
                     {c.mapsLink && (
@@ -563,52 +602,6 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
           </div>
         )}
       </td>
-
-      {/* ── Tareas ── */}
-      <td className="px-4 py-3 text-center">
-        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-          taskCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
-        }`}>
-          {taskCount} tarea{taskCount !== 1 ? 's' : ''}
-        </span>
-      </td>
-
-      {/* ── Estado ── */}
-      <td className="px-4 py-3 text-center">
-        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-          client.active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-        }`}>
-          {client.active !== false ? 'Activo' : 'Inactivo'}
-        </span>
-      </td>
-
-      {/* ── Acciones ── */}
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-          <button onClick={() => onNewVisit(client)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white"
-            style={{ background: '#D61672' }}
-            title="Nueva visita">
-            <Wrench size={11} /> Nueva visita
-          </button>
-          <button onClick={() => onEdit(client)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-            title="Editar">
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={() => onToggleActive(client)}
-            disabled={isLoading}
-            className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${
-              client.active !== false
-                ? 'text-slate-400 hover:text-orange-600 hover:bg-orange-50'
-                : 'text-slate-400 hover:text-green-600 hover:bg-green-50'
-            }`}
-            title={client.active !== false ? 'Inactivar cliente' : 'Activar cliente'}>
-            {client.active !== false ? <UserX size={14} /> : <UserCheck size={14} />}
-          </button>
-        </div>
-      </td>
     </tr>
   );
 }
@@ -617,6 +610,7 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
 export default function ClientsManager({ clients, tasks, useClientsHook }) {
   const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
   const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
+  const visits            = useAppStore(s => s.visits);
 
   const [search,       setSearch]       = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -630,14 +624,13 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
     [clients]
   );
 
-  const taskCountMap = useMemo(() => {
+  const visitCountMap = useMemo(() => {
     const map = {};
-    tasks.forEach(t => {
-      const key = t.identification?.replace(/\s/g, '') || t.clientName;
-      map[key] = (map[key] || 0) + 1;
+    visits.forEach(v => {
+      if (v.clientId) map[v.clientId] = (map[v.clientId] || 0) + 1;
     });
     return map;
-  }, [tasks]);
+  }, [visits]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -782,29 +775,22 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Cliente</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 w-56">Cliente</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Ubicaciones</th>
-                    <th className="text-center px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Tareas</th>
-                    <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagination.paginatedItems.map(client => {
-                    const key   = client.identification?.replace(/\s/g, '') || client.name;
-                    const count = taskCountMap[key] || 0;
-                    return (
-                      <ClientRow
-                        key={client.id}
-                        client={client}
-                        taskCount={count}
-                        onEdit={handleEdit}
-                        onToggleActive={handleToggleActive}
-                        isLoading={isLoading}
-                        onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
-                      />
-                    );
-                  })}
+                  {pagination.paginatedItems.map(client => (
+                    <ClientRow
+                      key={client.id}
+                      client={client}
+                      visitCount={visitCountMap[client.id] || 0}
+                      onEdit={handleEdit}
+                      onToggleActive={handleToggleActive}
+                      isLoading={isLoading}
+                      onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
