@@ -173,6 +173,10 @@ export default function AllVisitsManager({ user }) {
 
   const today = useMemo(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' }), []);
+  const nowTime = useMemo(() => {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guayaquil' }));
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }, []);
 
   // Highlight visit después de crearla
   useEffect(() => {
@@ -433,7 +437,11 @@ export default function AllVisitsManager({ user }) {
             ) : (
               <div className="space-y-3">
                 {filtered.map(visit => {
-                  const isOverdue   = visit.status === 'Programada' && visit.scheduledDate < today && !visit.confirmed;
+                  const isPending   = visit.status === 'Programada' || visit.status === 'Confirmada';
+                  const isOverdue   = isPending && (
+                    visit.scheduledDate < today ||
+                    (visit.scheduledDate === today && visit.scheduledTime && visit.scheduledTime < nowTime)
+                  );
                   const isFlashing  = flashId === visit.id;
                   const isBusy      = busy === visit.id;
                   const borderColor = VISIT_STATUS_BORDER[visit.status] || '#cbd5e1';
