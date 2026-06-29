@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
@@ -55,6 +56,8 @@ export default function AppRouter() {
   const updateClient    = useAppStore(s => s.updateClient);
   const setClientActive = useAppStore(s => s.setClientActive);
   const importClients   = useAppStore(s => s.importClients);
+
+  const [pendingClientHistorial, setPendingClientHistorial] = useState(null);
 
   const handleAddTask      = useAppStore(s => s.handleAddTask);
   const handleEdit         = useAppStore(s => s.handleEdit);
@@ -165,6 +168,8 @@ export default function AppRouter() {
             clients={clients}
             tasks={tasks}
             useClientsHook={{ createClient, updateClient, setClientActive, importClients }}
+            pendingClientHistorial={pendingClientHistorial}
+            onClearPendingHistorial={() => setPendingClientHistorial(null)}
           />
         )}
         {activeTab === 'calendar' && (
@@ -173,6 +178,10 @@ export default function AppRouter() {
             user={user}
             onNewTask={() => { useAppStore.setState({ formSource: 'calendar', editingTask: null }); setActiveTab('form'); }}
             onNewVisit={() => openNewVisitModal()}
+            onViewClientHistorial={(clientId) => {
+              setPendingClientHistorial(clientId);
+              setActiveTab('clients');
+            }}
           />
         )}
         {activeTab === 'reports' && (

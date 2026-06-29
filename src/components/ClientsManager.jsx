@@ -3,11 +3,12 @@ import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
-  ChevronDown, ChevronUp, Trash2, Clipboard,
+  ChevronDown, ChevronUp, Trash2, Clipboard, History,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import ClientImportModal from './ClientImportModal.jsx';
+import ClientHistorialModal from './ClientHistorialModal.jsx';
 import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/useClients.js';
 import { useAppStore } from '../lib/store';
 
@@ -492,7 +493,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClie
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) {
+function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onHistorial, isLoading }) {
   const [open,       setOpen]       = useState(false);
   const [confirming, setConfirming] = useState(false);
   const menuRef = useRef(null);
@@ -525,6 +526,13 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) 
             onClick={() => { onNewVisit(client); setOpen(false); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
             <Wrench size={12} className="text-pink-500" /> Nueva visita
+          </button>
+
+          {/* Historial */}
+          <button
+            onClick={() => { onHistorial(client); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
+            <History size={12} className="text-purple-500" /> Historial
           </button>
 
           {/* Editar */}
@@ -582,7 +590,7 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) 
 }
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
-function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
+function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit, onHistorial }) {
   const contacts   = getClientContacts(client);
   const rowCount   = Math.max(contacts.length, 1);
   const inactiveCls = !client.active ? 'opacity-60' : '';
@@ -624,6 +632,7 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
             onNewVisit={onNewVisit}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
+            onHistorial={onHistorial}
             isLoading={isLoading}
           />
         </div>
@@ -718,17 +727,25 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ClientsManager({ clients, tasks, useClientsHook }) {
+export default function ClientsManager({ clients, tasks, useClientsHook, pendingClientHistorial, onClearPendingHistorial }) {
   const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
   const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
   const visits            = useAppStore(s => s.visits);
 
-  const [search,       setSearch]       = useState('');
-  const [showInactive, setShowInactive] = useState(false);
-  const [showForm,     setShowForm]     = useState(false);
-  const [editing,      setEditing]      = useState(null);
-  const [isLoading,    setIsLoading]    = useState(false);
-  const [showImport,   setShowImport]   = useState(false);
+  const [search,         setSearch]         = useState('');
+  const [showInactive,   setShowInactive]   = useState(false);
+  const [showForm,       setShowForm]       = useState(false);
+  const [editing,        setEditing]        = useState(null);
+  const [isLoading,      setIsLoading]      = useState(false);
+  const [showImport,     setShowImport]     = useState(false);
+  const [historialClient, setHistorialClient] = useState(null);
+
+  useEffect(() => {
+    if (!pendingClientHistorial) return;
+    const c = clients.find(cl => cl.id === pendingClientHistorial);
+    if (c) setHistorialClient(c);
+    onClearPendingHistorial?.();
+  }, [pendingClientHistorial, clients, onClearPendingHistorial]);
 
   const existingIds = useMemo(() =>
     new Set(clients.map(c => c.identification?.replace(/\s/g, ''))),
@@ -912,6 +929,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
                       onToggleActive={handleToggleActive}
                       isLoading={isLoading}
                       onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
+                      onHistorial={(c) => setHistorialClient(c)}
                     />
                   ))}
                 </tbody>
@@ -937,6 +955,15 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
           existingClients={clients}
           onImport={async (rows) => await importClients(rows)}
           onClose={() => setShowImport(false)}
+        />
+      )}
+
+      {/* Modal historial del cliente */}
+      {historialClient && (
+        <ClientHistorialModal
+          client={historialClient}
+          onClose={() => setHistorialClient(null)}
+          onNewVisit={(c) => { openNewVisitModal({ clientId: c.id }); }}
         />
       )}
     </div>

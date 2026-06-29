@@ -3,8 +3,9 @@ import {
   ChevronLeft, ChevronRight, Calendar, Clock, User,
   CalendarDays, Plus, X, Phone, MapPin, Wrench,
   AlertCircle, CheckCircle, Loader2, FileText, Search, Package,
-  CheckCircle2,
+  CheckCircle2, Navigation,
 } from 'lucide-react';
+import { useAppStore } from '../lib/store';
 import { useVisits } from '../hooks/useVisits';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useTecnicos } from '../hooks/useTecnicos';
@@ -24,6 +25,18 @@ const TASK_TYPES = [
   'Limpieza de equipo',
   'Otro',
 ];
+
+// ─── Color por técnico (hash determinístico) ──────────────────────────────────
+const TECH_PALETTE = [
+  'bg-blue-500','bg-emerald-500','bg-violet-500','bg-amber-500',
+  'bg-rose-500','bg-cyan-500','bg-orange-500','bg-teal-500',
+];
+function techBgColor(name) {
+  if (!name) return TECH_PALETTE[0];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return TECH_PALETTE[Math.abs(h) % TECH_PALETTE.length];
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +79,27 @@ function getCalendarEvents(tasks) {
   return events;
 }
 
+// Convierte visitas nuevas (colección visits) al formato de eventos del calendario
+function getVisitEvents(visits) {
+  return visits
+    .filter(v => v.scheduledDate)
+    .map(v => ({
+      id:          `newvisit-${v.id}`,
+      date:        v.scheduledDate,
+      time:        v.scheduledTime || '',
+      title:       v.clientName   || 'Sin cliente',
+      subtitle:    v.type         || v.serviceType || v.technician || '',
+      type:        'newvisit',
+      visitStatus: v.status,
+      urgency:     v.urgency      || '',
+      technician:  v.technician   || '',
+      phone:       v.phone        || '',
+      address:     [v.ubicacion, v.ciudad, v.address].filter(Boolean).join(' · '),
+      visit:       v,
+      task:        null,
+    }));
+}
+
 // Devuelve true si la confirmación llegó después de la hora programada (Ecuador UTC-5)
 function isLateConfirmation(visit) {
   if (!visit?.confirmedAt || !visit?.scheduledDate) return false;
@@ -89,8 +123,10 @@ function EventBadge({ event, onClick }) {
 
   const visitColor = {
     'Programada': 'border-l-2 bg-pink-50 text-pink-700 border-pink-300',
+    'Confirmada': 'border-l-2 bg-teal-50 text-teal-700 border-teal-300',
     'Realizada':  'border-l-2 bg-green-50 text-green-700 border-green-300',
     'Cancelada':  'border-l-2 bg-slate-50 text-slate-500 border-slate-300',
+    'Anulada':    'border-l-2 bg-red-50 text-red-500 border-red-300',
   }[event.visitStatus] || 'border-l-2 bg-pink-50 text-pink-700 border-pink-300';
 
   return (
@@ -111,7 +147,7 @@ function EventBadge({ event, onClick }) {
 
 function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
   const isTask  = event.type === 'task';
-  const isVisit = event.type === 'visit';
+  const isVisit = event.type === 'visit' || event.type === 'newvisit';
 
   const todayStr = localDateStr();
   const nowTime  = (() => { const d = new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })();
@@ -209,16 +245,16 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
           </p>
         )}
 
-        {task?.clientPhone && (
+        {(task?.clientPhone || event.phone) && (
           <div className="flex items-center gap-0.5 mt-0.5">
             <Phone size={9} className="text-slate-400 flex-shrink-0" />
-            <span className="text-xs text-slate-500">{task.clientPhone}</span>
+            <span className="text-xs text-slate-500">{task?.clientPhone || event.phone}</span>
           </div>
         )}
-        {task?.clientAddress && (
+        {(task?.clientAddress || event.address) && (
           <div className="flex items-center gap-0.5 mt-0.5">
             <MapPin size={9} className="text-slate-400 flex-shrink-0" />
-            <span className={`text-xs text-slate-500 ${wide ? '' : 'truncate'}`}>{task.clientAddress}</span>
+            <span className={`text-xs text-slate-500 ${wide ? '' : 'truncate'}`}>{task?.clientAddress || event.address}</span>
           </div>
         )}
         {isVisit && event.visit?.technician && (
@@ -709,6 +745,27 @@ function DayView({ year, month, day, events, onEventClick, onAddVisitToTask, onA
               <div className="flex-1 py-2 px-3 min-w-0">
                 {isBusy ? (
                   <div className="space-y-1.5">
+                    {/* Indicador de carga: chips de técnicos con visitas en esta hora */}
+                    {(() => {
+                      const techs = [...new Set(
+                        hEvents.map(ev => ev.visit?.technician || ev.technician).filter(Boolean)
+                      )];
+                      if (!techs.length) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1 pb-1 border-b border-slate-100 mb-1">
+                          {techs.map(tech => (
+                            <span key={tech}
+                              className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${techBgColor(tech)}`}>
+                              <User size={8} />
+                              {tech.split(' ')[0]}
+                            </span>
+                          ))}
+                          <span className="text-[10px] text-slate-400 self-center">
+                            {hEvents.length} visita{hEvents.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {hEvents.map(ev => (
                       <WeekEventCard key={ev.id} event={ev} onClick={onEventClick} onAddVisit={onAddVisitToTask} wide />
                     ))}
@@ -750,7 +807,7 @@ function InfoChip({ label, value }) {
 
 // ─── Modal detalle evento ──────────────────────────────────────────────────────
 
-function EventDetailModal({ event, onClose, onAddVisit }) {
+function EventDetailModal({ event, onClose, onAddVisit, onViewClientHistorial }) {
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handleKey);
@@ -887,7 +944,7 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                 </div>
               )}
 
-              {(event.visit?.technician || task?.clientPhone || task?.clientAddress) && (
+              {(event.visit?.technician || task?.clientPhone || event.phone || task?.clientAddress || event.address) && (
                 <div className="bg-slate-50 rounded-xl p-3 space-y-2">
                   {event.visit?.technician && (
                     <div className="flex items-center gap-2">
@@ -895,16 +952,25 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
                       <span className="text-sm text-slate-700 font-medium">{event.visit.technician}</span>
                     </div>
                   )}
-                  {task?.clientPhone && (
+                  {(task?.clientPhone || event.phone) && (
                     <div className="flex items-center gap-2">
                       <Phone size={13} className="text-slate-400 flex-shrink-0" />
-                      <span className="text-sm text-slate-700 font-medium">{task.clientPhone}</span>
+                      <span className="text-sm text-slate-700 font-medium">{task?.clientPhone || event.phone}</span>
                     </div>
                   )}
-                  {task?.clientAddress && (
+                  {(task?.clientAddress || event.address) && (
                     <div className="flex items-start gap-2">
                       <MapPin size={13} className="text-slate-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-slate-700 font-medium leading-snug">{task.clientAddress}</span>
+                      <span className="text-sm text-slate-700 font-medium leading-snug">{task?.clientAddress || event.address}</span>
+                    </div>
+                  )}
+                  {event.visit?.mapsLink && (
+                    <div className="flex items-center gap-2">
+                      <Navigation size={13} className="text-blue-500 flex-shrink-0" />
+                      <a href={event.visit.mapsLink} target="_blank" rel="noopener noreferrer"
+                        className="text-sm font-semibold text-blue-600 hover:underline">
+                        Ver en Google Maps
+                      </a>
                     </div>
                   )}
                 </div>
@@ -943,12 +1009,19 @@ function EventDetailModal({ event, onClose, onAddVisit }) {
           )}
         </div>
 
-        <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-slate-100">
+        <div className="px-4 py-3 flex gap-2 flex-shrink-0 border-t border-slate-100 flex-wrap">
           {isTask && event.status !== 'Completado' && event.status !== 'Cancelado' && (
             <button onClick={() => { onClose(); onAddVisit(event.task, event.date); }}
               className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white font-bold rounded-xl text-sm"
               style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
               <Plus size={15} />Agregar visita
+            </button>
+          )}
+          {!isTask && event.visit?.clientId && onViewClientHistorial && (
+            <button onClick={() => { onClose(); onViewClientHistorial(event.visit.clientId); }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-white font-bold rounded-xl text-sm"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
+              <CalendarDays size={15} />Historial cliente
             </button>
           )}
           <button onClick={onClose}
@@ -1108,12 +1181,13 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask, tiposPa
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function CalendarView({ tasks, user, onNewTask }) {
+export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onViewClientHistorial }) {
+  const visits              = useAppStore(s => s.visits);
   const { tiposParaSelect } = useTiposVisita(user);
   const { tecnicos }        = useTecnicos(user);
   const tecnicosParaSelect  = tecnicos;
   const today = new Date();
-  const [viewMode, setViewMode]       = useState('month'); // 'month' | 'week' | 'day'
+  const [viewMode, setViewMode]       = useState('month');
   const [currentDate, setCurrentDate] = useState({
     year:  today.getFullYear(),
     month: today.getMonth(),
@@ -1122,22 +1196,35 @@ export default function CalendarView({ tasks, user, onNewTask }) {
   const [selectedEvent,   setSelectedEvent]   = useState(null);
   const [addVisitContext, setAddVisitContext]  = useState(null);
   const [dayPickerDate,   setDayPickerDate]   = useState(null);
-  const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas'
+  const [visitFilter,     setVisitFilter]     = useState('todas');
+  const [filterTech,      setFilterTech]      = useState('');
 
-  const events = useMemo(() => getCalendarEvents(tasks), [tasks]);
+  const legacyEvents   = useMemo(() => getCalendarEvents(tasks), [tasks]);
+  const newVisitEvents = useMemo(() => getVisitEvents(visits), [visits]);
+  const allEvents      = useMemo(() => [...legacyEvents, ...newVisitEvents], [legacyEvents, newVisitEvents]);
 
   const filteredEvents = useMemo(() => {
-    if (visitFilter === 'todas') return events;
-    return events.filter(e => {
-      if (e.type === 'task') return true;
-      const isConfirmed  = e.visit?.confirmed || e.visit?.technicianConfirmed;
-      const isRealizada  = e.visitStatus === 'Realizada';
-      if (visitFilter === 'programadas') return !isRealizada && !isConfirmed;
-      if (visitFilter === 'confirmadas') return !isRealizada && !!isConfirmed;
-      if (visitFilter === 'realizadas')  return isRealizada;
-      return true;
-    });
-  }, [events, visitFilter]);
+    let evts = allEvents;
+    if (filterTech) {
+      evts = evts.filter(e => {
+        if (e.type === 'task') return true;
+        const tech = e.technician || e.visit?.technician || '';
+        return tech === filterTech;
+      });
+    }
+    if (visitFilter !== 'todas') {
+      evts = evts.filter(e => {
+        if (e.type === 'task') return true;
+        const isConfirmed = e.visit?.confirmed || e.visit?.technicianConfirmed;
+        const isRealizada = e.visitStatus === 'Realizada';
+        if (visitFilter === 'programadas') return !isRealizada && !isConfirmed;
+        if (visitFilter === 'confirmadas') return !isRealizada && !!isConfirmed;
+        if (visitFilter === 'realizadas')  return isRealizada;
+        return true;
+      });
+    }
+    return evts;
+  }, [allEvents, filterTech, visitFilter]);
 
   const navigate = (dir) => {
     setCurrentDate(prev => {
@@ -1194,7 +1281,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Calendario</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{events.length} evento{events.length !== 1 ? 's' : ''} en total</p>
+          <p className="text-sm text-slate-500 mt-0.5">{allEvents.length} evento{allEvents.length !== 1 ? 's' : ''} en total</p>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -1231,6 +1318,14 @@ export default function CalendarView({ tasks, user, onNewTask }) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h3 className="text-lg font-bold text-slate-700 capitalize">{title}</h3>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Filtro por técnico */}
+          {tecnicos.length > 0 && (
+            <select value={filterTech} onChange={e => setFilterTech(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:border-pink-400 text-slate-600">
+              <option value="">Todos los técnicos</option>
+              {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+            </select>
+          )}
           {/* Filtro visitas */}
           <div className="flex bg-slate-100 rounded-xl p-1">
             {[
@@ -1302,6 +1397,7 @@ export default function CalendarView({ tasks, user, onNewTask }) {
           event={selectedEvent}
           onClose={() => setSelectedEvent(null)}
           onAddVisit={handleAddVisitToTask}
+          onViewClientHistorial={onViewClientHistorial}
         />
       )}
       {addVisitContext && (

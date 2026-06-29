@@ -10,9 +10,10 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, Mail, MapPin, Phone, Wrench, X,
-  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen,
+  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
+import ClientHistorialModal from './ClientHistorialModal.jsx';
 
 const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
 
@@ -151,7 +152,7 @@ function CompleteModal({ visit, task, onSave, onClose }) {
 
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
-function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
+function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial }) {
   const today       = localToday();
   const nowTime     = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed;
@@ -273,6 +274,12 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
           {visit.closingObservations && (
             <p className="text-xs text-emerald-600 italic">📝 {visit.closingObservations}</p>
           )}
+          {onHistorial && (
+            <button onClick={() => onHistorial(task)}
+              className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-purple-600 hover:text-purple-800 transition-colors">
+              <History size={11} /> Ver historial del cliente
+            </button>
+          )}
         </div>
       ) : (
         <div className="px-4 pb-4 space-y-2">
@@ -291,6 +298,12 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
               {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
             </button>
           )}
+          {onHistorial && (
+            <button onClick={() => onHistorial(task)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors border border-purple-100">
+              <History size={12} /> Historial del cliente
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -299,7 +312,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete }) {
 
 // ─── Vista de lista (secciones) ───────────────────────────────────────────────
 
-function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete }) {
+function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete, onHistorial }) {
   if (visits.length === 0) return null;
   return (
     <div className="space-y-3">
@@ -312,7 +325,7 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
       <div className="space-y-3">
         {visits.map(({ visit, task: t }) => (
           <VisitCard key={visit.id} visit={visit} task={t}
-            onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
+            onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
         ))}
       </div>
     </div>
@@ -321,7 +334,7 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
 
 // ─── Vista día ────────────────────────────────────────────────────────────────
 
-function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete }) {
+function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial }) {
   const dayName = new Date(calDate + 'T12:00:00')
     .toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Guayaquil' });
 
@@ -390,7 +403,7 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
                   <div className="space-y-3">
                     {hVisits.map(({ visit, task: t }) => (
                       <VisitCard key={visit.id} visit={visit} task={t}
-                        onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
+                        onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
                     ))}
                   </div>
                 ) : (
@@ -408,7 +421,7 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
             <div className="space-y-3">
               {noTimeVisits.map(({ visit, task: t }) => (
                 <VisitCard key={visit.id} visit={visit} task={t}
-                  onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} />
+                  onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
               ))}
             </div>
           </div>
@@ -511,6 +524,7 @@ function WeekView({ allVisitsByDate, calDate, setCalDate, setCalView, today }) {
 
 export default function TechPortal({ user }) {
   const tasks      = useAppStore(s => s.tasks);
+  const clients    = useAppStore(s => s.clients);
   const addToast   = useAppStore(s => s.addToast);
   const tenantName = useAppStore(s => s.tenantName);
   const tenantRuc  = useAppStore(s => s.tenantRuc);
@@ -536,6 +550,17 @@ export default function TechPortal({ user }) {
   const [confirming,      setConfirming]      = useState(null);
   const [completingVisit, setCompletingVisit] = useState(null);
   const [refreshing,      setRefreshing]      = useState(false);
+  const [historialClient, setHistorialClient] = useState(null);
+
+  const findClient = (task) =>
+    clients.find(c => c.identification === task.identification) ||
+    clients.find(c => c.name === task.clientName) ||
+    null;
+
+  const handleHistorial = (task) => {
+    const c = findClient(task);
+    if (c) setHistorialClient(c);
+  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -630,6 +655,7 @@ export default function TechPortal({ user }) {
     onConfirm: handleConfirm,
     confirming,
     onComplete: (visit, task) => setCompletingVisit({ visit, task }),
+    onHistorial: handleHistorial,
   };
 
   return (
@@ -789,6 +815,13 @@ export default function TechPortal({ user }) {
           task={completingVisit.task}
           onSave={handleComplete}
           onClose={() => setCompletingVisit(null)}
+        />
+      )}
+
+      {historialClient && (
+        <ClientHistorialModal
+          client={historialClient}
+          onClose={() => setHistorialClient(null)}
         />
       )}
     </div>
