@@ -547,7 +547,7 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
         </div>
       </td>
 
-      {/* ── Columna 2: Ubicaciones (ocupa el espacio restante) ── */}
+      {/* ── Columna 2: Ubicaciones ── */}
       <td className="px-4 py-3">
         {contacts.length === 0 ? (
           <span className="text-slate-300 text-xs">Sin ubicaciones</span>
@@ -589,14 +589,31 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
                     </a>
                   </div>
                 )}
-                {(c.installations || []).length > 0 && (
-                  <div className="ml-3.5 mt-1.5 space-y-0.5">
+              </div>
+            ))}
+          </div>
+        )}
+      </td>
+
+      {/* ── Columna 3: Equipos (alineada con cada ubicación) ── */}
+      <td className="px-4 py-3">
+        {contacts.length === 0 ? null : (
+          <div className="space-y-3">
+            {contacts.map((c, i) => (
+              <div key={c.id}
+                className={`text-xs ${i > 0 ? 'pt-3 border-t border-slate-100' : ''}`}>
+                {(c.installations || []).length === 0 ? (
+                  <span className="text-slate-300">—</span>
+                ) : (
+                  <div className="space-y-0.5">
                     {c.installations.map((inst, ii) => (
                       <div key={inst.id ?? ii} className="flex items-start gap-1 text-amber-700">
                         <Wrench size={9} className="flex-shrink-0 mt-0.5" />
-                        <span>
-                          {inst.serviceType || 'Equipo sin tipo'}
-                          {inst.observacion ? <span className="text-slate-400 font-normal"> — {inst.observacion}</span> : null}
+                        <span className="font-medium">
+                          {inst.serviceType || 'Sin tipo'}
+                          {inst.observacion
+                            ? <span className="text-slate-400 font-normal"> — {inst.observacion}</span>
+                            : null}
                         </span>
                       </div>
                     ))}
@@ -782,6 +799,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 w-56">Cliente</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Ubicaciones</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Equipos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
