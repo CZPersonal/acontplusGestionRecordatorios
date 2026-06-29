@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
@@ -491,6 +491,96 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClie
   );
 }
 
+// ─── Menú de acciones por cliente ────────────────────────────────────────────
+function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) {
+  const [open,       setOpen]       = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+        setConfirming(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative mt-2" ref={menuRef}>
+      <button
+        onClick={() => { setOpen(p => !p); setConfirming(false); }}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">
+        Acciones <ChevronDown size={11} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px] py-1 overflow-hidden">
+
+          {/* Nueva visita */}
+          <button
+            onClick={() => { onNewVisit(client); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
+            <Wrench size={12} className="text-pink-500" /> Nueva visita
+          </button>
+
+          {/* Editar */}
+          <button
+            onClick={() => { onEdit(client); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
+            <Pencil size={12} className="text-blue-500" /> Editar
+          </button>
+
+          <div className="border-t border-slate-100 my-1" />
+
+          {/* Inactivar / Activar con confirmación */}
+          {!confirming ? (
+            <button
+              onClick={() => setConfirming(true)}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors ${
+                client.active !== false
+                  ? 'text-orange-600 hover:bg-orange-50'
+                  : 'text-green-600 hover:bg-green-50'
+              }`}>
+              {client.active !== false
+                ? <><UserX size={12} /> Inactivar</>
+                : <><UserCheck size={12} /> Activar</>}
+            </button>
+          ) : (
+            <div className="px-3 py-2.5">
+              <p className="text-xs text-slate-600 font-medium mb-2">
+                {client.active !== false
+                  ? '¿Inactivar este cliente?'
+                  : '¿Activar este cliente?'}
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={async () => {
+                    await onToggleActive(client);
+                    setOpen(false);
+                    setConfirming(false);
+                  }}
+                  disabled={isLoading}
+                  className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors">
+                  {isLoading ? '...' : 'Confirmar'}
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
 function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
   const contacts   = getClientContacts(client);
@@ -529,27 +619,13 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
               {client.active !== false ? 'Activo' : 'Inactivo'}
             </span>
           </div>
-          <div className="flex items-center gap-1 flex-wrap mt-2">
-            <button onClick={() => onNewVisit(client)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white"
-              style={{ background: '#D61672' }}>
-              <Wrench size={10} /> Nueva visita
-            </button>
-            <button onClick={() => onEdit(client)}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-              <Pencil size={10} /> Editar
-            </button>
-            <button onClick={() => onToggleActive(client)} disabled={isLoading}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
-                client.active !== false
-                  ? 'bg-slate-100 text-slate-600 hover:bg-orange-50 hover:text-orange-600'
-                  : 'bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600'
-              }`}>
-              {client.active !== false
-                ? <><UserX size={10} /> Inactivar</>
-                : <><UserCheck size={10} /> Activar</>}
-            </button>
-          </div>
+          <ActionsMenu
+            client={client}
+            onNewVisit={onNewVisit}
+            onEdit={onEdit}
+            onToggleActive={onToggleActive}
+            isLoading={isLoading}
+          />
         </div>
       </div>
     </td>
