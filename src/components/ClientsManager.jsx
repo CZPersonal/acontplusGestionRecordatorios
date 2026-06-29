@@ -580,21 +580,26 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
                     📍 {c.referencia}
                   </p>
                 )}
-                {(c.mapsLink || (c.installations || []).length > 0) && (
-                  <div className="flex items-center gap-3 ml-3.5 mt-1">
-                    {c.mapsLink && (
-                      <a href={c.mapsLink} target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 font-medium">
-                        <ExternalLink size={9} /> Ver en Maps
-                      </a>
-                    )}
-                    {(c.installations || []).length > 0 && (
-                      <span className="flex items-center gap-0.5 text-amber-600 font-medium">
-                        <Wrench size={9} />
-                        {c.installations.length} equipo{c.installations.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
+                {c.mapsLink && (
+                  <div className="ml-3.5 mt-1">
+                    <a href={c.mapsLink} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 font-medium">
+                      <ExternalLink size={9} /> Ver en Maps
+                    </a>
+                  </div>
+                )}
+                {(c.installations || []).length > 0 && (
+                  <div className="ml-3.5 mt-1.5 space-y-0.5">
+                    {c.installations.map((inst, ii) => (
+                      <div key={inst.id ?? ii} className="flex items-start gap-1 text-amber-700">
+                        <Wrench size={9} className="flex-shrink-0 mt-0.5" />
+                        <span>
+                          {inst.serviceType || 'Equipo sin tipo'}
+                          {inst.observacion ? <span className="text-slate-400 font-normal"> — {inst.observacion}</span> : null}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
