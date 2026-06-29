@@ -14,10 +14,11 @@ import {
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
 const VISIT_STATUS_BORDER = {
-  Programada: '#3b82f6', Realizada: '#16a34a', Cancelada: '#f59e0b', Anulada: '#ef4444',
+  Programada: '#3b82f6', Confirmada: '#0d9488', Realizada: '#16a34a', Cancelada: '#f59e0b', Anulada: '#ef4444',
 };
 const VISIT_STATUS_COLORS = {
   Programada: 'bg-blue-100 text-blue-700',
+  Confirmada: 'bg-teal-100 text-teal-700',
   Realizada:  'bg-green-100 text-green-700',
   Cancelada:  'bg-amber-100 text-amber-700',
   Anulada:    'bg-red-100 text-red-600',
@@ -199,10 +200,34 @@ export default function AllVisitsManager({ user }) {
   };
 
   // ─── Filtrado ────────────────────────────────────────────────────────────────
+  const isVisitOverdue = (v) => {
+    if (v.status !== 'Programada' && v.status !== 'Confirmada') return false;
+    if (v.scheduledDate < today) return true;
+    if (v.scheduledDate === today && v.scheduledTime && v.scheduledTime < nowTime) return true;
+    return false;
+  };
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     return visits.filter(v => {
-      if (filterStatus && v.status !== filterStatus) return false;
+      if (filterStatus) {
+        switch (filterStatus) {
+          case '__no_confirmadas':
+            if (v.status !== 'Programada') return false;
+            break;
+          case '__no_realizadas':
+            if (v.status !== 'Programada' && v.status !== 'Confirmada') return false;
+            break;
+          case '__atrasadas':
+            if (!isVisitOverdue(v)) return false;
+            break;
+          case '__a_tiempo':
+            if ((v.status !== 'Programada' && v.status !== 'Confirmada') || isVisitOverdue(v)) return false;
+            break;
+          default:
+            if (v.status !== filterStatus) return false;
+        }
+      }
       if (filterTech && v.technician !== filterTech) return false;
       if (filterUrgency && v.urgency !== filterUrgency) return false;
       if (filterFrom && v.scheduledDate < filterFrom) return false;
@@ -221,7 +246,7 @@ export default function AllVisitsManager({ user }) {
       }
       return true;
     });
-  }, [visits, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst]);
+  }, [visits, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst, today, nowTime]);
 
   // ─── Stats ───────────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -386,7 +411,19 @@ export default function AllVisitsManager({ user }) {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                 <select value={filterStatus} onChange={e => setFilter(e.target.value)} className={sel}>
                   <option value="">Estado visita</option>
-                  {['Programada','Realizada','Cancelada','Anulada'].map(s => <option key={s}>{s}</option>)}
+                  <optgroup label="── Pendientes ──">
+                    <option value="__no_confirmadas">No confirmadas</option>
+                    <option value="__no_realizadas">No realizadas</option>
+                    <option value="__atrasadas">Atrasadas</option>
+                    <option value="__a_tiempo">A tiempo</option>
+                  </optgroup>
+                  <optgroup label="── Por estado ──">
+                    <option value="Programada">Programada</option>
+                    <option value="Confirmada">Confirmada</option>
+                    <option value="Realizada">Realizada</option>
+                    <option value="Cancelada">Cancelada</option>
+                    <option value="Anulada">Anulada</option>
+                  </optgroup>
                 </select>
                 <select value={filterUrgency} onChange={e => setFilterU(e.target.value)} className={sel}>
                   <option value="">Urgencia</option>
@@ -437,11 +474,7 @@ export default function AllVisitsManager({ user }) {
             ) : (
               <div className="space-y-3">
                 {filtered.map(visit => {
-                  const isPending   = visit.status === 'Programada' || visit.status === 'Confirmada';
-                  const isOverdue   = isPending && (
-                    visit.scheduledDate < today ||
-                    (visit.scheduledDate === today && visit.scheduledTime && visit.scheduledTime < nowTime)
-                  );
+                  const isOverdue   = isVisitOverdue(visit);
                   const isFlashing  = flashId === visit.id;
                   const isBusy      = busy === visit.id;
                   const borderColor = VISIT_STATUS_BORDER[visit.status] || '#cbd5e1';
@@ -482,6 +515,16 @@ export default function AllVisitsManager({ user }) {
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || ''}`}>
                             {visit.status}
                           </span>
+                          {visit.status === 'Programada' && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                              Sin confirmar
+                            </span>
+                          )}
+                          {visit.status === 'Confirmada' && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                              No realizada
+                            </span>
+                          )}
                           {isOverdue && (
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
                               ⚠️ Atrasada
