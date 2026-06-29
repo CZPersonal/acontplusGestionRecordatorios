@@ -3,7 +3,7 @@ import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
-  ChevronDown, ChevronUp, Trash2,
+  ChevronDown, ChevronUp, Trash2, Clipboard,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -354,35 +354,58 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
                   {/* Google Maps */}
                   <div>
                     <label className={lbl}>Google Maps</label>
-                    <div className="flex gap-2">
+                    {/* Campo URL — fila completa en móvil, inline en escritorio */}
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input type="url" value={contact.mapsLink}
                         onChange={e => setContactField(idx, 'mapsLink', e.target.value)}
                         placeholder="Pega aquí el link de Google Maps..."
-                        className={`flex-1 ${inp(false)}`} />
-                      <button type="button"
-                        title="Abrir Google Maps con mi ubicación actual"
-                        onClick={() => {
-                          if (navigator.geolocation) {
-                            navigator.geolocation.getCurrentPosition(
-                              pos => window.open(
-                                `https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`,
-                                '_blank'
-                              ),
-                              () => window.open('https://www.google.com/maps', '_blank')
-                            );
-                          } else {
-                            window.open('https://www.google.com/maps', '_blank');
-                          }
-                        }}
-                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
-                        <Navigation size={13} /> Abrir Maps
-                      </button>
-                      {contact.mapsLink && (
-                        <a href={contact.mapsLink} target="_blank" rel="noopener noreferrer"
-                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
-                          <ExternalLink size={13} /> Ver
-                        </a>
-                      )}
+                        className={`w-full sm:flex-1 ${inp(false)}`} />
+
+                      {/* Botones: en móvil van debajo del campo, en escritorio inline */}
+                      <div className="flex gap-2">
+                        {/* Abrir Maps */}
+                        <button type="button"
+                          title="Abrir Google Maps con mi ubicación actual"
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              navigator.geolocation.getCurrentPosition(
+                                pos => window.open(
+                                  `https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`,
+                                  '_blank'
+                                ),
+                                () => window.open('https://www.google.com/maps', '_blank')
+                              );
+                            } else {
+                              window.open('https://www.google.com/maps', '_blank');
+                            }
+                          }}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
+                          <Navigation size={13} /> Abrir Maps
+                        </button>
+
+                        {/* Pegar desde portapapeles */}
+                        <button type="button"
+                          title="Pegar link del portapapeles"
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText();
+                              if (text) setContactField(idx, 'mapsLink', text.trim());
+                            } catch {
+                              // Permiso denegado o sin soporte — no hacer nada
+                            }
+                          }}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold">
+                          <Clipboard size={13} /> Pegar
+                        </button>
+
+                        {/* Ver enlace guardado */}
+                        {contact.mapsLink && (
+                          <a href={contact.mapsLink} target="_blank" rel="noopener noreferrer"
+                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
+                            <ExternalLink size={13} /> Ver
+                          </a>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-slate-400 mt-1">
                       Abre Maps, busca la dirección, comparte la ubicación y pega el enlace aquí.
