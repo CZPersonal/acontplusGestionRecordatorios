@@ -75,7 +75,8 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
   const gapAlert = stats.daysSinceLast !== null && stats.daysSinceLast > 90;
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-  const nowTime = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit' });
+  const _nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guayaquil' }));
+  const nowTime = `${String(_nowLocal.getHours()).padStart(2, '0')}:${String(_nowLocal.getMinutes()).padStart(2, '0')}`;
 
   const isOverdue = (v) => {
     if (!(v.status === 'Programada' || v.status === 'Confirmada')) return false;
