@@ -84,6 +84,16 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
     [clientVisits, today]
   );
 
+  const overdueProgramadas = useMemo(() =>
+    overdueVisits.filter(v => v.status === 'Programada'),
+    [overdueVisits]
+  );
+
+  const overdueConfirmadas = useMemo(() =>
+    overdueVisits.filter(v => v.status === 'Confirmada'),
+    [overdueVisits]
+  );
+
   const handleMonthClick = (m) => {
     const el = monthRefs.current[m];
     if (!el) return;
@@ -173,13 +183,20 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
           {overdueVisits.length > 0 && (
             <div className="flex items-start gap-3 bg-red-50 border-2 border-red-300 rounded-xl p-3">
               <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
+              <div className="space-y-0.5">
                 <p className="text-sm font-bold text-red-700">
                   {overdueVisits.length} visita{overdueVisits.length !== 1 ? 's' : ''} atrasada{overdueVisits.length !== 1 ? 's' : ''}
                 </p>
-                <p className="text-xs text-red-500 mt-0.5">
-                  Estaban programadas y no han sido marcadas como realizadas.
-                </p>
+                {overdueProgramadas.length > 0 && (
+                  <p className="text-xs text-red-500">
+                    {overdueProgramadas.length} {overdueProgramadas.length === 1 ? 'estaba programada' : 'estaban programadas'} y no {overdueProgramadas.length === 1 ? 'ha sido marcada' : 'han sido marcadas'} como confirmada{overdueProgramadas.length !== 1 ? 's' : ''}.
+                  </p>
+                )}
+                {overdueConfirmadas.length > 0 && (
+                  <p className="text-xs text-red-500">
+                    {overdueConfirmadas.length} {overdueConfirmadas.length === 1 ? 'estaba confirmada' : 'estaban confirmadas'} y no {overdueConfirmadas.length === 1 ? 'ha sido marcada' : 'han sido marcadas'} como realizada{overdueConfirmadas.length !== 1 ? 's' : ''}.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -366,7 +383,7 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {overdue && (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200 text-red-700">
-                                    Atrasada
+                                    {v.status === 'Programada' ? 'Sin confirmar' : 'Sin realizar'}
                                   </span>
                                 )}
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE[v.status] || 'bg-slate-100 text-slate-500'}`}>
