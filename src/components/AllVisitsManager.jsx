@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '../lib/store';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
+import { getClientContacts } from '../hooks/useClients.js';
 import { printVisitPDF, shareVisitWhatsApp } from './VisitsModal.jsx';
 import VisitsReport from './VisitsReport.jsx';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
-  Wrench, UserCheck, FileText, RefreshCw, Building2,
+  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard,
 } from 'lucide-react';
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
@@ -132,6 +133,8 @@ function LegacyView({ user }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function AllVisitsManager({ user }) {
   const visits              = useAppStore(s => s.visits);
+  const clients             = useAppStore(s => s.clients);
+  const updateClient        = useAppStore(s => s.updateClient);
   const addToast            = useAppStore(s => s.addToast);
   const cancelVisit         = useAppStore(s => s.cancelVisit);
   const annulVisit          = useAppStore(s => s.annulVisit);
@@ -165,6 +168,8 @@ export default function AllVisitsManager({ user }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(null);
   const [flashId, setFlashId] = useState(null);
+  const [editingMapsId, setEditingMapsId] = useState(null);
+  const [mapsInput,     setMapsInput]     = useState('');
 
   const today = useMemo(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' }), []);
@@ -246,6 +251,43 @@ export default function AllVisitsManager({ user }) {
     await deleteVisit(visitId);
     setBusy(null);
     setDeleteConfirm(null);
+  };
+
+  // Índice de clientes para lookup rápido por id
+  const clientsById = useMemo(() => {
+    const map = {};
+    clients.forEach(c => { map[c.id] = c; });
+    return map;
+  }, [clients]);
+
+  // Devuelve el mapsLink del contacto vinculado a la visita
+  const getMapsLink = (visit) => {
+    const client = clientsById[visit.clientId];
+    if (!client || !visit.contactId) return '';
+    const contact = getClientContacts(client).find(c => c.id === visit.contactId);
+    return contact?.mapsLink || '';
+  };
+
+  // Guarda el mapsLink en el contacto del cliente
+  const saveMapsLink = async (visit, url) => {
+    const client = clientsById[visit.clientId];
+    if (!client || !visit.contactId) return;
+    const updatedContacts = getClientContacts(client).map(c =>
+      c.id === visit.contactId ? { ...c, mapsLink: url.trim() } : c
+    );
+    const ok = await updateClient(client.id, {
+      name:           client.name,
+      foreign:        client.foreign ?? false,
+      identification: client.identification,
+      contacts:       updatedContacts,
+    });
+    if (ok) {
+      addToast({ type: 'success', title: '✅ Link guardado', body: 'El enlace de Maps se guardó en el cliente.' });
+      setEditingMapsId(null);
+      setMapsInput('');
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo guardar el enlace.' });
+    }
   };
 
   // Construye objeto "task" sintético para PDF/WA (mantiene compatibilidad con funciones de VisitsModal)
@@ -469,7 +511,7 @@ export default function AllVisitsManager({ user }) {
                             <p className="font-medium text-slate-700">{visit.serviceType}</p>
                           </div>
                         )}
-                        {(visit.ubicacion || visit.ciudad || visit.address) && (
+                        {(visit.ubicacion || visit.ciudad || visit.address || visit.contactId) && (
                           <div>
                             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Dirección</p>
                             {(visit.ubicacion || visit.ciudad) && (
@@ -480,6 +522,64 @@ export default function AllVisitsManager({ user }) {
                             {visit.address && (
                               <p className="text-xs text-slate-500 truncate">{visit.address}</p>
                             )}
+                            {/* Link de Google Maps */}
+                            {(() => {
+                              const link = getMapsLink(visit);
+                              if (link) {
+                                return (
+                                  <a href={link} target="_blank" rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                                    <Navigation size={10} /> Ver en Maps
+                                  </a>
+                                );
+                              }
+                              if (!visit.contactId) return null;
+                              if (editingMapsId === visit.id) {
+                                return (
+                                  <div className="mt-1.5 space-y-1">
+                                    <div className="flex gap-1">
+                                      <input
+                                        autoFocus
+                                        type="url"
+                                        value={mapsInput}
+                                        onChange={e => setMapsInput(e.target.value)}
+                                        placeholder="Pega el link de Google Maps…"
+                                        className="flex-1 text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 min-w-0"
+                                      />
+                                      <button type="button"
+                                        onClick={async () => {
+                                          const text = await navigator.clipboard.readText().catch(() => '');
+                                          if (text) setMapsInput(text.trim());
+                                        }}
+                                        title="Pegar"
+                                        className="px-1.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">
+                                        <Clipboard size={11} />
+                                      </button>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <button type="button"
+                                        disabled={!mapsInput.trim()}
+                                        onClick={() => saveMapsLink(visit, mapsInput)}
+                                        className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 disabled:opacity-40">
+                                        Guardar
+                                      </button>
+                                      <button type="button"
+                                        onClick={() => { setEditingMapsId(null); setMapsInput(''); }}
+                                        className="px-2 py-0.5 rounded-lg border border-slate-200 text-[10px] text-slate-500 hover:bg-slate-50">
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button type="button"
+                                  onClick={() => { setEditingMapsId(visit.id); setMapsInput(''); }}
+                                  className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-slate-400 hover:text-blue-600 transition-colors">
+                                  <Navigation size={9} /> Agregar Maps
+                                </button>
+                              );
+                            })()}
                           </div>
                         )}
                         {visit.establecimientoNombre && (
