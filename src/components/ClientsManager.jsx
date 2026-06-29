@@ -83,7 +83,7 @@ function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd }) {
 }
 
 // ─── Formulario inline crear / editar ─────────────────────────────────────────
-function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
+function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClients, onActivateExisting }) {
   const isEdit       = !!initial;
   const serviceTypes  = useAppStore(s => s.serviceTypes);
   const addServiceType = useAppStore(s => s.addServiceType);
@@ -123,7 +123,10 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
     if (!form.identification.trim()) {
       errs.identification = 'La cédula/RUC o pasaporte es obligatorio';
     } else if (existingIds.has(newId) && newId !== oldId) {
-      errs.identification = 'Ya existe un cliente con este documento';
+      const dup = allClients?.find(c => c.identification?.replace(/\s/g, '') === newId);
+      errs.identification = dup?.active === false
+        ? '__INACTIVE__:' + (dup.id)
+        : 'Ya existe un cliente activo con este documento';
     } else if (!form.foreign && (!isEdit || idChanged)) {
       const digits = newId;
       if (!/^\d+$/.test(digits))
@@ -227,7 +230,22 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
             className={`${inp(errors.identification)} font-mono`}
             maxLength={form.foreign ? 30 : 13}
           />
-          {errors.identification && <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>}
+          {errors.identification && (
+            errors.identification.startsWith('__INACTIVE__:')
+              ? (
+                <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-xs text-amber-700 font-medium mb-1.5">
+                    ⚠️ Este cliente existe pero está <strong>inactivo</strong>.
+                  </p>
+                  <button type="button"
+                    onClick={() => onActivateExisting(errors.identification.split(':')[1])}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors">
+                    Reactivar cliente
+                  </button>
+                </div>
+              )
+              : <p className="text-xs text-red-500 mt-1">⚠️ {errors.identification}</p>
+          )}
         </div>
       </div>
 
@@ -739,6 +757,17 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
           onCancel={() => { setShowForm(false); setEditing(null); }}
           isLoading={isLoading}
           existingIds={existingIds}
+          allClients={clients}
+          onActivateExisting={async (clientId) => {
+            setIsLoading(true);
+            try {
+              await setClientActive(clientId, true);
+              setShowForm(false);
+              setEditing(null);
+            } finally {
+              setIsLoading(false);
+            }
+          }}
         />
       )}
 
