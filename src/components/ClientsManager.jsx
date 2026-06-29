@@ -475,156 +475,151 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
 function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
-  const contacts = getClientContacts(client);
+  const contacts   = getClientContacts(client);
+  const rowCount   = Math.max(contacts.length, 1);
+  const inactiveCls = !client.active ? 'opacity-60' : '';
 
-  return (
-    <tr className={`hover:bg-slate-50 transition-colors align-top ${!client.active ? 'opacity-60' : ''}`}>
-
-      {/* ── Columna 1: Cliente + badges + botones ── */}
-      <td className="px-4 py-3 w-56">
-        <div className="flex items-start gap-2">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
-          <div className="min-w-0">
-
-            {/* Nombre */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="text-sm font-semibold text-slate-800 leading-snug">{client.name}</p>
-              {client.foreign && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                  🌐 Ext.
-                </span>
-              )}
-            </div>
-
-            {/* Identificación */}
-            {client.identification && (
-              <div className="flex items-center gap-1 mt-0.5">
-                <CreditCard size={10} className="text-slate-400" />
-                <span className="text-xs font-mono text-slate-500">{client.identification}</span>
-              </div>
+  // Celda Cliente con rowSpan para abarcar todas las filas de ubicación
+  const clientCell = (
+    <td className="px-4 py-3 w-56 align-top border-r border-slate-100" rowSpan={rowCount}>
+      <div className="flex items-start gap-2">
+        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-sm font-semibold text-slate-800 leading-snug">{client.name}</p>
+            {client.foreign && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                🌐 Ext.
+              </span>
             )}
-
-            {/* Badges: visitas + estado */}
-            <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                visitCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
-              }`}>
-                {visitCount} visita{visitCount !== 1 ? 's' : ''}
-              </span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                client.active !== false ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {client.active !== false ? 'Activo' : 'Inactivo'}
-              </span>
+          </div>
+          {client.identification && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <CreditCard size={10} className="text-slate-400" />
+              <span className="text-xs font-mono text-slate-500">{client.identification}</span>
             </div>
-
-            {/* Botones de acción — siempre visibles */}
-            <div className="flex items-center gap-1 flex-wrap mt-2">
-              <button onClick={() => onNewVisit(client)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white"
-                style={{ background: '#D61672' }}>
-                <Wrench size={10} /> Nueva visita
-              </button>
-              <button onClick={() => onEdit(client)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-                <Pencil size={10} /> Editar
-              </button>
-              <button
-                onClick={() => onToggleActive(client)}
-                disabled={isLoading}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
-                  client.active !== false
-                    ? 'bg-slate-100 text-slate-600 hover:bg-orange-50 hover:text-orange-600'
-                    : 'bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600'
-                }`}>
-                {client.active !== false
-                  ? <><UserX size={10} /> Inactivar</>
-                  : <><UserCheck size={10} /> Activar</>}
-              </button>
-            </div>
-
+          )}
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              visitCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+            }`}>
+              {visitCount} visita{visitCount !== 1 ? 's' : ''}
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              client.active !== false ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
+            }`}>
+              {client.active !== false ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 flex-wrap mt-2">
+            <button onClick={() => onNewVisit(client)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-white"
+              style={{ background: '#D61672' }}>
+              <Wrench size={10} /> Nueva visita
+            </button>
+            <button onClick={() => onEdit(client)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+              <Pencil size={10} /> Editar
+            </button>
+            <button onClick={() => onToggleActive(client)} disabled={isLoading}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+                client.active !== false
+                  ? 'bg-slate-100 text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                  : 'bg-slate-100 text-slate-600 hover:bg-green-50 hover:text-green-600'
+              }`}>
+              {client.active !== false
+                ? <><UserX size={10} /> Inactivar</>
+                : <><UserCheck size={10} /> Activar</>}
+            </button>
           </div>
         </div>
-      </td>
+      </div>
+    </td>
+  );
 
-      {/* ── Columna 2: Ubicaciones ── */}
-      <td className="px-4 py-3">
-        {contacts.length === 0 ? (
+  // Sin ubicaciones: una sola fila
+  if (contacts.length === 0) {
+    return (
+      <tr className={`hover:bg-slate-50 transition-colors ${inactiveCls}`}>
+        {clientCell}
+        <td className="px-4 py-3 align-top">
           <span className="text-slate-300 text-xs">Sin ubicaciones</span>
-        ) : (
-          <div className="space-y-3">
-            {contacts.map((c, i) => (
-              <div key={c.id}
-                className={`text-xs ${i > 0 ? 'pt-3 border-t border-slate-100' : ''}`}>
-                {(c.ubicacion || c.ciudad) && (
-                  <p className="font-semibold text-slate-700 flex items-center gap-1 mb-0.5">
-                    <MapPin size={10} className="text-pink-400 flex-shrink-0" />
-                    {[c.ubicacion, c.ciudad].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {c.address && (
-                  <p className="text-slate-500 ml-3.5">{c.address}</p>
-                )}
-                {(c.phone || c.email) && (
-                  <div className="flex flex-wrap gap-x-3 ml-3.5 mt-0.5 text-slate-500">
-                    {c.phone && (
-                      <span className="flex items-center gap-0.5">
-                        <Phone size={9} className="text-slate-400" />{c.phone}
-                      </span>
-                    )}
-                    {c.email && <span className="truncate max-w-[180px]">{c.email}</span>}
-                  </div>
-                )}
-                {c.referencia && (
-                  <p className="text-slate-400 italic ml-3.5 mt-0.5 truncate max-w-xs" title={c.referencia}>
-                    📍 {c.referencia}
-                  </p>
-                )}
-                {c.mapsLink && (
-                  <div className="ml-3.5 mt-1">
-                    <a href={c.mapsLink} target="_blank" rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 font-medium">
-                      <ExternalLink size={9} /> Ver en Maps
-                    </a>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </td>
+        </td>
+        <td className="px-4 py-3 align-top">
+          <span className="text-slate-300 text-xs">—</span>
+        </td>
+      </tr>
+    );
+  }
 
-      {/* ── Columna 3: Equipos (alineada con cada ubicación) ── */}
-      <td className="px-4 py-3">
-        {contacts.length === 0 ? null : (
-          <div className="space-y-3">
-            {contacts.map((c, i) => (
-              <div key={c.id}
-                className={`text-xs ${i > 0 ? 'pt-3 border-t border-slate-100' : ''}`}>
-                {(c.installations || []).length === 0 ? (
-                  <span className="text-slate-300">—</span>
-                ) : (
-                  <div className="space-y-0.5">
-                    {c.installations.map((inst, ii) => (
-                      <div key={inst.id ?? ii} className="flex items-start gap-1 text-amber-700">
-                        <Wrench size={9} className="flex-shrink-0 mt-0.5" />
-                        <span className="font-medium">
-                          {inst.serviceType || 'Sin tipo'}
-                          {inst.observacion
-                            ? <span className="text-slate-400 font-normal"> — {inst.observacion}</span>
-                            : null}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+  // Una fila por cada ubicación — el cliente abarca todas con rowSpan
+  return (
+    <>
+      {contacts.map((c, i) => (
+        <tr key={c.id}
+          className={`hover:bg-slate-50 transition-colors ${inactiveCls}`}>
+
+          {/* Celda cliente solo en la primera fila */}
+          {i === 0 && clientCell}
+
+          {/* ── Ubicación ── */}
+          <td className="px-4 py-3 align-top text-xs">
+            {(c.ubicacion || c.ciudad) && (
+              <p className="font-semibold text-slate-700 flex items-center gap-1 mb-0.5">
+                <MapPin size={10} className="text-pink-400 flex-shrink-0" />
+                {[c.ubicacion, c.ciudad].filter(Boolean).join(' · ')}
+              </p>
+            )}
+            {c.address && <p className="text-slate-500 ml-3.5">{c.address}</p>}
+            {(c.phone || c.email) && (
+              <div className="flex flex-wrap gap-x-3 ml-3.5 mt-0.5 text-slate-500">
+                {c.phone && (
+                  <span className="flex items-center gap-0.5">
+                    <Phone size={9} className="text-slate-400" />{c.phone}
+                  </span>
                 )}
+                {c.email && <span className="truncate max-w-[180px]">{c.email}</span>}
               </div>
-            ))}
-          </div>
-        )}
-      </td>
-    </tr>
+            )}
+            {c.referencia && (
+              <p className="text-slate-400 italic ml-3.5 mt-0.5 truncate max-w-xs" title={c.referencia}>
+                📍 {c.referencia}
+              </p>
+            )}
+            {c.mapsLink && (
+              <div className="ml-3.5 mt-1">
+                <a href={c.mapsLink} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 font-medium">
+                  <ExternalLink size={9} /> Ver en Maps
+                </a>
+              </div>
+            )}
+          </td>
+
+          {/* ── Equipos de esta ubicación ── */}
+          <td className="px-4 py-3 align-top text-xs">
+            {(c.installations || []).length === 0 ? (
+              <span className="text-slate-300">—</span>
+            ) : (
+              <div className="space-y-0.5">
+                {c.installations.map((inst, ii) => (
+                  <div key={inst.id ?? ii} className="flex items-start gap-1 text-amber-700">
+                    <Wrench size={9} className="flex-shrink-0 mt-0.5" />
+                    <span className="font-medium">
+                      {inst.serviceType || 'Sin tipo'}
+                      {inst.observacion
+                        ? <span className="text-slate-400 font-normal"> — {inst.observacion}</span>
+                        : null}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 
