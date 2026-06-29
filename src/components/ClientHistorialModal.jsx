@@ -74,6 +74,16 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
 
   const gapAlert = stats.daysSinceLast !== null && stats.daysSinceLast > 90;
 
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+
+  const isOverdue = (v) =>
+    (v.status === 'Programada' || v.status === 'Confirmada') && v.scheduledDate < today;
+
+  const overdueVisits = useMemo(() =>
+    clientVisits.filter(v => isOverdue(v)),
+    [clientVisits, today]
+  );
+
   const handleMonthClick = (m) => {
     const el = monthRefs.current[m];
     if (!el) return;
@@ -159,6 +169,21 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
             </div>
           </div>
 
+          {/* Alerta visitas atrasadas */}
+          {overdueVisits.length > 0 && (
+            <div className="flex items-start gap-3 bg-red-50 border-2 border-red-300 rounded-xl p-3">
+              <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-700">
+                  {overdueVisits.length} visita{overdueVisits.length !== 1 ? 's' : ''} atrasada{overdueVisits.length !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-red-500 mt-0.5">
+                  Estaban programadas y no han sido marcadas como realizadas.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Gap alert */}
           {gapAlert && (
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
@@ -188,26 +213,36 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
           {/* 12-month strip — cuadros grandes con fechas y horas */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {MONTHS_SHORT.map((name, m) => {
-              const mVisits  = visitsByMonth[m] || [];
-              const hasVisits = mVisits.length > 0;
-              const shown    = mVisits.slice(0, 4);
-              const extra    = mVisits.length - shown.length;
+              const mVisits    = visitsByMonth[m] || [];
+              const hasVisits  = mVisits.length > 0;
+              const shown      = mVisits.slice(0, 4);
+              const extra      = mVisits.length - shown.length;
+              const hasOverdue = mVisits.some(v => isOverdue(v));
               return (
                 <button key={m}
                   onClick={() => hasVisits && handleMonthClick(m)}
                   disabled={!hasVisits}
                   className={`p-3 rounded-xl border-2 text-left transition-all ${
-                    hasVisits
+                    hasOverdue
+                      ? 'border-red-300 bg-red-50 hover:border-red-400 hover:shadow-sm cursor-pointer'
+                      : hasVisits
                       ? 'border-slate-200 bg-white hover:border-pink-300 hover:shadow-sm cursor-pointer'
                       : 'border-slate-100 bg-slate-50/60 cursor-default'
                   }`}>
                   {/* Cabecera mes */}
                   <div className="flex items-center justify-between mb-2">
-                    <p className={`text-xs font-bold uppercase tracking-wide ${hasVisits ? 'text-slate-700' : 'text-slate-300'}`}>
-                      {name}
-                    </p>
+                    <div className="flex items-center gap-1">
+                      {hasOverdue && <AlertTriangle size={11} className="text-red-500 flex-shrink-0" />}
+                      <p className={`text-xs font-bold uppercase tracking-wide ${
+                        hasOverdue ? 'text-red-700' : hasVisits ? 'text-slate-700' : 'text-slate-300'
+                      }`}>
+                        {name}
+                      </p>
+                    </div>
                     {hasVisits && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-pink-100 text-pink-700">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        hasOverdue ? 'bg-red-200 text-red-700' : 'bg-pink-100 text-pink-700'
+                      }`}>
                         {mVisits.length}
                       </span>
                     )}
@@ -216,19 +251,25 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                   {/* Lista de visitas con fecha + hora */}
                   {hasVisits ? (
                     <div className="space-y-1.5">
-                      {shown.map(v => (
-                        <div key={v.id} className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[v.status] || 'bg-slate-300'}`} />
-                          <span className="text-[11px] text-slate-700 font-semibold leading-tight">
-                            {v.scheduledDate.slice(8, 10)}/{v.scheduledDate.slice(5, 7)}
-                          </span>
-                          {v.scheduledTime ? (
-                            <span className="text-[11px] text-slate-400 leading-tight">· {v.scheduledTime}</span>
-                          ) : (
-                            <span className="text-[10px] text-slate-300 italic leading-tight">sin hora</span>
-                          )}
-                        </div>
-                      ))}
+                      {shown.map(v => {
+                        const overdue = isOverdue(v);
+                        return (
+                          <div key={v.id} className="flex items-center gap-1.5">
+                            {overdue
+                              ? <AlertTriangle size={10} className="text-red-500 flex-shrink-0" />
+                              : <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[v.status] || 'bg-slate-300'}`} />
+                            }
+                            <span className={`text-[11px] font-semibold leading-tight ${overdue ? 'text-red-600' : 'text-slate-700'}`}>
+                              {v.scheduledDate.slice(8, 10)}/{v.scheduledDate.slice(5, 7)}
+                            </span>
+                            {v.scheduledTime ? (
+                              <span className={`text-[11px] leading-tight ${overdue ? 'text-red-400' : 'text-slate-400'}`}>· {v.scheduledTime}</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-300 italic leading-tight">sin hora</span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {extra > 0 && (
                         <p className="text-[10px] text-pink-500 font-semibold">+{extra} más →</p>
                       )}
@@ -268,25 +309,39 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                 Todas las visitas — {selectedYear}
               </p>
               {Array.from({ length: 12 }, (_, m) => {
-                const mVisits = visitsByMonth[m] || [];
+                const mVisits      = visitsByMonth[m] || [];
                 if (!mVisits.length) return null;
                 const isHighlighted = highlightMonth === m;
+                const monthOverdue  = mVisits.filter(v => isOverdue(v)).length;
+                const borderCls = isHighlighted
+                  ? 'border-pink-400 shadow-md'
+                  : monthOverdue > 0
+                  ? 'border-red-300'
+                  : 'border-slate-100';
                 return (
                   <div key={m}
                     ref={el => { monthRefs.current[m] = el; }}
-                    className={`rounded-xl border-2 overflow-hidden transition-all duration-500 ${
-                      isHighlighted ? 'border-pink-400 shadow-md' : 'border-slate-100'
-                    }`}>
+                    className={`rounded-xl border-2 overflow-hidden transition-all duration-500 ${borderCls}`}>
 
                     {/* Cabecera del mes */}
                     <div className={`px-4 py-2.5 flex items-center justify-between transition-colors duration-500 ${
-                      isHighlighted ? 'bg-pink-50' : 'bg-slate-50'
+                      isHighlighted ? 'bg-pink-50' : monthOverdue > 0 ? 'bg-red-50' : 'bg-slate-50'
                     }`}>
-                      <p className={`text-xs font-bold uppercase tracking-wide transition-colors duration-500 ${
-                        isHighlighted ? 'text-pink-700' : 'text-slate-600'
-                      }`}>
-                        {MONTHS_FULL[m]} {selectedYear}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {monthOverdue > 0 && !isHighlighted && (
+                          <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />
+                        )}
+                        <p className={`text-xs font-bold uppercase tracking-wide transition-colors duration-500 ${
+                          isHighlighted ? 'text-pink-700' : monthOverdue > 0 ? 'text-red-700' : 'text-slate-600'
+                        }`}>
+                          {MONTHS_FULL[m]} {selectedYear}
+                        </p>
+                        {monthOverdue > 0 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-200 text-red-700">
+                            {monthOverdue} atrasada{monthOverdue !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-slate-500 border border-slate-200">
                         {mVisits.length} visita{mVisits.length !== 1 ? 's' : ''}
                       </span>
@@ -294,46 +349,57 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
 
                     {/* Visitas del mes */}
                     <div className="divide-y divide-slate-50">
-                      {mVisits.map(v => (
-                        <div key={v.id} className="px-4 py-3">
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <p className="font-semibold text-slate-800 text-sm">
-                              {formatDateOnly(v.scheduledDate)}
-                              {v.scheduledTime ? (
-                                <span className="text-slate-400 font-normal ml-1.5">· {v.scheduledTime}</span>
-                              ) : (
-                                <span className="text-slate-300 font-normal text-xs ml-1.5 italic">sin hora</span>
+                      {mVisits.map(v => {
+                        const overdue = isOverdue(v);
+                        return (
+                          <div key={v.id} className={`px-4 py-3 ${overdue ? 'bg-red-50/50' : ''}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <p className={`font-semibold text-sm flex items-center gap-1.5 ${overdue ? 'text-red-700' : 'text-slate-800'}`}>
+                                {overdue && <AlertTriangle size={13} className="text-red-500 flex-shrink-0" />}
+                                {formatDateOnly(v.scheduledDate)}
+                                {v.scheduledTime ? (
+                                  <span className={`font-normal ml-0.5 ${overdue ? 'text-red-400' : 'text-slate-400'}`}>· {v.scheduledTime}</span>
+                                ) : (
+                                  <span className="text-slate-300 font-normal text-xs ml-0.5 italic">sin hora</span>
+                                )}
+                              </p>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {overdue && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200 text-red-700">
+                                    Atrasada
+                                  </span>
+                                )}
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE[v.status] || 'bg-slate-100 text-slate-500'}`}>
+                                  {v.status}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                              {v.technician && (
+                                <span className="flex items-center gap-1">
+                                  <User size={10} />{v.technician}
+                                </span>
                               )}
-                            </p>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATUS_BADGE[v.status] || 'bg-slate-100 text-slate-500'}`}>
-                              {v.status}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                            {v.technician && (
-                              <span className="flex items-center gap-1">
-                                <User size={10} />{v.technician}
-                              </span>
+                              {(v.type || v.serviceType) && (
+                                <span className="flex items-center gap-1">
+                                  <Wrench size={10} />{v.type || v.serviceType}
+                                </span>
+                              )}
+                              {(v.ubicacion || v.ciudad) && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin size={10} />{[v.ubicacion, v.ciudad].filter(Boolean).join(' · ')}
+                                </span>
+                              )}
+                            </div>
+                            {v.observations && (
+                              <p className="text-xs text-slate-400 italic mt-1">📝 {v.observations}</p>
                             )}
-                            {(v.type || v.serviceType) && (
-                              <span className="flex items-center gap-1">
-                                <Wrench size={10} />{v.type || v.serviceType}
-                              </span>
-                            )}
-                            {(v.ubicacion || v.ciudad) && (
-                              <span className="flex items-center gap-1">
-                                <MapPin size={10} />{[v.ubicacion, v.ciudad].filter(Boolean).join(' · ')}
-                              </span>
+                            {v.closingObservations && (
+                              <p className="text-xs text-green-600 italic mt-1">✅ {v.closingObservations}</p>
                             )}
                           </div>
-                          {v.observations && (
-                            <p className="text-xs text-slate-400 italic mt-1">📝 {v.observations}</p>
-                          )}
-                          {v.closingObservations && (
-                            <p className="text-xs text-green-600 italic mt-1">✅ {v.closingObservations}</p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
