@@ -144,6 +144,11 @@ export default function AllVisitsManager({ user }) {
   const highlightedVisitId  = useAppStore(s => s.highlightedVisitId);
   const setHighlightedVisitId = useAppStore(s => s.setHighlightedVisitId);
   const { tecnicos }        = useTecnicos(user);
+  const tecnicosMap = useMemo(() => {
+    const map = {};
+    tecnicos.forEach(t => { map[t.nombre] = { phone: t.phone || '', email: t.email || '' }; });
+    return map;
+  }, [tecnicos]);
 
   const establecimientos = useAppStore(s => s.establecimientos);
 
@@ -445,6 +450,17 @@ export default function AllVisitsManager({ user }) {
                           <div>
                             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Técnico</p>
                             <p className="font-medium text-slate-700">👷 {visit.technician}</p>
+                            {tecnicosMap[visit.technician]?.phone && (
+                              <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                                <Phone size={9} className="text-slate-400" />
+                                {tecnicosMap[visit.technician].phone}
+                              </p>
+                            )}
+                            {tecnicosMap[visit.technician]?.email && (
+                              <p className="text-xs text-slate-500 truncate mt-0.5">
+                                ✉ {tecnicosMap[visit.technician].email}
+                              </p>
+                            )}
                           </div>
                         )}
                         {visit.serviceType && (
