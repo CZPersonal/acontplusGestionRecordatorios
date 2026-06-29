@@ -453,10 +453,17 @@ export default function AllVisitsManager({ user }) {
                             <p className="font-medium text-slate-700">{visit.serviceType}</p>
                           </div>
                         )}
-                        {visit.ubicacion && (
+                        {(visit.ubicacion || visit.ciudad || visit.address) && (
                           <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Ubicación</p>
-                            <p className="font-medium text-slate-700 truncate">{visit.ubicacion}{visit.ciudad ? ` · ${visit.ciudad}` : ''}</p>
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Dirección</p>
+                            {(visit.ubicacion || visit.ciudad) && (
+                              <p className="font-medium text-slate-700 truncate">
+                                {[visit.ubicacion, visit.ciudad].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                            {visit.address && (
+                              <p className="text-xs text-slate-500 truncate">{visit.address}</p>
+                            )}
                           </div>
                         )}
                         {visit.establecimientoNombre && (
