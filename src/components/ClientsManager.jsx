@@ -3,7 +3,7 @@ import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
-  ChevronDown, ChevronUp, Trash2, Clipboard, History,
+  ChevronDown, ChevronUp, Trash2, Clipboard, CalendarDays,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -493,7 +493,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClie
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onHistorial, isLoading }) {
+function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) {
   const [open,       setOpen]       = useState(false);
   const [confirming, setConfirming] = useState(false);
   const menuRef = useRef(null);
@@ -526,13 +526,6 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onHistorial, 
             onClick={() => { onNewVisit(client); setOpen(false); }}
             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
             <Wrench size={12} className="text-pink-500" /> Nueva visita
-          </button>
-
-          {/* Historial */}
-          <button
-            onClick={() => { onHistorial(client); setOpen(false); }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
-            <History size={12} className="text-purple-500" /> Historial
           </button>
 
           {/* Editar */}
@@ -627,12 +620,18 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
               {client.active !== false ? 'Activo' : 'Inactivo'}
             </span>
           </div>
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <button
+              onClick={() => onHistorial(client)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors border border-purple-100">
+              <CalendarDays size={12} /> Calendario
+            </button>
+          </div>
           <ActionsMenu
             client={client}
             onNewVisit={onNewVisit}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
-            onHistorial={onHistorial}
             isLoading={isLoading}
           />
         </div>
