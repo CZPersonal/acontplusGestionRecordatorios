@@ -75,9 +75,14 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
   const gapAlert = stats.daysSinceLast !== null && stats.daysSinceLast > 90;
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+  const nowTime = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit' });
 
-  const isOverdue = (v) =>
-    (v.status === 'Programada' || v.status === 'Confirmada') && v.scheduledDate < today;
+  const isOverdue = (v) => {
+    if (!(v.status === 'Programada' || v.status === 'Confirmada')) return false;
+    if (v.scheduledDate < today) return true;
+    if (v.scheduledDate === today && v.scheduledTime && v.scheduledTime < nowTime) return true;
+    return false;
+  };
 
   const overdueVisits = useMemo(() =>
     clientVisits.filter(v => isOverdue(v)),
