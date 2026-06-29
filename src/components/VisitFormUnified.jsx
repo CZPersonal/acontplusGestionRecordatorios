@@ -3,8 +3,9 @@ import { useAppStore } from '../lib/store';
 import { getClientContacts, emptyContact, emptyInstallation } from '../hooks/useClients.js';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
+import { useBorradores } from '../hooks/useBorradores';
 import {
-  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2,
+  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2, Clock,
 } from 'lucide-react';
 
 // ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
@@ -166,8 +167,10 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const memberEstablecimientoDefault = useAppStore(s => s.memberEstablecimientoDefault);
   const userRole                    = useAppStore(s => s.userRole);
 
+  const visits                      = useAppStore(s => s.visits);
   const { tecnicos }               = useTecnicos(user);
   const { tipos: tiposVisita = [] } = useTiposVisita(user);
+  const { borradores }             = useBorradores(user, { onlyMine: false });
 
   // isEdit: solo cuando hay un id de Firestore existente con status (visita real, no defaults de soporte)
   const isEdit = !!(initialVisit?.id && initialVisit?.status);
@@ -340,6 +343,24 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       if (onClose) onClose();
     }
   };
+
+  // ─── Agenda del técnico en la fecha seleccionada ─────────────────────────
+  const tecnicoAgenda = useMemo(() => {
+    if (!form.technician || !form.scheduledDate) return null;
+    const visitas = visits.filter(v =>
+      v.technician === form.technician &&
+      v.scheduledDate === form.scheduledDate &&
+      (v.status === 'Programada' || v.status === 'Confirmada') &&
+      (!isEdit || v.id !== initialVisit?.id)
+    ).sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''));
+    const borraDia = borradores.filter(b =>
+      b.technicianName === form.technician &&
+      b.scheduledDate === form.scheduledDate &&
+      !b.convertedAt
+    ).sort((a, b) => (a.scheduledTime || '').localeCompare(b.scheduledTime || ''));
+    if (!visitas.length && !borraDia.length) return null;
+    return { visitas, borradores: borraDia };
+  }, [form.technician, form.scheduledDate, visits, borradores, isEdit, initialVisit?.id]);
 
   // ─── Estilos comunes ──────────────────────────────────────────────────────
   const inp   = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400 bg-white transition-colors";
@@ -554,21 +575,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
             </p>
             <div className="grid grid-cols-2 gap-4">
 
-              {/* Fecha */}
-              <div>
-                <label className={lbl}>Fecha programada *</label>
-                <input type="date" required value={form.scheduledDate}
-                  onChange={e => setF('scheduledDate', e.target.value)} className={inp} />
-              </div>
-
-              {/* Hora */}
-              <div>
-                <label className={lbl}>Hora (opcional)</label>
-                <input type="time" value={form.scheduledTime}
-                  onChange={e => setF('scheduledTime', e.target.value)} className={inp} />
-              </div>
-
-              {/* Técnico */}
+              {/* Técnico — primero para poder mostrar la agenda */}
               <div className="col-span-2">
                 <label className={lbl}>Técnico asignado</label>
                 <select value={form.technician}
@@ -581,6 +588,50 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                   <option value="">— Sin asignar —</option>
                   {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
                 </select>
+              </div>
+
+              {/* Panel de ocupación del técnico */}
+              {tecnicoAgenda && (
+                <div className="col-span-2 rounded-xl border-2 border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                    <Clock size={13} />
+                    Ocupaciones en esta fecha — {tecnicoAgenda.visitas.length + tecnicoAgenda.borradores.length} registro{tecnicoAgenda.visitas.length + tecnicoAgenda.borradores.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-1.5">
+                    {tecnicoAgenda.visitas.map(v => (
+                      <div key={v.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-amber-100">
+                        <span className="font-mono text-slate-500 w-12 shrink-0">{v.scheduledTime || '—:——'}</span>
+                        <span className="font-semibold text-slate-700 truncate flex-1">{v.clientName || 'Sin cliente'}</span>
+                        <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${v.status === 'Confirmada' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {v.status}
+                        </span>
+                      </div>
+                    ))}
+                    {tecnicoAgenda.borradores.map(b => (
+                      <div key={b.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2.5 py-1.5 border border-amber-100">
+                        <span className="font-mono text-slate-500 w-12 shrink-0">{b.scheduledTime || '—:——'}</span>
+                        <span className="font-semibold text-slate-700 truncate flex-1">{b.clientName || 'Sin cliente'}</span>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">
+                          Borrador
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fecha */}
+              <div>
+                <label className={lbl}>Fecha programada *</label>
+                <input type="date" required value={form.scheduledDate}
+                  onChange={e => setF('scheduledDate', e.target.value)} className={inp} />
+              </div>
+
+              {/* Hora */}
+              <div>
+                <label className={lbl}>Hora (opcional)</label>
+                <input type="time" value={form.scheduledTime}
+                  onChange={e => setF('scheduledTime', e.target.value)} className={inp} />
               </div>
 
               {/* Tipo */}
