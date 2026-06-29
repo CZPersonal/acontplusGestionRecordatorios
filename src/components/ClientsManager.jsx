@@ -188,7 +188,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
       </p>
 
       {/* ── Fila 1: Toggle + Cédula/RUC ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="flex items-center gap-2.5 p-3 bg-blue-50 border border-blue-100 rounded-xl">
           <button type="button"
             onClick={() => {
@@ -298,7 +298,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
                 <div className="px-3 pb-3 space-y-2.5 border-t border-slate-100 pt-2.5">
 
                   {/* Ubicación + Ciudad */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className={lbl}>Ubicación / Sector</label>
                       <input type="text" value={contact.ubicacion}
@@ -325,7 +325,7 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
                   </div>
 
                   {/* Teléfono + Email */}
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
                       <label className={lbl}>Teléfono</label>
                       <input type="tel" value={contact.phone}
