@@ -86,18 +86,11 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
 
   const overdueVisits = useMemo(() =>
     clientVisits.filter(v => isOverdue(v)),
-    [clientVisits, today]
+    [clientVisits, today, nowTime]
   );
 
-  const overdueProgramadas = useMemo(() =>
-    overdueVisits.filter(v => v.status === 'Programada'),
-    [overdueVisits]
-  );
-
-  const overdueConfirmadas = useMemo(() =>
-    overdueVisits.filter(v => v.status === 'Confirmada'),
-    [overdueVisits]
-  );
+  const overdueProgramadas = overdueVisits.filter(v => v.status === 'Programada');
+  const overdueConfirmadas = overdueVisits.filter(v => v.status === 'Confirmada');
 
   const handleMonthClick = (m) => {
     const el = monthRefs.current[m];
