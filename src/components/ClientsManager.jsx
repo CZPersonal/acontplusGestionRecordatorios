@@ -3,6 +3,7 @@ import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
+  ChevronDown, ChevronUp, Trash2,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -99,6 +100,16 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
       ? existing.map(c => ({ ...c, installations: c.installations || [] }))
       : [emptyContact()];
   });
+  // Acordeón: índices expandidos. Los existentes empiezan colapsados; los nuevos, expandidos.
+  const [expandedContacts, setExpandedContacts] = useState(() =>
+    getClientContacts(initial || {}).length === 0 ? new Set([0]) : new Set()
+  );
+  const toggleContact = (idx) =>
+    setExpandedContacts(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
 
   const validate = () => {
     const errs  = {};
@@ -131,8 +142,19 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
     await onSave({ ...form, contacts });
   };
 
-  const addContact    = () => setContacts(prev => [...prev, emptyContact()]);
-  const removeContact = (idx) => setContacts(prev => prev.filter((_, i) => i !== idx));
+  const addContact = () => {
+    const newIdx = contacts.length;
+    setContacts(prev => [...prev, emptyContact()]);
+    setExpandedContacts(prev => new Set([...prev, newIdx]));
+  };
+  const removeContact = (idx) => {
+    setContacts(prev => prev.filter((_, i) => i !== idx));
+    setExpandedContacts(prev => {
+      const next = new Set();
+      prev.forEach(i => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
+      return next;
+    });
+  };
   const setContactField = (idx, field, value) =>
     setContacts(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
 
@@ -232,153 +254,183 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
           </button>
         </div>
 
-        {contacts.map((contact, idx) => (
-          <div key={contact.id}
-            className="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5 relative">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
-                Ubicación {idx + 1}
-              </span>
-              {contacts.length > 1 && (
-                <button type="button" onClick={() => removeContact(idx)}
-                  className="p-0.5 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
+        {contacts.map((contact, idx) => {
+          const isExpanded = expandedContacts.has(idx);
+          const summary = [contact.ubicacion, contact.ciudad].filter(Boolean).join(' · ')
+            || contact.address
+            || 'Sin datos de ubicación';
+          return (
+            <div key={contact.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
 
-            {/* Ubicación + Ciudad */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={lbl}>Ubicación</label>
-                <input type="text" value={contact.ubicacion}
-                  onChange={e => setContactField(idx, 'ubicacion', e.target.value)}
-                  placeholder="Sector, barrio, referencia..."
-                  className={inp(false)} />
-              </div>
-              <div>
-                <label className={lbl}>Ciudad</label>
-                <input type="text" value={contact.ciudad}
-                  onChange={e => setContactField(idx, 'ciudad', e.target.value)}
-                  placeholder="Quito, Coca..."
-                  className={inp(false)} />
-              </div>
-            </div>
-
-            {/* Dirección */}
-            <div>
-              <label className={lbl}>Dirección</label>
-              <input type="text" value={contact.address}
-                onChange={e => setContactField(idx, 'address', e.target.value)}
-                placeholder="Calle, número, edificio..."
-                className={inp(false)} />
-            </div>
-
-            {/* Teléfono + Email */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className={lbl}>Teléfono</label>
-                <input type="tel" value={contact.phone}
-                  onChange={e => setContactField(idx, 'phone', e.target.value)}
-                  placeholder="0991234567"
-                  className={inp(false)} />
-              </div>
-              <div>
-                <label className={lbl}>Email</label>
-                <input type="email" value={contact.email}
-                  onChange={e => setContactField(idx, 'email', e.target.value)}
-                  placeholder="correo@ejemplo.com"
-                  className={inp(false)} />
-              </div>
-            </div>
-
-            {/* Google Maps */}
-            <div>
-              <label className={lbl}>Ubicación en Google Maps</label>
-              <div className="flex gap-2">
-                <input type="url" value={contact.mapsLink}
-                  onChange={e => setContactField(idx, 'mapsLink', e.target.value)}
-                  placeholder="Pega aquí el link de Google Maps..."
-                  className={`flex-1 ${inp(false)}`} />
-                <button type="button"
-                  title="Abrir Google Maps con mi ubicación actual"
-                  onClick={() => {
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        pos => window.open(
-                          `https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`,
-                          '_blank'
-                        ),
-                        () => window.open('https://www.google.com/maps', '_blank')
-                      );
-                    } else {
-                      window.open('https://www.google.com/maps', '_blank');
-                    }
-                  }}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
-                  <Navigation size={13} /> Abrir Maps
-                </button>
-                {contact.mapsLink && (
-                  <a href={contact.mapsLink} target="_blank" rel="noopener noreferrer"
-                    title="Ver ubicación"
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
-                    <ExternalLink size={13} /> Ver
-                  </a>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Haz clic en "Abrir Maps", busca la dirección del cliente, comparte la ubicación y pega el enlace aquí.
-              </p>
-            </div>
-
-            {/* Referencia */}
-            <div>
-              <label className={lbl}>Referencia</label>
-              <input type="text" value={contact.referencia}
-                onChange={e => setContactField(idx, 'referencia', e.target.value)}
-                placeholder="Frente al parque, junto a la farmacia..."
-                className={inp(false)} />
-            </div>
-
-            {/* ── Equipo / Instalación / Servicio ── */}
-            <div className="mt-1 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚙️ Equipo / Instalación / Servicio</p>
-                <button type="button" onClick={() => addInstallation(idx)}
-                  className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
-                  <Plus size={10} /> Agregar
-                </button>
-              </div>
-              {(contact.installations || []).length === 0 && (
-                <p className="text-xs text-slate-300 italic">Sin equipos/instalaciones registrados</p>
-              )}
-              {(contact.installations || []).map((inst, instIdx) => (
-                <div key={inst.id}
-                  className="flex items-start gap-2 mb-2 p-2 bg-amber-50/60 border border-amber-100 rounded-lg">
-                  <div className="flex-1 space-y-1.5">
-                    <div>
-                      <p className="text-xs text-amber-700 font-semibold mb-1">Tipo de Equipo / Instalación / Servicio</p>
-                      <ServiceTypeSelector
-                        value={inst.serviceType}
-                        onChange={v => setInstField(idx, instIdx, 'serviceType', v)}
-                        serviceTypes={serviceTypes}
-                        onAdd={addServiceType}
-                      />
-                    </div>
-                    <input value={inst.observacion}
-                      onChange={e => setInstField(idx, instIdx, 'observacion', e.target.value)}
-                      placeholder="Observación (capacidad, marca, modelo...)"
-                      className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+              {/* ── Cabecera colapsable ── */}
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <button type="button" onClick={() => toggleContact(idx)}
+                  className="flex-1 flex items-center gap-2 text-left min-w-0">
+                  <div className="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
+                    <MapPin size={11} className="text-pink-500" />
                   </div>
-                  <button type="button" onClick={() => removeInstallation(idx, instIdx)}
-                    className="mt-1 p-0.5 rounded text-amber-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0">
-                    <X size={12} />
-                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-700 truncate">{summary}</p>
+                    {contact.phone && !isExpanded && (
+                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Phone size={9} />{contact.phone}
+                        {contact.referencia && <span className="ml-1 italic truncate">· {contact.referencia}</span>}
+                      </p>
+                    )}
+                  </div>
+                  {isExpanded
+                    ? <ChevronUp size={14} className="text-slate-400 flex-shrink-0" />
+                    : <ChevronDown size={14} className="text-slate-400 flex-shrink-0" />}
+                </button>
+
+                {/* Botón eliminar */}
+                <button type="button"
+                  onClick={() => removeContact(idx)}
+                  disabled={contacts.length === 1}
+                  title={contacts.length === 1 ? 'Debe haber al menos una ubicación' : 'Eliminar ubicación'}
+                  className="flex-shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+
+              {/* ── Campos expandidos ── */}
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-2.5 border-t border-slate-100 pt-2.5">
+
+                  {/* Ubicación + Ciudad */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={lbl}>Ubicación / Sector</label>
+                      <input type="text" value={contact.ubicacion}
+                        onChange={e => setContactField(idx, 'ubicacion', e.target.value)}
+                        placeholder="Sector, barrio, referencia..."
+                        className={inp(false)} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Ciudad</label>
+                      <input type="text" value={contact.ciudad}
+                        onChange={e => setContactField(idx, 'ciudad', e.target.value)}
+                        placeholder="Quito, Coca..."
+                        className={inp(false)} />
+                    </div>
+                  </div>
+
+                  {/* Dirección */}
+                  <div>
+                    <label className={lbl}>Dirección</label>
+                    <input type="text" value={contact.address}
+                      onChange={e => setContactField(idx, 'address', e.target.value)}
+                      placeholder="Calle, número, edificio..."
+                      className={inp(false)} />
+                  </div>
+
+                  {/* Teléfono + Email */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={lbl}>Teléfono</label>
+                      <input type="tel" value={contact.phone}
+                        onChange={e => setContactField(idx, 'phone', e.target.value)}
+                        placeholder="0991234567"
+                        className={inp(false)} />
+                    </div>
+                    <div>
+                      <label className={lbl}>Email</label>
+                      <input type="email" value={contact.email}
+                        onChange={e => setContactField(idx, 'email', e.target.value)}
+                        placeholder="correo@ejemplo.com"
+                        className={inp(false)} />
+                    </div>
+                  </div>
+
+                  {/* Referencia */}
+                  <div>
+                    <label className={lbl}>Referencia</label>
+                    <input type="text" value={contact.referencia}
+                      onChange={e => setContactField(idx, 'referencia', e.target.value)}
+                      placeholder="Frente al parque, junto a la farmacia..."
+                      className={inp(false)} />
+                  </div>
+
+                  {/* Google Maps */}
+                  <div>
+                    <label className={lbl}>Google Maps</label>
+                    <div className="flex gap-2">
+                      <input type="url" value={contact.mapsLink}
+                        onChange={e => setContactField(idx, 'mapsLink', e.target.value)}
+                        placeholder="Pega aquí el link de Google Maps..."
+                        className={`flex-1 ${inp(false)}`} />
+                      <button type="button"
+                        title="Abrir Google Maps con mi ubicación actual"
+                        onClick={() => {
+                          if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                              pos => window.open(
+                                `https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`,
+                                '_blank'
+                              ),
+                              () => window.open('https://www.google.com/maps', '_blank')
+                            );
+                          } else {
+                            window.open('https://www.google.com/maps', '_blank');
+                          }
+                        }}
+                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
+                        <Navigation size={13} /> Abrir Maps
+                      </button>
+                      {contact.mapsLink && (
+                        <a href={contact.mapsLink} target="_blank" rel="noopener noreferrer"
+                          className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
+                          <ExternalLink size={13} /> Ver
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Abre Maps, busca la dirección, comparte la ubicación y pega el enlace aquí.
+                    </p>
+                  </div>
+
+                  {/* ── Equipo / Instalación ── */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚙️ Equipo / Instalación / Servicio</p>
+                      <button type="button" onClick={() => addInstallation(idx)}
+                        className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors">
+                        <Plus size={10} /> Agregar
+                      </button>
+                    </div>
+                    {(contact.installations || []).length === 0 && (
+                      <p className="text-xs text-slate-300 italic">Sin equipos/instalaciones registrados</p>
+                    )}
+                    {(contact.installations || []).map((inst, instIdx) => (
+                      <div key={inst.id}
+                        className="flex items-start gap-2 mb-2 p-2 bg-amber-50/60 border border-amber-100 rounded-lg">
+                        <div className="flex-1 space-y-1.5">
+                          <div>
+                            <p className="text-xs text-amber-700 font-semibold mb-1">Tipo de Equipo / Instalación / Servicio</p>
+                            <ServiceTypeSelector
+                              value={inst.serviceType}
+                              onChange={v => setInstField(idx, instIdx, 'serviceType', v)}
+                              serviceTypes={serviceTypes}
+                              onAdd={addServiceType}
+                            />
+                          </div>
+                          <input value={inst.observacion}
+                            onChange={e => setInstField(idx, instIdx, 'observacion', e.target.value)}
+                            placeholder="Observación (capacidad, marca, modelo...)"
+                            className="w-full border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-amber-400 bg-white" />
+                        </div>
+                        <button type="button" onClick={() => removeInstallation(idx, instIdx)}
+                          className="mt-1 p-0.5 rounded text-amber-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Botones ── */}
@@ -400,15 +452,15 @@ function ClientForm({ initial, onSave, onCancel, isLoading, existingIds }) {
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
 function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNewVisit }) {
-  const contacts    = getClientContacts(client);
-  const firstC      = contacts[0] || {};
-  const extraCount  = contacts.length - 1;
+  const contacts = getClientContacts(client);
 
   return (
-    <tr className={`hover:bg-slate-50 transition-colors group ${!client.active ? 'opacity-60' : ''}`}>
+    <tr className={`hover:bg-slate-50 transition-colors group align-top ${!client.active ? 'opacity-60' : ''}`}>
+
+      {/* ── Cliente: nombre + identificación ── */}
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
+        <div className="flex items-start gap-2">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${client.active ? 'bg-green-400' : 'bg-slate-300'}`} />
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="text-sm font-semibold text-slate-800">{client.name}</p>
@@ -424,48 +476,72 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
                 <span className="text-xs font-mono text-slate-500">{client.identification}</span>
               </div>
             )}
-            {firstC.referencia && (
-              <p className="text-xs text-slate-400 mt-0.5 italic truncate max-w-xs" title={firstC.referencia}>
-                📍 {firstC.referencia}
-              </p>
-            )}
           </div>
         </div>
       </td>
 
+      {/* ── Ubicaciones: todas las sucursales/contactos ── */}
       <td className="px-4 py-3">
-        <div className="space-y-0.5">
-          {firstC.phone
-            ? <div className="flex items-center gap-1 text-sm text-slate-600">
-                <Phone size={12} className="text-slate-400" />{firstC.phone}
-              </div>
-            : <span className="text-slate-300 text-xs">—</span>}
-          {extraCount > 0 && (
-            <span className="text-xs text-slate-400">+{extraCount} ubicación{extraCount > 1 ? 'es' : ''}</span>
-          )}
-        </div>
-      </td>
-
-      <td className="px-4 py-3">
-        {firstC.address || firstC.ciudad || firstC.ubicacion ? (
-          <div className="space-y-0.5">
-            {firstC.address && (
-              <div className="flex items-center gap-1 text-xs text-slate-500">
-                <MapPin size={11} className="text-slate-400 flex-shrink-0" />
-                <span className="truncate max-w-xs">{firstC.address}</span>
-              </div>
-            )}
-            {(firstC.ciudad || firstC.ubicacion) && (
-              <p className="text-xs text-slate-400 ml-3.5 truncate max-w-xs">
-                {[firstC.ciudad, firstC.ubicacion].filter(Boolean).join(' · ')}
-              </p>
-            )}
-          </div>
+        {contacts.length === 0 ? (
+          <span className="text-slate-300 text-xs">Sin ubicaciones</span>
         ) : (
-          <span className="text-slate-300 text-xs">—</span>
+          <div className="space-y-3">
+            {contacts.map((c, i) => (
+              <div key={c.id}
+                className={`text-xs ${i > 0 ? 'pt-3 border-t border-slate-100' : ''}`}>
+                {/* Sector + Ciudad */}
+                {(c.ubicacion || c.ciudad) && (
+                  <p className="font-semibold text-slate-700 flex items-center gap-1 mb-0.5">
+                    <MapPin size={10} className="text-pink-400 flex-shrink-0" />
+                    {[c.ubicacion, c.ciudad].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {/* Dirección */}
+                {c.address && (
+                  <p className="text-slate-500 ml-3.5">{c.address}</p>
+                )}
+                {/* Teléfono + Email */}
+                {(c.phone || c.email) && (
+                  <div className="flex flex-wrap gap-x-3 ml-3.5 mt-0.5 text-slate-500">
+                    {c.phone && (
+                      <span className="flex items-center gap-0.5">
+                        <Phone size={9} className="text-slate-400" />{c.phone}
+                      </span>
+                    )}
+                    {c.email && <span className="truncate max-w-[140px]">{c.email}</span>}
+                  </div>
+                )}
+                {/* Referencia */}
+                {c.referencia && (
+                  <p className="text-slate-400 italic ml-3.5 mt-0.5 truncate max-w-[220px]" title={c.referencia}>
+                    📍 {c.referencia}
+                  </p>
+                )}
+                {/* Maps + Equipos */}
+                {(c.mapsLink || (c.installations || []).length > 0) && (
+                  <div className="flex items-center gap-3 ml-3.5 mt-1">
+                    {c.mapsLink && (
+                      <a href={c.mapsLink} target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="flex items-center gap-0.5 text-blue-500 hover:text-blue-700 font-medium">
+                        <ExternalLink size={9} /> Ver en Maps
+                      </a>
+                    )}
+                    {(c.installations || []).length > 0 && (
+                      <span className="flex items-center gap-0.5 text-amber-600 font-medium">
+                        <Wrench size={9} />
+                        {c.installations.length} equipo{c.installations.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </td>
 
+      {/* ── Tareas ── */}
       <td className="px-4 py-3 text-center">
         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
           taskCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
@@ -474,6 +550,7 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
         </span>
       </td>
 
+      {/* ── Estado ── */}
       <td className="px-4 py-3 text-center">
         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
           client.active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
@@ -482,6 +559,7 @@ function ClientRow({ client, taskCount, onEdit, onToggleActive, isLoading, onNew
         </span>
       </td>
 
+      {/* ── Acciones ── */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
           <button onClick={() => onNewVisit(client)}
@@ -682,8 +760,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook }) {
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Cliente</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Teléfono</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Dirección</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Ubicaciones</th>
                     <th className="text-center px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Tareas</th>
                     <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
                     <th className="px-4 py-3"></th>
