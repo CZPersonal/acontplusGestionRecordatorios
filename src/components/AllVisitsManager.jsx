@@ -577,7 +577,16 @@ export default function AllVisitsManager({ user }) {
                                   onClick={() => {
                                     setEditingMapsId(visit.id);
                                     setMapsInput('');
-                                    window.open('https://www.google.com/maps', '_blank');
+                                    if (navigator.geolocation) {
+                                      navigator.geolocation.getCurrentPosition(
+                                        ({ coords }) => {
+                                          window.open(`https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`, '_blank');
+                                        },
+                                        () => window.open('https://www.google.com/maps', '_blank')
+                                      );
+                                    } else {
+                                      window.open('https://www.google.com/maps', '_blank');
+                                    }
                                   }}
                                   className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-slate-400 hover:text-blue-600 transition-colors">
                                   <Navigation size={9} /> Agregar Maps
