@@ -269,9 +269,10 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                   {hasVisits ? (
                     <div className="space-y-1.5">
                       {shown.map(v => {
-                        const overdue = isOverdue(v);
+                        const overdue    = isOverdue(v);
+                        const isPending  = v.status === 'Programada' || v.status === 'Confirmada';
                         return (
-                          <div key={v.id} className="flex items-center gap-1.5">
+                          <div key={v.id} className="flex items-center gap-1 flex-wrap">
                             {overdue
                               ? <AlertTriangle size={10} className="text-red-500 flex-shrink-0" />
                               : <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[v.status] || 'bg-slate-300'}`} />
@@ -283,6 +284,13 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                               <span className={`text-[11px] leading-tight ${overdue ? 'text-red-400' : 'text-slate-400'}`}>· {v.scheduledTime}</span>
                             ) : (
                               <span className="text-[10px] text-slate-300 italic leading-tight">sin hora</span>
+                            )}
+                            {isPending && !overdue && (
+                              <span className={`text-[9px] font-bold px-1 py-0.5 rounded leading-tight flex-shrink-0 ${
+                                v.status === 'Programada' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'
+                              }`}>
+                                {v.status === 'Programada' ? 'S/conf' : 'S/real'}
+                              </span>
                             )}
                           </div>
                         );
@@ -380,9 +388,15 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                                   <span className="text-slate-300 font-normal text-xs ml-0.5 italic">sin hora</span>
                                 )}
                               </p>
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                {overdue && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200 text-red-700">
+                              <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                                {(v.status === 'Programada' || v.status === 'Confirmada') && (
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    overdue
+                                      ? 'bg-red-200 text-red-700'
+                                      : v.status === 'Programada'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-teal-100 text-teal-700'
+                                  }`}>
                                     {v.status === 'Programada' ? 'Sin confirmar' : 'Sin realizar'}
                                   </span>
                                 )}
