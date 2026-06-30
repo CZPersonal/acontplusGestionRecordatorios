@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useAppStore } from '../lib/store';
 import { getClientContacts } from '../hooks/useClients.js';
 import { useTecnicos } from '../hooks/useTecnicos';
@@ -164,6 +164,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const closeNewVisitModal          = useAppStore(s => s.closeNewVisitModal);
   const user                        = useAppStore(s => s.user);
   const updateClient                = useAppStore(s => s.updateClient);
+  const createClient                = useAppStore(s => s.createClient);
   const establecimientos            = useAppStore(s => s.establecimientos);
   const memberEstablecimientos      = useAppStore(s => s.memberEstablecimientos);
   const memberEstablecimientoDefault = useAppStore(s => s.memberEstablecimientoDefault);
@@ -182,7 +183,9 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const [selectedContactId, setContactId]   = useState('');
   const [selectedInstId,    setInstId]      = useState('');
   const [showEditClient, setShowEditClient] = useState(false);
+  const [showNewClient,  setShowNewClient]  = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
+  const pendingClientIdRef = useRef(null);
 
   const [form, setForm] = useState({
     scheduledDate:   today(),
@@ -262,9 +265,21 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
   // ─── Sincronizar cliente local cuando el store se actualiza ──────────────
   useEffect(() => {
-    if (!client?.id) return;
-    const fresh = clients.find(c => c.id === client.id);
-    if (fresh) setClient(fresh);
+    // Refrescar cliente editado
+    if (client?.id) {
+      const fresh = clients.find(c => c.id === client.id);
+      if (fresh) setClient(fresh);
+    }
+    // Asignar cliente recién creado en cuanto aparezca en el store
+    if (pendingClientIdRef.current) {
+      const newClient = clients.find(c => c.id === pendingClientIdRef.current);
+      if (newClient) {
+        setClient(newClient);
+        setContactId('');
+        setInstId('');
+        pendingClientIdRef.current = null;
+      }
+    }
   }, [clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Guardar edición de cliente ───────────────────────────────────────────
@@ -274,6 +289,27 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
     await updateClient(client.id, formData);
     setIsSavingClient(false);
     setShowEditClient(false);
+  };
+
+  // ─── Guardar nuevo cliente y asignarlo ────────────────────────────────────
+  const handleNewClientSave = async (formData) => {
+    setIsSavingClient(true);
+    const ok = await createClient(formData);
+    if (ok) {
+      const clientId = formData.identification?.replace(/\s/g, '');
+      // Intentar asignar de inmediato (si el listener ya actualizó el store)
+      const fresh = useAppStore.getState().clients.find(c => c.id === clientId);
+      if (fresh) {
+        setClient(fresh);
+        setContactId('');
+        setInstId('');
+      } else {
+        // Si aún no llegó, esperar al useEffect que vigila clients
+        pendingClientIdRef.current = clientId;
+      }
+      setShowNewClient(false);
+    }
+    setIsSavingClient(false);
   };
 
   // ─── Submit ───────────────────────────────────────────────────────────────
@@ -411,12 +447,19 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
               onSelect={(c) => { setClient(c); setContactId(''); setInstId(''); }}
               onClear={() => { setClient(null); setContactId(''); setInstId(''); }}
             />
-            {client && (
-              <button type="button" onClick={() => setShowEditClient(true)}
-                className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1 px-2 rounded-lg hover:bg-indigo-50 transition-colors">
-                <Edit2 size={13} /> Editar cliente
-              </button>
-            )}
+            <div className="mt-2 flex items-center gap-2">
+              {client ? (
+                <button type="button" onClick={() => setShowEditClient(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1 px-2 rounded-lg hover:bg-indigo-50 transition-colors">
+                  <Edit2 size={13} /> Editar cliente
+                </button>
+              ) : (
+                <button type="button" onClick={() => setShowNewClient(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-pink-600 hover:text-pink-800 py-1 px-2 rounded-lg hover:bg-pink-50 transition-colors">
+                  <Plus size={13} /> Nuevo cliente
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ── B. Ubicación / Contacto ── */}
@@ -639,6 +682,27 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
               existingIds={existingIds}
               allClients={clients}
               onActivateExisting={() => {}}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal nuevo cliente ── */}
+      {showNewClient && (
+        <div className="absolute inset-0 z-10 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm rounded-2xl p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full">
+            <ClientForm
+              initial={null}
+              onSave={handleNewClientSave}
+              onCancel={() => setShowNewClient(false)}
+              isLoading={isSavingClient}
+              existingIds={existingIds}
+              allClients={clients}
+              onActivateExisting={async (clientId) => {
+                const existing = clients.find(c => c.id === clientId);
+                if (existing) { setClient(existing); setContactId(''); setInstId(''); }
+                setShowNewClient(false);
+              }}
             />
           </div>
         </div>
