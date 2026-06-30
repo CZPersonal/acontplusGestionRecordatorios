@@ -84,7 +84,7 @@ function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd }) {
 }
 
 // ─── Formulario inline crear / editar ─────────────────────────────────────────
-function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClients, onActivateExisting }) {
+export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, allClients, onActivateExisting }) {
   const isEdit       = !!initial;
   const serviceTypes  = useAppStore(s => s.serviceTypes);
   const addServiceType = useAppStore(s => s.addServiceType);

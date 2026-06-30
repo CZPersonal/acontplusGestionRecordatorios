@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useAppStore } from '../lib/store';
-import { getClientContacts, emptyContact, emptyInstallation } from '../hooks/useClients.js';
+import { getClientContacts } from '../hooks/useClients.js';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useBorradores } from '../hooks/useBorradores';
+import { ClientForm } from './ClientsManager.jsx';
 import {
-  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2, Clock,
+  X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2, Clock, Edit2,
 } from 'lucide-react';
 
 // ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
@@ -162,6 +163,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const newVisitDefaults            = useAppStore(s => s.newVisitDefaults);
   const closeNewVisitModal          = useAppStore(s => s.closeNewVisitModal);
   const user                        = useAppStore(s => s.user);
+  const updateClient                = useAppStore(s => s.updateClient);
   const establecimientos            = useAppStore(s => s.establecimientos);
   const memberEstablecimientos      = useAppStore(s => s.memberEstablecimientos);
   const memberEstablecimientoDefault = useAppStore(s => s.memberEstablecimientoDefault);
@@ -179,10 +181,8 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   const [client,         setClient]         = useState(null);
   const [selectedContactId, setContactId]   = useState('');
   const [selectedInstId,    setInstId]      = useState('');
-  const [isAddingContact,   setAddContact]  = useState(false);
-  const [isAddingInst,      setAddInst]     = useState(false);
-  const [contactDraft,   setContactDraft]   = useState(emptyContact());
-  const [instDraft,      setInstDraft]      = useState(emptyInstallation());
+  const [showEditClient, setShowEditClient] = useState(false);
+  const [isSavingClient, setIsSavingClient] = useState(false);
 
   const [form, setForm] = useState({
     scheduledDate:   today(),
@@ -254,43 +254,26 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
     if (installations.length === 1 && !selectedInstId) setInstId(installations[0].id);
   }, [installations, selectedInstId]);
 
-  // ─── Guardar contacto nuevo ───────────────────────────────────────────────
-  const saveNewContact = () => {
-    if (!client) return;
-    const updatedClient = {
-      ...client,
-      contacts: [...getClientContacts(client), contactDraft],
-    };
-    // Actualizar en BD a través del store
-    useAppStore.getState().updateClient(client.id, {
-      name:     client.name,
-      foreign:  client.foreign ?? false,
-      contacts: updatedClient.contacts,
-    });
-    setClient(updatedClient);
-    setContactId(contactDraft.id);
-    setContactDraft(emptyContact());
-    setAddContact(false);
-  };
+  // ─── Índice de IDs existentes (para validación en ClientForm) ────────────
+  const existingIds = useMemo(
+    () => clients.map(c => c.identification).filter(Boolean),
+    [clients]
+  );
 
-  // ─── Guardar instalación nueva ────────────────────────────────────────────
-  const saveNewInst = () => {
-    if (!client || !selectedContact) return;
-    const updatedContacts = getClientContacts(client).map(c =>
-      c.id === selectedContact.id
-        ? { ...c, installations: [...(c.installations || []), instDraft] }
-        : c
-    );
-    const updatedClient = { ...client, contacts: updatedContacts };
-    useAppStore.getState().updateClient(client.id, {
-      name:     client.name,
-      foreign:  client.foreign ?? false,
-      contacts: updatedContacts,
-    });
-    setClient(updatedClient);
-    setInstId(instDraft.id);
-    setInstDraft(emptyInstallation());
-    setAddInst(false);
+  // ─── Sincronizar cliente local cuando el store se actualiza ──────────────
+  useEffect(() => {
+    if (!client?.id) return;
+    const fresh = clients.find(c => c.id === client.id);
+    if (fresh) setClient(fresh);
+  }, [clients]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Guardar edición de cliente ───────────────────────────────────────────
+  const handleEditClientSave = async (formData) => {
+    if (!client) return;
+    setIsSavingClient(true);
+    await updateClient(client.id, formData);
+    setIsSavingClient(false);
+    setShowEditClient(false);
   };
 
   // ─── Submit ───────────────────────────────────────────────────────────────
@@ -428,6 +411,12 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
               onSelect={(c) => { setClient(c); setContactId(''); setInstId(''); }}
               onClear={() => { setClient(null); setContactId(''); setInstId(''); }}
             />
+            {client && (
+              <button type="button" onClick={() => setShowEditClient(true)}
+                className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1 px-2 rounded-lg hover:bg-indigo-50 transition-colors">
+                <Edit2 size={13} /> Editar cliente
+              </button>
+            )}
           </div>
 
           {/* ── B. Ubicación / Contacto ── */}
@@ -465,39 +454,6 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                 </div>
               )}
 
-              {isAddingContact ? (
-                <div className="border-2 border-dashed border-blue-200 rounded-xl p-4 space-y-3 bg-blue-50/50">
-                  <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Nueva ubicación</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      ['ubicacion', 'Ubicación / Referencia'],
-                      ['ciudad',    'Ciudad'],
-                      ['address',   'Dirección'],
-                      ['phone',     'Teléfono'],
-                    ].map(([k, lblText]) => (
-                      <div key={k}>
-                        <label className={lbl}>{lblText}</label>
-                        <input value={contactDraft[k]} onChange={e => setContactDraft(p => ({ ...p, [k]: e.target.value }))}
-                          className={inp} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={saveNewContact}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
-                      Guardar ubicación
-                    </button>
-                    <button type="button" onClick={() => setAddContact(false)}
-                      className="px-4 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" onClick={() => { setContactDraft(emptyContact()); setAddContact(true); }} className={accentBtn}>
-                  <Plus size={13} /> Agregar nueva ubicación
-                </button>
-              )}
             </div>
           )}
 
@@ -531,39 +487,6 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                 </div>
               )}
 
-              {isAddingInst ? (
-                <div className="border-2 border-dashed border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/50">
-                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Nuevo equipo / instalación / servicio</p>
-                  <div>
-                    <label className={lbl}>Tipo de Equipo / Instalación / Servicio</label>
-                    <ServiceTypeSelector
-                      value={instDraft.serviceType}
-                      onChange={v => setInstDraft(p => ({ ...p, serviceType: v }))}
-                      serviceTypes={serviceTypes}
-                      onAdd={addServiceType}
-                    />
-                  </div>
-                  <div>
-                    <label className={lbl}>Observación (capacidad, marca, modelo...)</label>
-                    <input value={instDraft.observacion} onChange={e => setInstDraft(p => ({ ...p, observacion: e.target.value }))}
-                      className={inp} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={saveNewInst}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700">
-                      Guardar instalación
-                    </button>
-                    <button type="button" onClick={() => setAddInst(false)}
-                      className="px-4 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" onClick={() => { setInstDraft(emptyInstallation()); setAddInst(true); }} className={accentBtn}>
-                  <Plus size={13} /> Agregar equipo / instalación
-                </button>
-              )}
             </div>
           )}
 
@@ -703,6 +626,23 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
           </button>
         </div>
       </div>
+
+      {/* ── Modal editar cliente ── */}
+      {showEditClient && client && (
+        <div className="absolute inset-0 z-10 flex items-start justify-center overflow-y-auto bg-black/40 backdrop-blur-sm rounded-2xl p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full">
+            <ClientForm
+              initial={client}
+              onSave={handleEditClientSave}
+              onCancel={() => setShowEditClient(false)}
+              isLoading={isSavingClient}
+              existingIds={existingIds}
+              allClients={clients}
+              onActivateExisting={() => {}}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
