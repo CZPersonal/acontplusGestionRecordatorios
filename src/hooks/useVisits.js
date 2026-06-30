@@ -132,8 +132,10 @@ export function useVisits(user) {
     if (!u) return false;
     try {
       await updateDoc(doc(getVisitsFlatRef(), visitId), {
-        status:    'Cancelada',
-        updatedAt: new Date().toISOString(),
+        status:      'Cancelada',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: u.email,
+        updatedAt:   new Date().toISOString(),
       });
       return true;
     } catch (err) {

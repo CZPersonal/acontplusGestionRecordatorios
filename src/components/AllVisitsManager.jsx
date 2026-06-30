@@ -9,7 +9,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
-  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard,
+  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock,
 } from 'lucide-react';
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
@@ -152,6 +152,12 @@ export default function AllVisitsManager({ user }) {
     const map = {};
     tecnicos.forEach(t => { map[t.nombre] = { phone: t.phone || '', email: t.email || '' }; });
     return map;
+  }, [tecnicos]);
+
+  const emailToName = useMemo(() => {
+    const m = {};
+    tecnicos.forEach(t => { if (t.email) m[t.email] = t.nombre; });
+    return m;
   }, [tecnicos]);
 
   const establecimientos = useAppStore(s => s.establecimientos);
@@ -700,24 +706,70 @@ export default function AllVisitsManager({ user }) {
                             <p className="text-sm text-green-700 italic">{visit.closingObservations}</p>
                           </div>
                         )}
-                        {visit.completedAt && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Realizada</p>
-                            <p className="text-xs text-slate-500">{formatDateTime(visit.completedAt)}</p>
-                          </div>
-                        )}
                         {visit.visitValue != null && Number(visit.visitValue) > 0 && (
                           <div>
                             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor</p>
                             <p className="font-bold text-emerald-700">${Number(visit.visitValue).toFixed(2)}</p>
                           </div>
                         )}
-                        {visit.confirmed && (
-                          <div>
-                            <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Confirmada</p>
-                            <p className="text-xs text-teal-600">✅ {visit.confirmedBy?.split('@')[0] || '—'}</p>
-                          </div>
-                        )}
+                        {/* Cronología de estados */}
+                        {(() => {
+                          const nameFor = (email) => email ? (emailToName[email] || email.split('@')[0]) : null;
+                          const entries = [
+                            visit.createdAt ? {
+                              icon: '📝', label: 'Creada',
+                              ts: formatDateTime(visit.createdAt),
+                              user: nameFor(visit.createdBy),
+                              cls: 'text-slate-500',
+                            } : null,
+                            {
+                              icon: '📅', label: 'Programada',
+                              ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''),
+                              user: null,
+                              cls: 'text-blue-600',
+                            },
+                            (visit.confirmedAt || visit.confirmed) ? {
+                              icon: '✓', label: 'Confirmada',
+                              ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—',
+                              user: nameFor(visit.confirmedBy),
+                              cls: 'text-teal-600',
+                            } : null,
+                            visit.completedAt ? {
+                              icon: '✅', label: 'Realizada',
+                              ts: formatDateTime(visit.completedAt),
+                              user: nameFor(visit.completedBy),
+                              cls: 'text-green-600',
+                            } : null,
+                            visit.annulledAt ? {
+                              icon: '🚫', label: 'Anulada',
+                              ts: formatDateTime(visit.annulledAt),
+                              user: nameFor(visit.annulledBy),
+                              cls: 'text-orange-600',
+                            } : null,
+                            visit.cancelledAt ? {
+                              icon: '❌', label: 'Cancelada',
+                              ts: formatDateTime(visit.cancelledAt),
+                              user: nameFor(visit.cancelledBy),
+                              cls: 'text-amber-600',
+                            } : null,
+                          ].filter(Boolean);
+                          return (
+                            <div className="col-span-2 md:col-span-4 mt-1">
+                              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                <Clock size={10} /> Cronología
+                              </p>
+                              <div className="rounded-lg border border-slate-200 bg-white divide-y divide-slate-100">
+                                {entries.map((e, i) => (
+                                  <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                                    <span className={`w-[4.5rem] font-bold shrink-0 ${e.cls}`}>{e.icon} {e.label}</span>
+                                    <span className="text-slate-600 tabular-nums">{e.ts}</span>
+                                    {e.user && <span className={`ml-auto font-medium shrink-0 ${e.cls}`}>{e.user}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Acciones */}
