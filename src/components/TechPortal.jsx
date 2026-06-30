@@ -154,7 +154,7 @@ function CompleteModal({ visit, task, onSave, onClose, isNewVisit = false }) {
 
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
-function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false }) {
+function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false, emailToName = {} }) {
   const today       = localToday();
   const nowTime     = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -254,10 +254,11 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
           <p className="text-xs text-slate-400 italic">📝 {visit.observations}</p>
         )}
         {isConfirmed && visit.confirmedBy && (
-          <p className={`text-xs font-semibold ${isLate ? 'text-orange-600' : 'text-green-600'}`}>
-            {isLate ? '⚠️' : '✓'} Confirmada por {visit.confirmedBy}
-            {visit.confirmedAt && ` — ${formatDateTime(visit.confirmedAt)}`}
-          </p>
+          <div className={`text-xs font-semibold ${isLate ? 'text-orange-600' : 'text-teal-600'}`}>
+            <span>{isLate ? '⚠️' : '✓'} Confirmada por {emailToName[visit.confirmedBy] || visit.confirmedBy.split('@')[0]}</span>
+            <span className="font-normal ml-1 opacity-60">{visit.confirmedBy}</span>
+            {visit.confirmedAt && <span className="block font-normal opacity-70">{formatDateTime(visit.confirmedAt)}</span>}
+          </div>
         )}
       </div>
       {visit.status === 'Realizada' ? (
@@ -267,7 +268,10 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             <p className="text-xs text-emerald-600">Fecha: {formatDateTime(visit.completedAt)}</p>
           )}
           {visit.completedBy && (
-            <p className="text-xs text-emerald-600">Por: {visit.completedBy}</p>
+            <p className="text-xs text-emerald-600">
+              <span className="font-semibold">{emailToName[visit.completedBy] || visit.completedBy.split('@')[0]}</span>
+              <span className="ml-1 opacity-60">{visit.completedBy}</span>
+            </p>
           )}
           {visit.visitValue > 0 && (
             <p className="text-xs font-bold text-emerald-700">Valor cobrado: ${visit.visitValue}</p>
@@ -313,7 +317,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
 
 // ─── Vista de lista (secciones) ───────────────────────────────────────────────
 
-function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete, onHistorial }) {
+function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
   if (visits.length === 0) return null;
   return (
     <div className="space-y-3">
@@ -326,7 +330,8 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
       <div className="space-y-3">
         {visits.map(({ visit, task: t, isNewVisit }) => (
           <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
-            onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
+            onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
+            emailToName={emailToName} />
         ))}
       </div>
     </div>
@@ -335,7 +340,7 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
 
 // ─── Tarjeta compacta para vista día ─────────────────────────────────────────
 
-function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfirm, confirming, onComplete, onHistorial }) {
+function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
   const today     = localToday();
   const nowTime   = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -428,6 +433,12 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
             <Navigation size={11} />Abrir mapa
           </a>
         )}
+        {isConfirmed && visit.confirmedBy && (
+          <div className={`text-[10px] font-semibold ${isLate ? 'text-orange-600' : 'text-teal-600'}`}>
+            <span>{isLate ? '⚠️' : '✓'} {emailToName[visit.confirmedBy] || visit.confirmedBy.split('@')[0]}</span>
+            <span className="font-normal ml-1 opacity-60">{visit.confirmedBy}</span>
+          </div>
+        )}
       </div>
 
       {/* Acciones */}
@@ -437,6 +448,12 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
             <p className="text-xs font-bold text-emerald-700">✅ Realizada</p>
             {visit.completedAt && (
               <p className="text-xs text-emerald-600">{formatDateTime(visit.completedAt)}</p>
+            )}
+            {visit.completedBy && (
+              <p className="text-xs text-emerald-600">
+                <span className="font-semibold">{emailToName[visit.completedBy] || visit.completedBy.split('@')[0]}</span>
+                <span className="ml-1 opacity-60">{visit.completedBy}</span>
+              </p>
             )}
             {visit.visitValue > 0 && (
               <p className="text-xs font-bold text-emerald-700">💰 ${visit.visitValue}</p>
@@ -469,7 +486,7 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
 
 // ─── Vista día ────────────────────────────────────────────────────────────────
 
-function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial }) {
+function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
   const dayName = new Date(calDate + 'T12:00:00')
     .toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Guayaquil' });
 
@@ -538,7 +555,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
                   <div className="space-y-3">
                     {hVisits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
                       <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit} mapsLink={mapsLink || ''}
-                        onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
+                        onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
+                        emailToName={emailToName} />
                     ))}
                   </div>
                 ) : (
@@ -674,6 +692,11 @@ export default function TechPortal({ user }) {
   const techName = useMemo(
     () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || null,
     [tecnicos, user.email, user.displayName]
+  );
+
+  const emailToName = useMemo(
+    () => Object.fromEntries(tecnicos.filter(t => t.email).map(t => [t.email, t.nombre])),
+    [tecnicos]
   );
 
   const { borradores: misBorradores } = useBorradores(user, { onlyMine: true });
@@ -849,6 +872,7 @@ export default function TechPortal({ user }) {
     confirming,
     onComplete: (visit, task, isNewVisit) => setCompletingVisit({ visit, task, isNewVisit }),
     onHistorial: handleHistorial,
+    emailToName,
   };
 
   return (
