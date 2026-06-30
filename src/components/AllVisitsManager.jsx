@@ -506,29 +506,53 @@ export default function AllVisitsManager({ user }) {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-start gap-1.5 flex-shrink-0 flex-wrap justify-end">
                           {visit.urgency && (
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${URGENCY_COLORS[visit.urgency] || ''}`}>
                               {visit.urgency}
-                            </span>
-                          )}
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || ''}`}>
-                            {visit.status}
-                          </span>
-                          {visit.status === 'Programada' && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                              Sin confirmar
-                            </span>
-                          )}
-                          {visit.status === 'Confirmada' && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
-                              No realizada
                             </span>
                           )}
                           {isOverdue && (
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
                               ⚠️ Atrasada
                             </span>
+                          )}
+                          {/* Estado progresivo: solo muestra el más avanzado */}
+                          {visit.status === 'Realizada' ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                ✅ Realizada
+                              </span>
+                              {(visit.completedAt || visit.completedBy) && (
+                                <span className="text-[10px] text-green-600 font-medium text-right leading-tight">
+                                  {visit.completedAt ? formatDateTime(visit.completedAt) : ''}
+                                  {visit.completedBy ? ` · ${visit.completedBy.split('@')[0]}` : ''}
+                                </span>
+                              )}
+                            </div>
+                          ) : (visit.status === 'Confirmada' || visit.confirmed) ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                                ✓ Confirmada
+                              </span>
+                              {(visit.confirmedAt || visit.confirmedBy) && (
+                                <span className="text-[10px] text-teal-600 font-medium text-right leading-tight">
+                                  {visit.confirmedAt ? formatDateTime(visit.confirmedAt) : ''}
+                                  {visit.confirmedBy ? ` · ${visit.confirmedBy.split('@')[0]}` : ''}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || ''}`}>
+                                {visit.status}
+                              </span>
+                              {visit.status === 'Programada' && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                  Sin confirmar
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
