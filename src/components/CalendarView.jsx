@@ -288,6 +288,12 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
             <span className={`text-xs text-slate-500 ${wide ? '' : 'truncate'}`}>{task?.clientAddress || event.address}</span>
           </div>
         )}
+        {wide && event.visit?.mapsLink && (
+          <a href={event.visit.mapsLink} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mt-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
+            <Navigation size={9} />Abrir mapa
+          </a>
+        )}
         {isVisit && event.visit?.technician && (
           <div className="flex items-center gap-0.5 mt-0.5">
             <User size={9} className="text-slate-400 flex-shrink-0" />

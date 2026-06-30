@@ -9,7 +9,7 @@ import { useTecnicos } from '../hooks/useTecnicos';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
-  LogOut, Mail, MapPin, Phone, Wrench, X,
+  LogOut, Mail, MapPin, Navigation, Phone, Wrench, X,
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
@@ -350,6 +350,149 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
   );
 }
 
+// ─── Tarjeta compacta para vista día ─────────────────────────────────────────
+
+function DayVisitCard({ visit, task, isNewVisit = false, onConfirm, confirming, onComplete, onHistorial }) {
+  const today     = localToday();
+  const nowTime   = localNowTime();
+  const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
+  const isLate      = isConfirmed && isLateConfirmation(visit);
+  const isPending   = isNewVisit
+    ? (visit.status === 'Programada' || visit.status === 'Confirmada')
+    : visit.status === 'Programada';
+  const isOverdue   = isPending && (
+    visit.scheduledDate < today ||
+    (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < nowTime)
+  );
+  const mapsLink = visit.mapsLink || task.mapsLink || '';
+  const urgText  = URGENCY_TEXT[visit.urgency]   || '#64748b';
+  const urgBg    = URGENCY_BG[visit.urgency]     || '#f8fafc';
+  const urgBord  = URGENCY_BORDER[visit.urgency] || '#e2e8f0';
+  const cardBorderColor = isOverdue ? '#ef4444' : isLate ? '#f97316' : isConfirmed ? '#22c55e' : '#3b82f6';
+  const cardBg          = isOverdue ? 'bg-red-50' : isLate ? 'bg-orange-50' : isConfirmed ? 'bg-green-50' : 'bg-white';
+
+  return (
+    <div className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden ${cardBg}`}
+      style={{ borderLeft: `4px solid ${cardBorderColor}` }}>
+
+      {/* Cabecera: cliente + badges */}
+      <div className="px-3 pt-2.5 pb-1.5 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          {task.serviceOrder && (
+            <span className="inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 mb-0.5 mr-1">
+              OS: {task.serviceOrder}
+            </span>
+          )}
+          <p className={`font-bold text-sm leading-tight ${isOverdue ? 'text-red-800' : 'text-slate-800'}`}>
+            {task.clientName}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          {visit.urgency && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
+              style={{ color: urgText, background: urgBg, borderColor: urgBord }}>
+              {visit.urgency}
+            </span>
+          )}
+          {isOverdue && (
+            <span className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">
+              <AlertTriangle size={9} />Atrasada
+            </span>
+          )}
+          {isNewVisit && visit.status !== 'Realizada' && !isConfirmed && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Por confirmar</span>
+          )}
+          {isNewVisit && visit.status !== 'Realizada' && isConfirmed && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">Por realizar</span>
+          )}
+          {!isNewVisit && isConfirmed && !isLate && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Confirmada</span>
+          )}
+          {!isNewVisit && isConfirmed && isLate && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Conf. tardía</span>
+          )}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="px-3 pb-2 space-y-1">
+        <div className="flex items-center gap-3 flex-wrap">
+          {visit.scheduledTime && (
+            <span className={`flex items-center gap-1 text-xs font-bold ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
+              <Clock size={11} />{visit.scheduledTime}
+            </span>
+          )}
+          {visit.type && (
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <Wrench size={11} />{visit.type}
+            </span>
+          )}
+        </div>
+        {task.clientAddress && (
+          <p className="flex items-start gap-1 text-xs text-slate-500 leading-tight">
+            <MapPin size={11} className="flex-shrink-0 mt-0.5" />{task.clientAddress}
+          </p>
+        )}
+        {task.clientPhone && (
+          <a href={`tel:${task.clientPhone}`}
+            className="flex items-center gap-1 text-xs font-semibold text-blue-600">
+            <Phone size={11} />{task.clientPhone}
+          </a>
+        )}
+        {task.clientEmail && (
+          <a href={`mailto:${task.clientEmail}`}
+            className="flex items-center gap-1 text-xs text-slate-500">
+            <Mail size={11} />{task.clientEmail}
+          </a>
+        )}
+        {visit.observations && (
+          <p className="text-xs text-slate-400 italic leading-tight">📝 {visit.observations}</p>
+        )}
+        {mapsLink && (
+          <a href={mapsLink} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
+            <Navigation size={11} />Abrir mapa
+          </a>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="px-3 pb-3 space-y-1.5">
+        {visit.status === 'Realizada' ? (
+          <div className="bg-emerald-50 rounded-lg px-2 py-1.5 border border-emerald-100">
+            <p className="text-xs font-bold text-emerald-700">✅ Realizada</p>
+            {visit.completedAt && (
+              <p className="text-xs text-emerald-600">{formatDateTime(visit.completedAt)}</p>
+            )}
+            {visit.visitValue > 0 && (
+              <p className="text-xs font-bold text-emerald-700">💰 ${visit.visitValue}</p>
+            )}
+            {onHistorial && (
+              <button onClick={() => onHistorial(task)}
+                className="mt-1 flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-800">
+                <History size={11} />Ver historial
+              </button>
+            )}
+          </div>
+        ) : isConfirmed ? (
+          <button onClick={() => onComplete(visit, task, isNewVisit)}
+            className="w-full py-2 rounded-xl text-white text-xs font-bold shadow-sm"
+            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+            <CheckCircle2 size={13} className="inline mr-1 -mt-0.5" />Marcar realizada
+          </button>
+        ) : (
+          <button onClick={() => onConfirm(task.id, visit.id, isNewVisit)}
+            disabled={confirming === visit.id}
+            className="w-full py-2 rounded-xl text-white text-xs font-bold shadow-sm disabled:opacity-60"
+            style={{ background: confirming === visit.id ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+            {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Vista día ────────────────────────────────────────────────────────────────
 
 function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial }) {
@@ -420,7 +563,7 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
                 {isBusy ? (
                   <div className="space-y-3">
                     {hVisits.map(({ visit, task: t, isNewVisit }) => (
-                      <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
+                      <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
                         onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
                     ))}
                   </div>
@@ -438,7 +581,7 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
             <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">Sin hora asignada</p>
             <div className="space-y-3">
               {noTimeVisits.map(({ visit, task: t, isNewVisit }) => (
-                <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
+                <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
                   onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
               ))}
             </div>
