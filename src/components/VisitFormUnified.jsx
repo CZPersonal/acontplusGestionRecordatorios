@@ -256,7 +256,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
   // ─── Índice de IDs existentes (para validación en ClientForm) ────────────
   const existingIds = useMemo(
-    () => clients.map(c => c.identification).filter(Boolean),
+    () => new Set(clients.map(c => c.identification?.replace(/\s/g, '')).filter(Boolean)),
     [clients]
   );
 
