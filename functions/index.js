@@ -197,15 +197,20 @@ function buildVisitEmailHtml({ title, titleColor = '#D61672', intro, task, visit
 }
 
 // Resuelve lista de destinatarios a partir de la configuración de notificación del tenant.
-// notifCfg: { tecnico, creador, cliente, otros, otrosEmails[] }
+// notifCfg: { tecnico, creador, cliente, admin, otros, otrosEmails[] }
+// admin=true → busca miembros del tenant con role='admin' en Firestore.
 // Fallback: si la config no existe o queda sin destinatarios, usa fallbackEmails.
-function resolveRecipients(notifCfg, visit, task, fallbackEmails = []) {
+async function resolveRecipients(db, tenantId, notifCfg, visit, task, fallbackEmails = []) {
   if (!notifCfg) return fallbackEmails;
   const emails = new Set();
   const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
   if (notifCfg.tecnico && techEmail)                        emails.add(techEmail);
   if (notifCfg.creador && task.createdBy?.includes('@'))    emails.add(task.createdBy);
   if (notifCfg.cliente && task.clientEmail?.includes('@'))  emails.add(task.clientEmail);
+  if (notifCfg.admin) {
+    const snap = await db.collection(`tenants/${tenantId}/members`).where('role', '==', 'admin').get();
+    snap.forEach(d => { if (d.data().email?.includes('@')) emails.add(d.data().email); });
+  }
   if (notifCfg.otros) {
     (notifCfg.otrosEmails || []).filter(e => e?.includes('@')).forEach(e => emails.add(e));
   }
@@ -222,6 +227,28 @@ async function getTenantConfig(db, tenantId, configCache) {
 
 // sendDailyReminders eliminado: fusionado en sendTechnicianDailyAgenda
 // (destinatariosAgenda reciben ahora el resumen completo de visitas del día siguiente)
+
+// Email amigable al cliente para recordatorio de pre-visita
+function buildClientVisitReminderHtml({ empresaNombre, task, visit, minutosAntes }) {
+  const empresa = escHtml(empresaNombre || 'Acontplus');
+  return `
+    <div style="font-family:sans-serif;max-width:520px;margin:auto;">
+      <h2 style="color:#D61672;">⏰ Recordatorio de visita</h2>
+      <p style="color:#555;margin-bottom:16px;">
+        Estimado/a <strong>${escHtml(task.clientName)}</strong>, le recordamos que tiene
+        una visita programada <strong>hoy a las ${escHtml(visit.scheduledTime)}</strong>
+        ${minutosAntes ? `(en aproximadamente ${minutosAntes} minutos)` : ''}.
+      </p>
+      <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:16px;">
+        ${visit.type       ? `<tr><td style="padding:8px 12px;color:#64748b;font-size:13px;width:130px;">Tipo de servicio</td><td style="padding:8px 12px;font-size:13px;font-weight:500;">${escHtml(visit.type)}</td></tr>` : ''}
+        ${visit.technician ? `<tr><td style="padding:8px 12px;color:#64748b;font-size:13px;">Técnico asignado</td><td style="padding:8px 12px;font-size:13px;font-weight:500;">${escHtml(visit.technician)}</td></tr>` : ''}
+        ${task.clientAddress ? `<tr><td style="padding:8px 12px;color:#64748b;font-size:13px;">Dirección</td><td style="padding:8px 12px;font-size:13px;font-weight:500;">${escHtml(task.clientAddress)}</td></tr>` : ''}
+      </table>
+      <p style="color:#555;font-size:13px;">Si tiene alguna consulta puede comunicarse con nosotros.</p>
+      <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
+      <p style="font-size:12px;color:#aaa;">${empresa}</p>
+    </div>`;
+}
 
 // ─── 2. Notificación push al crear una visita urgente ─────────────────────────
 // Dispara cuando se crea cualquier documento en una subcollección 'visits'.
@@ -311,7 +338,7 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
 
     // Fallback: si no hay config de notifCreada, notificar al técnico por defecto
     const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
-    const toList    = resolveRecipients(config.notifCreada, visit, task, techEmail ? [techEmail] : []);
+    const toList    = await resolveRecipients(db, event.params.tenantId, config.notifCreada, visit, task, techEmail ? [techEmail] : []);
 
     if (toList.length === 0) {
       console.log(`notifyTechnicianOnVisit: sin destinatarios configurados en ${event.params.visitId}`);
@@ -572,7 +599,7 @@ exports.notifyVisitCompleted = onDocumentUpdated(
 
     // Fallback: creador de la tarea (comportamiento anterior)
     const fallbackTo = task.createdBy?.includes('@') ? [task.createdBy] : [];
-    const toList     = resolveRecipients(config.notifRealizada, after, task, fallbackTo);
+    const toList     = await resolveRecipients(db, tenantId, config.notifRealizada, after, task, fallbackTo);
     if (toList.length === 0) return;
 
     await resend.emails.send({
@@ -636,7 +663,7 @@ exports.notifyVisitUpdated = onDocumentUpdated(
     const fallbackDest = [...new Set([newTechEmail, task.createdBy?.includes('@') ? task.createdBy : null].filter(Boolean))];
 
     const notifCfg = esConfirmacion ? config.notifConfirmada : config.notifModificada;
-    const destList  = resolveRecipients(notifCfg, after, task, fallbackDest);
+    const destList  = await resolveRecipients(db, tenantId, notifCfg, after, task, fallbackDest);
 
     const changeRows = changes.filter(f => f !== 'confirmed').map(f => `
       <tr style="border-top:1px solid #f1f5f9;">
@@ -759,22 +786,26 @@ exports.checkVisitNotifications = onSchedule(
         const metaSnap = await metaRef.get();
         const meta     = metaSnap.exists ? metaSnap.data() : {};
 
-        const emailTech  = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
-        const emailAdmin = task.createdBy?.includes('@') ? task.createdBy : null;
+        const emailTech   = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+        const emailAdmin  = task.createdBy?.includes('@') ? task.createdBy : null;
+        const emailClient = task.clientEmail?.includes('@') ? task.clientEmail : null;
 
         // ── Pre-visita ──
         if (preConfig.activo && !meta.notifiedBefore) {
           const diff = visitMin - nowMin;
           if (diff >= (minutosAntes - 2) && diff <= (minutosAntes + 3)) {
-            const destPre = preConfig.destinatarios || ['tecnico'];
-            const tos = [];
-            if (destPre.includes('tecnico') && emailTech)  tos.push(emailTech);
-            if (destPre.includes('admin')   && emailAdmin) tos.push(emailAdmin);
-            const toUniq = [...new Set(tos)];
-            if (toUniq.length > 0) {
-              await resend.emails.send({
+            const destPre    = preConfig.destinatarios || ['tecnico'];
+            const internalTo = [];
+            const clientTo   = [];
+            if (destPre.includes('tecnico') && emailTech)   internalTo.push(emailTech);
+            if (destPre.includes('admin')   && emailAdmin)  internalTo.push(emailAdmin);
+            if (destPre.includes('cliente') && emailClient) clientTo.push(emailClient);
+
+            const sends = [];
+            if (internalTo.length > 0) {
+              sends.push(resend.emails.send({
                 from:    getFromEmail(config.empresaNombre),
-                to:      toUniq,
+                to:      [...new Set(internalTo)],
                 subject: `⏰ Visita en ${minutosAntes} min: ${task.clientName} a las ${visit.scheduledTime}`,
                 html:    buildVisitEmailHtml({
                   title:      `⏰ Visita en ${minutosAntes} minutos`,
@@ -782,7 +813,18 @@ exports.checkVisitNotifications = onSchedule(
                   task, visit,
                   portalNote: true,
                 }),
-              });
+              }));
+            }
+            if (clientTo.length > 0) {
+              sends.push(resend.emails.send({
+                from:    getFromEmail(config.empresaNombre),
+                to:      [...new Set(clientTo)],
+                subject: `⏰ Visita programada hoy a las ${visit.scheduledTime} — ${config.empresaNombre || 'Acontplus'}`,
+                html:    buildClientVisitReminderHtml({ empresaNombre: config.empresaNombre, task, visit, minutosAntes }),
+              }));
+            }
+            if (sends.length > 0) {
+              await Promise.allSettled(sends);
               await metaRef.set({ notifiedBefore: true }, { merge: true });
               totalPre++;
             }
@@ -843,9 +885,9 @@ exports.notifyBorradorCreado = onDocumentCreated(
     if (!notifCfg) return;
 
     const fallback = [];
-    const toList   = resolveRecipients(notifCfg,
+    const toList   = await resolveRecipients(db, event.params.tenantId, notifCfg,
       { technicianEmail: borrador.technicianEmail, technician: borrador.technicianName },
-      { createdBy: borrador.technicianEmail },
+      { createdBy: borrador.technicianEmail, clientEmail: borrador.clientEmail },
       fallback
     );
 

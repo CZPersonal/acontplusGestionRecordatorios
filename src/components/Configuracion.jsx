@@ -423,7 +423,7 @@ function TabEntidad({ user }) {
 
 // ─── Sub-menú: Notificaciones ─────────────────────────────────────────────────
 
-const NOTIF_DEFAULT = { tecnico: true, cliente: false, creador: false, otros: false, otrosEmails: [] };
+const NOTIF_DEFAULT = { tecnico: true, cliente: false, creador: false, admin: false, otros: false, otrosEmails: [] };
 
 function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
   const [newEmail, setNewEmail] = useState('');
@@ -433,7 +433,8 @@ function NotifGroup({ label, icon, value, onChange, accent = '#D61672' }) {
     { key: 'tecnico', emoji: '👷', label: 'Técnico' },
     { key: 'cliente', emoji: '👤', label: 'Cliente' },
     { key: 'creador', emoji: '✍️', label: 'Creador' },
-    { key: 'otros',   emoji: '📧', label: 'Otros' },
+    { key: 'admin',   emoji: '🛡️', label: 'Admin'   },
+    { key: 'otros',   emoji: '📧', label: 'Otros'   },
   ];
 
   const toggle = (key) => onChange({ ...value, [key]: !value[key] });
@@ -988,7 +989,7 @@ function TabNotificaciones({ user }) {
               <div>
                 <label className={lbl}>Destinatarios</label>
                 <div className="flex flex-col gap-2 mt-1">
-                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '👤 Admin' }].map(({ key, label }) => (
+                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '🛡️ Admin' }, { key: 'cliente', label: '👤 Cliente' }].map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                       <input type="checkbox"
                         checked={notifPre.destinatarios.includes(key)}
@@ -1055,7 +1056,7 @@ function TabNotificaciones({ user }) {
               <div>
                 <label className={lbl}>Destinatarios</label>
                 <div className="flex flex-col gap-2 mt-1">
-                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '👤 Admin' }].map(({ key, label }) => (
+                  {[{ key: 'tecnico', label: '👷 Técnico' }, { key: 'admin', label: '🛡️ Admin' }, { key: 'cliente', label: '👤 Cliente' }].map(({ key, label }) => (
                     <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                       <input type="checkbox"
                         checked={notifRetard.destinatarios.includes(key)}
