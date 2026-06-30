@@ -9,7 +9,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
-  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock,
+  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar,
 } from 'lucide-react';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
@@ -537,24 +537,40 @@ export default function AllVisitsManager({ user }) {
                       {/* Cuerpo */}
                       <div className="bg-slate-50/60 text-sm">
 
-                        {/* Banda técnico */}
-                        {visit.technician && (
-                          <div className="px-4 py-2 border-y border-blue-100 bg-blue-50 flex items-center gap-3 flex-wrap">
-                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest shrink-0 flex items-center gap-1">
-                              <UserCheck size={10} /> Técnico
-                            </span>
-                            <span className="font-semibold text-slate-800">{visit.technician}</span>
-                            {tecnicosMap[visit.technician]?.phone && (
-                              <span className="flex items-center gap-1 text-xs text-slate-500">
-                                <Phone size={10} className="text-blue-400" />
-                                {tecnicosMap[visit.technician].phone}
-                              </span>
-                            )}
-                            {tecnicosMap[visit.technician]?.email && (
-                              <span className="text-xs text-slate-400 truncate">✉ {tecnicosMap[visit.technician].email}</span>
-                            )}
+                        {/* Banda fecha programada + técnico */}
+                        <div className="px-4 py-2 border-y border-blue-100 bg-blue-50 flex items-center gap-4 flex-wrap">
+                          {/* Fecha y hora programada */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Calendar size={15} className="text-blue-500 shrink-0" />
+                            <div className="leading-tight">
+                              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Programada</p>
+                              <p className="font-bold text-blue-700 text-sm tabular-nums">{formatDateOnly(visit.scheduledDate)}</p>
+                              {visit.scheduledTime && (
+                                <p className="font-semibold text-blue-600 text-xs tabular-nums">{visit.scheduledTime}</p>
+                              )}
+                            </div>
                           </div>
-                        )}
+                          {/* Separador */}
+                          {visit.technician && <div className="w-px h-8 bg-blue-200 shrink-0" />}
+                          {/* Técnico */}
+                          {visit.technician && (
+                            <>
+                              <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest shrink-0 flex items-center gap-1">
+                                <UserCheck size={10} /> Técnico
+                              </span>
+                              <span className="font-semibold text-slate-800">{visit.technician}</span>
+                              {tecnicosMap[visit.technician]?.phone && (
+                                <span className="flex items-center gap-1 text-xs text-slate-500">
+                                  <Phone size={10} className="text-blue-400" />
+                                  {tecnicosMap[visit.technician].phone}
+                                </span>
+                              )}
+                              {tecnicosMap[visit.technician]?.email && (
+                                <span className="text-xs text-slate-400 truncate">✉ {tecnicosMap[visit.technician].email}</span>
+                              )}
+                            </>
+                          )}
+                        </div>
 
                         {/* Info principal: servicio/tipo/obs + teléfono/dirección */}
                         <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
