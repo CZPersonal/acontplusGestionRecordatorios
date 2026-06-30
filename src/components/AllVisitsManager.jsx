@@ -721,7 +721,7 @@ export default function AllVisitsManager({ user }) {
                           const nameFor = (email) => email ? (emailToName[email] || email.split('@')[0]) : null;
                           const entries = [
                             visit.createdAt ? { icon: '📝', label: 'Creada', ts: formatDateTime(visit.createdAt), user: nameFor(visit.createdBy), email: visit.createdBy || null, cls: 'text-slate-500' } : null,
-                            { icon: '📅', label: 'Programada', ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''), user: null, email: null, cls: 'text-blue-600' },
+                            { icon: '📅', label: 'Programada', ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''), user: nameFor(visit.createdBy), email: visit.createdBy || null, cls: 'text-blue-600' },
                             (visit.confirmedAt || visit.confirmed) ? { icon: '✓', label: 'Confirmada', ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—', user: nameFor(visit.confirmedBy), email: visit.confirmedBy || null, cls: 'text-teal-600' } : null,
                             visit.completedAt ? { icon: '✅', label: 'Realizada', ts: formatDateTime(visit.completedAt), user: nameFor(visit.completedBy), email: visit.completedBy || null, cls: 'text-green-600' } : null,
                             visit.annulledAt ? { icon: '🚫', label: 'Anulada', ts: formatDateTime(visit.annulledAt), user: nameFor(visit.annulledBy), email: visit.annulledBy || null, cls: 'text-orange-600' } : null,
