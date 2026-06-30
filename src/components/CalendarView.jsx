@@ -217,6 +217,37 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
           </div>
         )}
 
+        {/* Etiqueta de progresión — vista día, nuevas visitas */}
+        {wide && event.type === 'newvisit' && (
+          <div className="flex items-center gap-1 mb-1 flex-wrap">
+            {event.visitStatus === 'Programada' && (
+              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                Por confirmar
+              </span>
+            )}
+            {event.visitStatus === 'Confirmada' && (
+              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-teal-100 text-teal-700 border border-teal-200">
+                Por realizar
+              </span>
+            )}
+            {event.visitStatus === 'Realizada' && (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200">
+                <CheckCircle2 size={10} />Realizada
+              </span>
+            )}
+            {event.visitStatus === 'Cancelada' && (
+              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                Cancelada
+              </span>
+            )}
+            {event.visitStatus === 'Anulada' && (
+              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-red-100 text-red-600 border border-red-200">
+                Anulada
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Nombre cliente + urgency dot */}
         <div className="flex items-center gap-1.5 mb-1">
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${urgencyDot}`} />
