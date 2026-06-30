@@ -525,221 +525,194 @@ export default function AllVisitsManager({ user }) {
                             </span>
                           )}
                           {/* Estado progresivo */}
-                          <div className="flex flex-col items-end gap-0.5">
-                            <VisitStatusBadge
-                              status={visit.status}
-                              confirmed={visit.confirmed}
-                              size="xs"
-                              layout="row"
-                            />
-                            {visit.status === 'Realizada' && (visit.completedAt || visit.completedBy) && (
-                              <span className="text-[10px] text-green-600 font-medium text-right leading-tight">
-                                {visit.completedAt ? formatDateTime(visit.completedAt) : ''}
-                                {visit.completedBy ? ` · ${emailToName[visit.completedBy] || visit.completedBy.split('@')[0]}` : ''}
-                              </span>
-                            )}
-                            {(visit.status === 'Confirmada' || visit.confirmed) && visit.status !== 'Realizada' && (visit.confirmedAt || visit.confirmedBy) && (
-                              <span className="text-[10px] text-teal-600 font-medium text-right leading-tight">
-                                {visit.confirmedAt ? formatDateTime(visit.confirmedAt) : ''}
-                                {visit.confirmedBy ? ` · ${emailToName[visit.confirmedBy] || visit.confirmedBy.split('@')[0]}` : ''}
-                              </span>
-                            )}
-                          </div>
+                          <VisitStatusBadge
+                            status={visit.status}
+                            confirmed={visit.confirmed}
+                            size="xs"
+                            layout="row"
+                          />
                         </div>
                       </div>
 
                       {/* Cuerpo */}
-                      <div className="px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 bg-slate-50/60 text-sm">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Fecha</p>
-                          <p className="font-medium text-slate-700">{formatDateOnly(visit.scheduledDate)}{visit.scheduledTime && ` · ${visit.scheduledTime}`}</p>
-                        </div>
+                      <div className="bg-slate-50/60 text-sm">
+
+                        {/* Banda técnico */}
                         {visit.technician && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Técnico</p>
-                            <p className="font-medium text-slate-700">👷 {visit.technician}</p>
+                          <div className="px-4 py-2 border-y border-blue-100 bg-blue-50 flex items-center gap-3 flex-wrap">
+                            <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest shrink-0 flex items-center gap-1">
+                              <UserCheck size={10} /> Técnico
+                            </span>
+                            <span className="font-semibold text-slate-800">{visit.technician}</span>
                             {tecnicosMap[visit.technician]?.phone && (
-                              <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                                <Phone size={9} className="text-slate-400" />
+                              <span className="flex items-center gap-1 text-xs text-slate-500">
+                                <Phone size={10} className="text-blue-400" />
                                 {tecnicosMap[visit.technician].phone}
-                              </p>
+                              </span>
                             )}
                             {tecnicosMap[visit.technician]?.email && (
-                              <p className="text-xs text-slate-500 truncate mt-0.5">
-                                ✉ {tecnicosMap[visit.technician].email}
-                              </p>
+                              <span className="text-xs text-slate-400 truncate">✉ {tecnicosMap[visit.technician].email}</span>
                             )}
                           </div>
                         )}
-                        {visit.serviceType && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Wrench size={10} />Servicio</p>
-                            <p className="font-medium text-slate-700">{visit.serviceType}</p>
-                          </div>
-                        )}
-                        {(visit.ubicacion || visit.ciudad || visit.address || visit.contactId) && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Dirección</p>
-                            {(visit.ubicacion || visit.ciudad) && (
-                              <p className="font-medium text-slate-700 truncate">
-                                {[visit.ubicacion, visit.ciudad].filter(Boolean).join(' · ')}
-                              </p>
-                            )}
-                            {visit.address && (
-                              <p className="text-xs text-slate-500 truncate">{visit.address}</p>
-                            )}
-                            {/* Link de Google Maps */}
-                            {(() => {
-                              const link = getMapsLink(visit);
-                              if (link) {
-                                return (
-                                  <a href={link} target="_blank" rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
-                                    <Navigation size={10} /> Ver en Maps
-                                  </a>
-                                );
-                              }
-                              if (!visit.contactId) return null;
-                              if (editingMapsId === visit.id) {
-                                return (
-                                  <div className="mt-1.5 space-y-1">
-                                    <div className="flex gap-1">
-                                      <input
-                                        autoFocus
-                                        type="url"
-                                        value={mapsInput}
-                                        onChange={e => setMapsInput(e.target.value)}
-                                        placeholder="Pega el link de Google Maps…"
-                                        className="flex-1 text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 min-w-0"
-                                      />
-                                      <button type="button"
-                                        onClick={async () => {
-                                          const text = await navigator.clipboard.readText().catch(() => '');
-                                          if (text) setMapsInput(text.trim());
-                                        }}
-                                        title="Pegar"
-                                        className="px-1.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">
-                                        <Clipboard size={11} />
-                                      </button>
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <button type="button"
-                                        disabled={!mapsInput.trim()}
-                                        onClick={() => saveMapsLink(visit, mapsInput)}
-                                        className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 disabled:opacity-40">
-                                        Guardar
-                                      </button>
-                                      <button type="button"
-                                        onClick={() => { setEditingMapsId(null); setMapsInput(''); }}
-                                        className="px-2 py-0.5 rounded-lg border border-slate-200 text-[10px] text-slate-500 hover:bg-slate-50">
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return (
-                                <button type="button"
-                                  onClick={() => {
-                                    setEditingMapsId(visit.id);
-                                    setMapsInput('');
-                                    if (navigator.geolocation) {
-                                      navigator.geolocation.getCurrentPosition(
-                                        ({ coords }) => {
-                                          window.open(`https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`, '_blank');
-                                        },
-                                        () => window.open('https://www.google.com/maps', '_blank')
+
+                        {/* Info principal: servicio/tipo/obs + teléfono/dirección */}
+                        <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+
+                          {/* Grupo 1: Servicio + Tipo + Observaciones */}
+                          {(visit.serviceType || visit.type || visit.observations) && (
+                            <div className="space-y-2">
+                              {visit.serviceType && (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Wrench size={10} />Servicio</p>
+                                  <p className="font-medium text-slate-700">{visit.serviceType}</p>
+                                </div>
+                              )}
+                              {visit.type && (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Tipo</p>
+                                  <p className="font-medium text-slate-700">{visit.type}</p>
+                                </div>
+                              )}
+                              {visit.observations && (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><FileText size={10} />Observaciones</p>
+                                  <p className="text-sm text-slate-600 italic">{visit.observations}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Grupo 2: Teléfono + Dirección */}
+                          {(visit.phone || visit.ubicacion || visit.ciudad || visit.address || visit.contactId) && (
+                            <div className="space-y-2">
+                              {visit.phone && (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Phone size={10} />Teléfono</p>
+                                  <p className="font-medium text-slate-700">{visit.phone}</p>
+                                </div>
+                              )}
+                              {(visit.ubicacion || visit.ciudad || visit.address || visit.contactId) && (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><MapPin size={10} />Dirección</p>
+                                  {(visit.ubicacion || visit.ciudad) && (
+                                    <p className="font-medium text-slate-700 truncate">
+                                      {[visit.ubicacion, visit.ciudad].filter(Boolean).join(' · ')}
+                                    </p>
+                                  )}
+                                  {visit.address && (
+                                    <p className="text-xs text-slate-500 truncate">{visit.address}</p>
+                                  )}
+                                  {(() => {
+                                    const link = getMapsLink(visit);
+                                    if (link) {
+                                      return (
+                                        <a href={link} target="_blank" rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                                          <Navigation size={10} /> Ver en Maps
+                                        </a>
                                       );
-                                    } else {
-                                      window.open('https://www.google.com/maps', '_blank');
                                     }
-                                  }}
-                                  className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-slate-400 hover:text-blue-600 transition-colors">
-                                  <Navigation size={9} /> Agregar Maps
-                                </button>
-                              );
-                            })()}
-                          </div>
-                        )}
+                                    if (!visit.contactId) return null;
+                                    if (editingMapsId === visit.id) {
+                                      return (
+                                        <div className="mt-1.5 space-y-1">
+                                          <div className="flex gap-1">
+                                            <input autoFocus type="url" value={mapsInput}
+                                              onChange={e => setMapsInput(e.target.value)}
+                                              placeholder="Pega el link de Google Maps…"
+                                              className="flex-1 text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:border-blue-400 min-w-0" />
+                                            <button type="button"
+                                              onClick={async () => {
+                                                const text = await navigator.clipboard.readText().catch(() => '');
+                                                if (text) setMapsInput(text.trim());
+                                              }}
+                                              title="Pegar"
+                                              className="px-1.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500">
+                                              <Clipboard size={11} />
+                                            </button>
+                                          </div>
+                                          <div className="flex gap-1">
+                                            <button type="button"
+                                              disabled={!mapsInput.trim()}
+                                              onClick={() => saveMapsLink(visit, mapsInput)}
+                                              className="px-2 py-0.5 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 disabled:opacity-40">
+                                              Guardar
+                                            </button>
+                                            <button type="button"
+                                              onClick={() => { setEditingMapsId(null); setMapsInput(''); }}
+                                              className="px-2 py-0.5 rounded-lg border border-slate-200 text-[10px] text-slate-500 hover:bg-slate-50">
+                                              Cancelar
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <button type="button"
+                                        onClick={() => {
+                                          setEditingMapsId(visit.id);
+                                          setMapsInput('');
+                                          if (navigator.geolocation) {
+                                            navigator.geolocation.getCurrentPosition(
+                                              ({ coords }) => { window.open(`https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`, '_blank'); },
+                                              () => window.open('https://www.google.com/maps', '_blank')
+                                            );
+                                          } else {
+                                            window.open('https://www.google.com/maps', '_blank');
+                                          }
+                                        }}
+                                        className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-slate-400 hover:text-blue-600 transition-colors">
+                                        <Navigation size={9} /> Agregar Maps
+                                      </button>
+                                    );
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Sucursal — campo del sistema */}
                         {visit.establecimientoNombre && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Building2 size={10} />Sucursal</p>
-                            <p className="font-medium text-slate-700">{visit.establecimientoNombre}</p>
+                          <div className="px-4 py-1.5 border-t border-slate-200 bg-slate-100 flex items-center gap-2">
+                            <Building2 size={10} className="text-slate-400 shrink-0" />
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest shrink-0">Sistema ·</span>
+                            <span className="text-xs font-semibold text-slate-500">{visit.establecimientoNombre}</span>
                           </div>
                         )}
-                        {visit.type && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Tipo</p>
-                            <p className="font-medium text-slate-700">{visit.type}</p>
+
+                        {/* Observaciones de cierre + Valor */}
+                        {(visit.closingObservations || (visit.visitValue != null && Number(visit.visitValue) > 0)) && (
+                          <div className="px-4 py-2 border-t border-slate-200 space-y-1.5">
+                            {visit.closingObservations && (
+                              <div>
+                                <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-0.5">✅ Observaciones de cierre</p>
+                                <p className="text-sm text-green-700 italic">{visit.closingObservations}</p>
+                              </div>
+                            )}
+                            {visit.visitValue != null && Number(visit.visitValue) > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor</p>
+                                <p className="font-bold text-emerald-700">${Number(visit.visitValue).toFixed(2)}</p>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {visit.phone && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><Phone size={10} />Teléfono</p>
-                            <p className="font-medium text-slate-700">{visit.phone}</p>
-                          </div>
-                        )}
-                        {visit.observations && (
-                          <div className="col-span-2 md:col-span-4">
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5 flex items-center gap-1"><FileText size={10} />Observaciones</p>
-                            <p className="text-sm text-slate-600 italic">{visit.observations}</p>
-                          </div>
-                        )}
-                        {visit.closingObservations && (
-                          <div className="col-span-2 md:col-span-4">
-                            <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-0.5">✅ Cierre</p>
-                            <p className="text-sm text-green-700 italic">{visit.closingObservations}</p>
-                          </div>
-                        )}
-                        {visit.visitValue != null && Number(visit.visitValue) > 0 && (
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor</p>
-                            <p className="font-bold text-emerald-700">${Number(visit.visitValue).toFixed(2)}</p>
-                          </div>
-                        )}
-                        {/* Cronología de estados */}
+
+                        {/* Cronología */}
                         {(() => {
                           const nameFor = (email) => email ? (emailToName[email] || email.split('@')[0]) : null;
                           const entries = [
-                            visit.createdAt ? {
-                              icon: '📝', label: 'Creada',
-                              ts: formatDateTime(visit.createdAt),
-                              user: nameFor(visit.createdBy),
-                              cls: 'text-slate-500',
-                            } : null,
-                            {
-                              icon: '📅', label: 'Programada',
-                              ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''),
-                              user: null,
-                              cls: 'text-blue-600',
-                            },
-                            (visit.confirmedAt || visit.confirmed) ? {
-                              icon: '✓', label: 'Confirmada',
-                              ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—',
-                              user: nameFor(visit.confirmedBy),
-                              cls: 'text-teal-600',
-                            } : null,
-                            visit.completedAt ? {
-                              icon: '✅', label: 'Realizada',
-                              ts: formatDateTime(visit.completedAt),
-                              user: nameFor(visit.completedBy),
-                              cls: 'text-green-600',
-                            } : null,
-                            visit.annulledAt ? {
-                              icon: '🚫', label: 'Anulada',
-                              ts: formatDateTime(visit.annulledAt),
-                              user: nameFor(visit.annulledBy),
-                              cls: 'text-orange-600',
-                            } : null,
-                            visit.cancelledAt ? {
-                              icon: '❌', label: 'Cancelada',
-                              ts: formatDateTime(visit.cancelledAt),
-                              user: nameFor(visit.cancelledBy),
-                              cls: 'text-amber-600',
-                            } : null,
+                            visit.createdAt ? { icon: '📝', label: 'Creada', ts: formatDateTime(visit.createdAt), user: nameFor(visit.createdBy), cls: 'text-slate-500' } : null,
+                            { icon: '📅', label: 'Programada', ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''), user: null, cls: 'text-blue-600' },
+                            (visit.confirmedAt || visit.confirmed) ? { icon: '✓', label: 'Confirmada', ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—', user: nameFor(visit.confirmedBy), cls: 'text-teal-600' } : null,
+                            visit.completedAt ? { icon: '✅', label: 'Realizada', ts: formatDateTime(visit.completedAt), user: nameFor(visit.completedBy), cls: 'text-green-600' } : null,
+                            visit.annulledAt ? { icon: '🚫', label: 'Anulada', ts: formatDateTime(visit.annulledAt), user: nameFor(visit.annulledBy), cls: 'text-orange-600' } : null,
+                            visit.cancelledAt ? { icon: '❌', label: 'Cancelada', ts: formatDateTime(visit.cancelledAt), user: nameFor(visit.cancelledBy), cls: 'text-amber-600' } : null,
                           ].filter(Boolean);
                           return (
-                            <div className="col-span-2 md:col-span-4 mt-1">
+                            <div className="px-4 pb-3 pt-2 border-t border-slate-200">
                               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
                                 <Clock size={10} /> Cronología
                               </p>
