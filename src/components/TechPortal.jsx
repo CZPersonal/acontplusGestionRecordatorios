@@ -6,6 +6,7 @@ import { useAppStore } from '../lib/store';
 import { getVisitsRef } from '../lib/tenantDb';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
+import { getClientContacts } from '../hooks/useClients.js';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
@@ -352,7 +353,7 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
 
 // ─── Tarjeta compacta para vista día ─────────────────────────────────────────
 
-function DayVisitCard({ visit, task, isNewVisit = false, onConfirm, confirming, onComplete, onHistorial }) {
+function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfirm, confirming, onComplete, onHistorial }) {
   const today     = localToday();
   const nowTime   = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -364,7 +365,6 @@ function DayVisitCard({ visit, task, isNewVisit = false, onConfirm, confirming, 
     visit.scheduledDate < today ||
     (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < nowTime)
   );
-  const mapsLink = visit.mapsLink || task.mapsLink || '';
   const urgText  = URGENCY_TEXT[visit.urgency]   || '#64748b';
   const urgBg    = URGENCY_BG[visit.urgency]     || '#f8fafc';
   const urgBord  = URGENCY_BORDER[visit.urgency] || '#e2e8f0';
@@ -562,8 +562,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
               <div className="flex-1 py-2.5 px-3 min-w-0">
                 {isBusy ? (
                   <div className="space-y-3">
-                    {hVisits.map(({ visit, task: t, isNewVisit }) => (
-                      <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
+                    {hVisits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
+                      <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit} mapsLink={mapsLink || ''}
                         onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
                     ))}
                   </div>
@@ -580,8 +580,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
           <div className="p-4 bg-amber-50">
             <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">Sin hora asignada</p>
             <div className="space-y-3">
-              {noTimeVisits.map(({ visit, task: t, isNewVisit }) => (
-                <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
+              {noTimeVisits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
+                <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit} mapsLink={mapsLink || ''}
                   onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
               ))}
             </div>
@@ -732,6 +732,21 @@ export default function TechPortal({ user }) {
     setTimeout(() => setRefreshing(false), 1500);
   };
 
+  // Índice de clientes para lookup de mapsLink
+  const clientsById = useMemo(() => {
+    const m = {};
+    clients.forEach(c => { m[c.id] = c; });
+    return m;
+  }, [clients]);
+
+  const getMapsLink = (clientId, contactId) => {
+    if (!clientId || !contactId) return '';
+    const client = clientsById[clientId];
+    if (!client) return '';
+    const contact = getClientContacts(client).find(c => c.id === contactId);
+    return contact?.mapsLink || '';
+  };
+
   // Visitas del técnico — legacy (tasks) + nuevas (visits store), por fecha, con filtro
   const allVisitsByDate = useMemo(() => {
     const map = {};
@@ -749,7 +764,8 @@ export default function TechPortal({ user }) {
         if (visitFilter === 'confirmadas' && (isRealizada || !isConfirmed)) return;
         if (visitFilter === 'realizadas'  && !isRealizada) return;
         if (!map[visit.scheduledDate]) map[visit.scheduledDate] = [];
-        map[visit.scheduledDate].push({ visit, task, isNewVisit: false });
+        const mapsLink = getMapsLink(visit.clientId || task.clientId, visit.contactId);
+        map[visit.scheduledDate].push({ visit, task, isNewVisit: false, mapsLink });
       });
     });
 
@@ -765,6 +781,7 @@ export default function TechPortal({ user }) {
       if (visitFilter === 'programadas' && (isRealizada || isConfirmed)) return;
       if (visitFilter === 'confirmadas' && (isRealizada || !isConfirmed)) return;
       if (visitFilter === 'realizadas'  && !isRealizada) return;
+      const mapsLink = getMapsLink(v.clientId, v.contactId);
       const syntheticTask = {
         id:           v.id,
         clientName:   v.clientName   || '',
@@ -774,11 +791,11 @@ export default function TechPortal({ user }) {
         visits: [],
       };
       if (!map[v.scheduledDate]) map[v.scheduledDate] = [];
-      map[v.scheduledDate].push({ visit: v, task: syntheticTask, isNewVisit: true });
+      map[v.scheduledDate].push({ visit: v, task: syntheticTask, isNewVisit: true, mapsLink });
     });
 
     return map;
-  }, [tasks, newVisits, user.email, techName, visitFilter]);
+  }, [tasks, newVisits, user.email, techName, visitFilter, clientsById]);
 
   // Grupos para vista lista
   const { atrasadas, hoy, proximas, realizadas } = useMemo(() => {

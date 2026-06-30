@@ -11,6 +11,7 @@ import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { VisitFormModal } from './VisitsModal.jsx';
 import { localDateStr, formatDateOnly, formatDateTime } from '../utils/dates.js';
+import { getClientContacts } from '../hooks/useClients.js';
 
 const MONTHS     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS       = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -80,24 +81,35 @@ function getCalendarEvents(tasks) {
 }
 
 // Convierte visitas nuevas (colección visits) al formato de eventos del calendario
-function getVisitEvents(visits) {
+function getVisitEvents(visits, clientsById = {}) {
   return visits
     .filter(v => v.scheduledDate)
-    .map(v => ({
-      id:          `newvisit-${v.id}`,
-      date:        v.scheduledDate,
-      time:        v.scheduledTime || '',
-      title:       v.clientName   || 'Sin cliente',
-      subtitle:    v.type         || v.serviceType || v.technician || '',
-      type:        'newvisit',
-      visitStatus: v.status,
-      urgency:     v.urgency      || '',
-      technician:  v.technician   || '',
-      phone:       v.phone        || '',
-      address:     [v.ubicacion, v.ciudad, v.address].filter(Boolean).join(' · '),
-      visit:       v,
-      task:        null,
-    }));
+    .map(v => {
+      let mapsLink = '';
+      if (v.clientId && v.contactId) {
+        const client = clientsById[v.clientId];
+        if (client) {
+          const contact = getClientContacts(client).find(c => c.id === v.contactId);
+          mapsLink = contact?.mapsLink || '';
+        }
+      }
+      return {
+        id:          `newvisit-${v.id}`,
+        date:        v.scheduledDate,
+        time:        v.scheduledTime || '',
+        title:       v.clientName   || 'Sin cliente',
+        subtitle:    v.type         || v.serviceType || v.technician || '',
+        type:        'newvisit',
+        visitStatus: v.status,
+        urgency:     v.urgency      || '',
+        technician:  v.technician   || '',
+        phone:       v.phone        || '',
+        address:     [v.ubicacion, v.ciudad, v.address].filter(Boolean).join(' · '),
+        mapsLink,
+        visit:       v,
+        task:        null,
+      };
+    });
 }
 
 // Devuelve true si la confirmación llegó después de la hora programada (Ecuador UTC-5)
@@ -288,8 +300,8 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
             <span className={`text-xs text-slate-500 ${wide ? '' : 'truncate'}`}>{task?.clientAddress || event.address}</span>
           </div>
         )}
-        {wide && event.visit?.mapsLink && (
-          <a href={event.visit.mapsLink} target="_blank" rel="noopener noreferrer"
+        {wide && event.mapsLink && (
+          <a href={event.mapsLink} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1 mt-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
             <Navigation size={9} />Abrir mapa
           </a>
@@ -1220,6 +1232,8 @@ function TaskPickerModal({ tasks, defaultDate, user, onClose, onNewTask, tiposPa
 
 export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onViewClientHistorial }) {
   const visits              = useAppStore(s => s.visits);
+  const clients             = useAppStore(s => s.clients);
+  const clientsById         = useMemo(() => { const m = {}; clients.forEach(c => { m[c.id] = c; }); return m; }, [clients]);
   const { tiposParaSelect } = useTiposVisita(user);
   const { tecnicos }        = useTecnicos(user);
   const tecnicosParaSelect  = tecnicos;
@@ -1237,7 +1251,7 @@ export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onVie
   const [filterTech,      setFilterTech]      = useState('');
 
   const legacyEvents   = useMemo(() => getCalendarEvents(tasks), [tasks]);
-  const newVisitEvents = useMemo(() => getVisitEvents(visits), [visits]);
+  const newVisitEvents = useMemo(() => getVisitEvents(visits, clientsById), [visits, clientsById]);
   const allEvents      = useMemo(() => [...legacyEvents, ...newVisitEvents], [legacyEvents, newVisitEvents]);
 
   const filteredEvents = useMemo(() => {
