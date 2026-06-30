@@ -24,8 +24,8 @@ function localToday() {
 }
 
 function localNowTime() {
-  const d = new Date();
-  return d.toLocaleTimeString('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit' });
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Guayaquil' }));
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function isLateConfirmation(visit) {
@@ -78,7 +78,7 @@ const URGENCY_TEXT   = { Alta: '#dc2626', Media: '#b45309', Baja: '#15803d' };
 
 // ─── Modal: marcar visita como realizada ─────────────────────────────────────
 
-function CompleteModal({ visit, task, onSave, onClose }) {
+function CompleteModal({ visit, task, onSave, onClose, isNewVisit = false }) {
   const [obs,        setObs]        = useState('');
   const [visitValue, setVisitValue] = useState('0');
   const [loading,    setLoading]    = useState(false);
@@ -89,7 +89,7 @@ function CompleteModal({ visit, task, onSave, onClose }) {
       await onSave(task.id, visit.id, {
         closingObservations: obs.trim(),
         visitValue:          parseFloat(visitValue) || 0,
-      });
+      }, isNewVisit);
       onClose();
     } finally {
       setLoading(false);
@@ -152,12 +152,15 @@ function CompleteModal({ visit, task, onSave, onClose }) {
 
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
-function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial }) {
+function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false }) {
   const today       = localToday();
   const nowTime     = localNowTime();
-  const isConfirmed = visit.confirmed || visit.technicianConfirmed;
+  const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
   const isLate      = isConfirmed && isLateConfirmation(visit);
-  const isOverdue   = !isConfirmed && (
+  const isPending   = isNewVisit
+    ? (visit.status === 'Programada' || visit.status === 'Confirmada')
+    : visit.status === 'Programada';
+  const isOverdue   = isPending && (
     visit.scheduledDate < today ||
     (visit.scheduledDate === today && !!visit.scheduledTime && visit.scheduledTime < nowTime)
   );
@@ -207,6 +210,21 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
               <AlertTriangle size={11} />Conf. tardía
             </span>
+          )}
+          {/* Etiquetas de progresión para nuevas visitas */}
+          {isNewVisit && visit.status !== 'Realizada' && (
+            <>
+              {visit.status === 'Programada' && !isConfirmed && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  Por confirmar
+                </span>
+              )}
+              {(visit.status === 'Confirmada' || (visit.status === 'Programada' && isConfirmed)) && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">
+                  Por realizar
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -284,7 +302,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
       ) : (
         <div className="px-4 pb-4 space-y-2">
           {isConfirmed && (
-            <button onClick={() => onComplete(visit, task)}
+            <button onClick={() => onComplete(visit, task, isNewVisit)}
               className="w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-sm"
               style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
               <CheckCircle2 size={18} className="inline mr-2 -mt-0.5" />
@@ -292,7 +310,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             </button>
           )}
           {!isConfirmed && (
-            <button onClick={() => onConfirm(task.id, visit.id)} disabled={confirming === visit.id}
+            <button onClick={() => onConfirm(task.id, visit.id, isNewVisit)} disabled={confirming === visit.id}
               className="w-full py-4 rounded-2xl text-white font-bold text-lg shadow-sm disabled:opacity-60"
               style={{ background: confirming === visit.id ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
               {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
@@ -323,8 +341,8 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
           style={{ background: color + '20', color }}>{visits.length}</span>
       </div>
       <div className="space-y-3">
-        {visits.map(({ visit, task: t }) => (
-          <VisitCard key={visit.id} visit={visit} task={t}
+        {visits.map(({ visit, task: t, isNewVisit }) => (
+          <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
             onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
         ))}
       </div>
@@ -401,8 +419,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
               <div className="flex-1 py-2.5 px-3 min-w-0">
                 {isBusy ? (
                   <div className="space-y-3">
-                    {hVisits.map(({ visit, task: t }) => (
-                      <VisitCard key={visit.id} visit={visit} task={t}
+                    {hVisits.map(({ visit, task: t, isNewVisit }) => (
+                      <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
                         onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
                     ))}
                   </div>
@@ -419,8 +437,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
           <div className="p-4 bg-amber-50">
             <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">Sin hora asignada</p>
             <div className="space-y-3">
-              {noTimeVisits.map(({ visit, task: t }) => (
-                <VisitCard key={visit.id} visit={visit} task={t}
+              {noTimeVisits.map(({ visit, task: t, isNewVisit }) => (
+                <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
                   onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
               ))}
             </div>
@@ -523,12 +541,15 @@ function WeekView({ allVisitsByDate, calDate, setCalDate, setCalView, today }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function TechPortal({ user }) {
-  const tasks      = useAppStore(s => s.tasks);
-  const clients    = useAppStore(s => s.clients);
-  const addToast   = useAppStore(s => s.addToast);
-  const tenantName = useAppStore(s => s.tenantName);
-  const tenantRuc  = useAppStore(s => s.tenantRuc);
-  const refreshKey = useAppStore(s => s.refreshKey);
+  const tasks          = useAppStore(s => s.tasks);
+  const newVisits      = useAppStore(s => s.visits);
+  const clients        = useAppStore(s => s.clients);
+  const addToast       = useAppStore(s => s.addToast);
+  const tenantName     = useAppStore(s => s.tenantName);
+  const tenantRuc      = useAppStore(s => s.tenantRuc);
+  const refreshKey     = useAppStore(s => s.refreshKey);
+  const confirmVisit   = useAppStore(s => s.confirmVisit);
+  const completeVisit  = useAppStore(s => s.completeVisit);
 
   const today = useMemo(() => localToday(), []);
 
@@ -568,28 +589,53 @@ export default function TechPortal({ user }) {
     setTimeout(() => setRefreshing(false), 1500);
   };
 
-  // Visitas del técnico (Programada y Realizada), por fecha, con filtro aplicado
+  // Visitas del técnico — legacy (tasks) + nuevas (visits store), por fecha, con filtro
   const allVisitsByDate = useMemo(() => {
     const map = {};
+
+    // Visitas legacy (colección tasks)
     tasks.forEach(task => {
       (task.visits || []).forEach(visit => {
         const isActive = visit.status === 'Programada' || visit.status === 'Realizada';
         if (!isActive) return;
-        const isMyVisit =
-          visit.technicianEmail === user.email ||
-          visit.technician === user.email;
+        const isMyVisit = visit.technicianEmail === user.email || visit.technician === user.email;
         if (!isMyVisit) return;
-        const isConfirmed  = visit.confirmed || visit.technicianConfirmed;
-        const isRealizada  = visit.status === 'Realizada';
+        const isConfirmed = visit.confirmed || visit.technicianConfirmed;
+        const isRealizada = visit.status === 'Realizada';
         if (visitFilter === 'programadas' && (isRealizada || isConfirmed)) return;
         if (visitFilter === 'confirmadas' && (isRealizada || !isConfirmed)) return;
         if (visitFilter === 'realizadas'  && !isRealizada) return;
         if (!map[visit.scheduledDate]) map[visit.scheduledDate] = [];
-        map[visit.scheduledDate].push({ visit, task });
+        map[visit.scheduledDate].push({ visit, task, isNewVisit: false });
       });
     });
+
+    // Visitas nuevas (colección visits)
+    newVisits.forEach(v => {
+      const isMyVisit = (techName && v.technician === techName) || v.technicianEmail === user.email;
+      if (!isMyVisit) return;
+      const isRealizada  = v.status === 'Realizada';
+      const isConfirmada = v.status === 'Confirmada';
+      const isProgramada = v.status === 'Programada';
+      if (!isProgramada && !isConfirmada && !isRealizada) return;
+      const isConfirmed = v.confirmed || isConfirmada;
+      if (visitFilter === 'programadas' && (isRealizada || isConfirmed)) return;
+      if (visitFilter === 'confirmadas' && (isRealizada || !isConfirmed)) return;
+      if (visitFilter === 'realizadas'  && !isRealizada) return;
+      const syntheticTask = {
+        id:           v.id,
+        clientName:   v.clientName   || '',
+        clientPhone:  v.phone        || '',
+        clientAddress: v.ubicacion   || '',
+        serviceOrder: v.serviceOrder || '',
+        visits: [],
+      };
+      if (!map[v.scheduledDate]) map[v.scheduledDate] = [];
+      map[v.scheduledDate].push({ visit: v, task: syntheticTask, isNewVisit: true });
+    });
+
     return map;
-  }, [tasks, user.email, visitFilter]);
+  }, [tasks, newVisits, user.email, techName, visitFilter]);
 
   // Grupos para vista lista
   const { atrasadas, hoy, proximas, realizadas } = useMemo(() => {
@@ -602,7 +648,10 @@ export default function TechPortal({ user }) {
           else groups.realizadas.push(entry);
           return;
         }
-        if (date < today && !visit.confirmed && !visit.technicianConfirmed) {
+        const isUnresolved = entry.isNewVisit
+          ? (visit.status === 'Programada' || visit.status === 'Confirmada')
+          : (!visit.confirmed && !visit.technicianConfirmed);
+        if (date < today && isUnresolved) {
           groups.atrasadas.push(entry);
         } else if (date === today) {
           groups.hoy.push(entry);
@@ -618,13 +667,18 @@ export default function TechPortal({ user }) {
     return groups;
   }, [allVisitsByDate, today]);
 
-  const handleConfirm = async (taskId, visitId) => {
+  const handleConfirm = async (taskId, visitId, isNewVisit = false) => {
     setConfirming(visitId);
     try {
-      await updateDoc(doc(getVisitsRef(taskId), visitId), {
-        confirmed: true, technicianConfirmed: true,
-        confirmedAt: new Date().toISOString(), confirmedBy: user.email,
-      });
+      if (isNewVisit) {
+        const ok = await confirmVisit(visitId);
+        if (!ok) throw new Error('confirm_failed');
+      } else {
+        await updateDoc(doc(getVisitsRef(taskId), visitId), {
+          confirmed: true, technicianConfirmed: true,
+          confirmedAt: new Date().toISOString(), confirmedBy: user.email,
+        });
+      }
       addToast({ type: 'success', title: '✅ Confirmada', body: 'Tu asistencia ha sido registrada.' });
     } catch (e) {
       console.error(e);
@@ -634,13 +688,18 @@ export default function TechPortal({ user }) {
     }
   };
 
-  const handleComplete = async (taskId, visitId, { closingObservations, visitValue }) => {
+  const handleComplete = async (taskId, visitId, { closingObservations, visitValue }, isNewVisit = false) => {
     try {
-      await updateDoc(doc(getVisitsRef(taskId), visitId), {
-        status: 'Realizada', closingObservations, visitValue,
-        ...(visitValue > 0 && { valorCobrar: visitValue }),
-        completedAt: new Date().toISOString(), completedBy: user.email,
-      });
+      if (isNewVisit) {
+        const ok = await completeVisit(visitId, { closingObservations, visitValue });
+        if (!ok) throw new Error('complete_failed');
+      } else {
+        await updateDoc(doc(getVisitsRef(taskId), visitId), {
+          status: 'Realizada', closingObservations, visitValue,
+          ...(visitValue > 0 && { valorCobrar: visitValue }),
+          completedAt: new Date().toISOString(), completedBy: user.email,
+        });
+      }
       addToast({ type: 'success', title: '✅ Realizada', body: 'Visita registrada como realizada.' });
     } catch (e) {
       console.error(e);
@@ -654,7 +713,7 @@ export default function TechPortal({ user }) {
   const visitCardProps = {
     onConfirm: handleConfirm,
     confirming,
-    onComplete: (visit, task) => setCompletingVisit({ visit, task }),
+    onComplete: (visit, task, isNewVisit) => setCompletingVisit({ visit, task, isNewVisit }),
     onHistorial: handleHistorial,
   };
 
@@ -813,6 +872,7 @@ export default function TechPortal({ user }) {
         <CompleteModal
           visit={completingVisit.visit}
           task={completingVisit.task}
+          isNewVisit={completingVisit.isNewVisit}
           onSave={handleComplete}
           onClose={() => setCompletingVisit(null)}
         />
