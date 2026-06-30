@@ -62,9 +62,9 @@ function flattenVisits(tasks) {
 // ─── Badges de estado ─────────────────────────────────────────────────────────
 function VisitStatusBadge({ status }) {
   const cls = {
-    'Programada': 'bg-pink-100 text-pink-700',
+    'Programada': 'bg-blue-100 text-blue-700',
     'Realizada':  'bg-green-100 text-green-700',
-    'Cancelada':  'bg-slate-100 text-slate-500',
+    'Cancelada':  'bg-amber-100 text-amber-700',
   }[status] || 'bg-slate-100 text-slate-500';
   return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{status || '—'}</span>;
 }

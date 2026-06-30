@@ -11,6 +11,7 @@ import {
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
   Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock,
 } from 'lucide-react';
+import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
 const VISIT_STATUS_BORDER = {
@@ -523,43 +524,27 @@ export default function AllVisitsManager({ user }) {
                               ⚠️ Atrasada
                             </span>
                           )}
-                          {/* Estado progresivo: solo muestra el más avanzado */}
-                          {visit.status === 'Realizada' ? (
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-                                ✅ Realizada
+                          {/* Estado progresivo */}
+                          <div className="flex flex-col items-end gap-0.5">
+                            <VisitStatusBadge
+                              status={visit.status}
+                              confirmed={visit.confirmed}
+                              size="xs"
+                              layout="row"
+                            />
+                            {visit.status === 'Realizada' && (visit.completedAt || visit.completedBy) && (
+                              <span className="text-[10px] text-green-600 font-medium text-right leading-tight">
+                                {visit.completedAt ? formatDateTime(visit.completedAt) : ''}
+                                {visit.completedBy ? ` · ${emailToName[visit.completedBy] || visit.completedBy.split('@')[0]}` : ''}
                               </span>
-                              {(visit.completedAt || visit.completedBy) && (
-                                <span className="text-[10px] text-green-600 font-medium text-right leading-tight">
-                                  {visit.completedAt ? formatDateTime(visit.completedAt) : ''}
-                                  {visit.completedBy ? ` · ${visit.completedBy.split('@')[0]}` : ''}
-                                </span>
-                              )}
-                            </div>
-                          ) : (visit.status === 'Confirmada' || visit.confirmed) ? (
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
-                                ✓ Confirmada
+                            )}
+                            {(visit.status === 'Confirmada' || visit.confirmed) && visit.status !== 'Realizada' && (visit.confirmedAt || visit.confirmedBy) && (
+                              <span className="text-[10px] text-teal-600 font-medium text-right leading-tight">
+                                {visit.confirmedAt ? formatDateTime(visit.confirmedAt) : ''}
+                                {visit.confirmedBy ? ` · ${emailToName[visit.confirmedBy] || visit.confirmedBy.split('@')[0]}` : ''}
                               </span>
-                              {(visit.confirmedAt || visit.confirmedBy) && (
-                                <span className="text-[10px] text-teal-600 font-medium text-right leading-tight">
-                                  {visit.confirmedAt ? formatDateTime(visit.confirmedAt) : ''}
-                                  {visit.confirmedBy ? ` · ${visit.confirmedBy.split('@')[0]}` : ''}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <>
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${VISIT_STATUS_COLORS[visit.status] || ''}`}>
-                                {visit.status}
-                              </span>
-                              {visit.status === 'Programada' && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                  Sin confirmar
-                                </span>
-                              )}
-                            </>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
 

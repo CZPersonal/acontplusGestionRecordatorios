@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useAppStore } from '../lib/store';
 import { formatDateOnly } from '../utils/dates.js';
 import { X, Plus, Calendar, AlertTriangle, MapPin, User, Wrench } from 'lucide-react';
+import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
 const MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MONTHS_FULL  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -286,9 +287,9 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                             )}
                             {isPending && !overdue && (
                               <span className={`text-[9px] font-bold px-1 py-0.5 rounded leading-tight flex-shrink-0 ${
-                                v.status === 'Programada' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'
+                                v.status === 'Programada' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-600'
                               }`}>
-                                {v.status === 'Programada' ? 'S/conf' : 'S/real'}
+                                {v.status === 'Programada' ? 'Por Conf.' : 'Por Real.'}
                               </span>
                             )}
                           </div>
@@ -387,21 +388,8 @@ export default function ClientHistorialModal({ client, onClose, onNewVisit }) {
                                   <span className="text-slate-300 font-normal text-xs ml-0.5 italic">sin hora</span>
                                 )}
                               </p>
-                              <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                                {(v.status === 'Programada' || v.status === 'Confirmada') && (
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                    overdue
-                                      ? 'bg-red-200 text-red-700'
-                                      : v.status === 'Programada'
-                                      ? 'bg-amber-100 text-amber-700'
-                                      : 'bg-teal-100 text-teal-700'
-                                  }`}>
-                                    {v.status === 'Programada' ? 'Sin confirmar' : 'Sin realizar'}
-                                  </span>
-                                )}
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_BADGE[v.status] || 'bg-slate-100 text-slate-500'}`}>
-                                  {v.status}
-                                </span>
+                              <div className="flex-shrink-0">
+                                <VisitStatusBadge status={v.status} size="xs" layout="col" />
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">

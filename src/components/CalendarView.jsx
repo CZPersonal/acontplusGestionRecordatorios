@@ -12,6 +12,7 @@ import { useTecnicos } from '../hooks/useTecnicos';
 import { VisitFormModal } from './VisitsModal.jsx';
 import { localDateStr, formatDateOnly, formatDateTime } from '../utils/dates.js';
 import { getClientContacts } from '../hooks/useClients.js';
+import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
 const MONTHS     = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS       = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -134,12 +135,12 @@ function EventBadge({ event, onClick }) {
   }[event.status] || 'bg-yellow-100 text-yellow-700 border-yellow-200';
 
   const visitColor = {
-    'Programada': 'border-l-2 bg-pink-50 text-pink-700 border-pink-300',
+    'Programada': 'border-l-2 bg-blue-50 text-blue-700 border-blue-300',
     'Confirmada': 'border-l-2 bg-teal-50 text-teal-700 border-teal-300',
     'Realizada':  'border-l-2 bg-green-50 text-green-700 border-green-300',
     'Cancelada':  'border-l-2 bg-slate-50 text-slate-500 border-slate-300',
     'Anulada':    'border-l-2 bg-red-50 text-red-500 border-red-300',
-  }[event.visitStatus] || 'border-l-2 bg-pink-50 text-pink-700 border-pink-300';
+  }[event.visitStatus] || 'border-l-2 bg-blue-50 text-blue-700 border-blue-300';
 
   return (
     <button
@@ -183,19 +184,20 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
     'En Proceso': 'bg-blue-100 text-blue-700',
     'Pendiente':  'bg-yellow-100 text-yellow-800',
   }[event.status] || 'bg-yellow-100 text-yellow-800') : (
-    isOverdue                         ? 'bg-red-100 text-red-700' :
+    isOverdue                          ? 'bg-red-100 text-red-700'    :
     event.visitStatus === 'Realizada'  ? 'bg-green-100 text-green-700' :
+    event.visitStatus === 'Confirmada' ? 'bg-teal-100 text-teal-700'  :
     event.visitStatus === 'Cancelada'  ? 'bg-slate-100 text-slate-500' :
-    'bg-pink-100 text-pink-700'
+    'bg-blue-100 text-blue-700'
   );
 
   const borderLeft = isTask ? 'border-l-2 border-blue-400' :
-    isOverdue                         ? 'border-l-4 border-red-500' :
-    isLate                            ? 'border-l-4 border-orange-400' :
-    isConfirmed                       ? 'border-l-4 border-green-400' :
-    event.visitStatus === 'Realizada'  ? 'border-l-2 border-green-400' :
-    event.visitStatus === 'Cancelada'  ? 'border-l-2 border-slate-300' :
-    'border-l-2 border-pink-400';
+    isOverdue                          ? 'border-l-4 border-red-500'    :
+    isLate                             ? 'border-l-4 border-orange-400' :
+    isConfirmed                        ? 'border-l-4 border-teal-400'   :
+    event.visitStatus === 'Realizada'  ? 'border-l-2 border-green-400'  :
+    event.visitStatus === 'Cancelada'  ? 'border-l-2 border-slate-300'  :
+    'border-l-2 border-blue-400';
 
   const cardBg = isOverdue ? 'bg-red-50 border-red-100' :
     isLate    ? 'bg-orange-50 border-orange-100' :
@@ -229,34 +231,15 @@ function WeekEventCard({ event, onClick, onAddVisit, wide = false }) {
           </div>
         )}
 
-        {/* Etiqueta de progresión — vista día, nuevas visitas */}
-        {wide && event.type === 'newvisit' && (
-          <div className="flex items-center gap-1 mb-1 flex-wrap">
-            {event.visitStatus === 'Programada' && (
-              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                Por confirmar
-              </span>
-            )}
-            {event.visitStatus === 'Confirmada' && (
-              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-teal-100 text-teal-700 border border-teal-200">
-                Por realizar
-              </span>
-            )}
-            {event.visitStatus === 'Realizada' && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-bold bg-green-100 text-green-700 border border-green-200">
-                <CheckCircle2 size={10} />Realizada
-              </span>
-            )}
-            {event.visitStatus === 'Cancelada' && (
-              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                Cancelada
-              </span>
-            )}
-            {event.visitStatus === 'Anulada' && (
-              <span className="px-1.5 py-0.5 rounded-md text-xs font-bold bg-red-100 text-red-600 border border-red-200">
-                Anulada
-              </span>
-            )}
+        {/* Estado progresivo de la visita */}
+        {event.type === 'newvisit' && (
+          <div className="mb-1">
+            <VisitStatusBadge
+              status={event.visitStatus}
+              confirmed={isConfirmed}
+              size="xs"
+              layout="row"
+            />
           </div>
         )}
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
+import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
 const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
 
@@ -196,15 +197,10 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
               {visit.urgency}
             </span>
           )}
-          {/* Etiqueta de estado de confirmación */}
+          {/* Estado progresivo de la visita */}
           {isOverdue && (
             <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
               <AlertTriangle size={11} />Atrasada
-            </span>
-          )}
-          {isConfirmed && !isLate && (
-            <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
-              <CheckCircle2 size={11} />Confirmada
             </span>
           )}
           {isConfirmed && isLate && (
@@ -212,21 +208,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
               <AlertTriangle size={11} />Conf. tardía
             </span>
           )}
-          {/* Etiquetas de progresión para nuevas visitas */}
-          {isNewVisit && visit.status !== 'Realizada' && (
-            <>
-              {visit.status === 'Programada' && !isConfirmed && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                  Por confirmar
-                </span>
-              )}
-              {(visit.status === 'Confirmada' || (visit.status === 'Programada' && isConfirmed)) && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 border border-teal-200">
-                  Por realizar
-                </span>
-              )}
-            </>
-          )}
+          <VisitStatusBadge status={visit.status} confirmed={isConfirmed} size="xs" layout="col" />
         </div>
       </div>
       <div className="px-4 py-3 space-y-1.5">
@@ -399,18 +381,10 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
               <AlertTriangle size={9} />Atrasada
             </span>
           )}
-          {isNewVisit && visit.status !== 'Realizada' && !isConfirmed && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Por confirmar</span>
-          )}
-          {isNewVisit && visit.status !== 'Realizada' && isConfirmed && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">Por realizar</span>
-          )}
-          {!isNewVisit && isConfirmed && !isLate && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Confirmada</span>
-          )}
-          {!isNewVisit && isConfirmed && isLate && (
+          {isConfirmed && isLate && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Conf. tardía</span>
           )}
+          <VisitStatusBadge status={visit.status} confirmed={isConfirmed} size="xs" layout="col" />
         </div>
       </div>
 
