@@ -720,12 +720,12 @@ export default function AllVisitsManager({ user }) {
                         {(() => {
                           const nameFor = (email) => email ? (emailToName[email] || email.split('@')[0]) : null;
                           const entries = [
-                            visit.createdAt ? { icon: '📝', label: 'Creada', ts: formatDateTime(visit.createdAt), user: nameFor(visit.createdBy), cls: 'text-slate-500' } : null,
-                            { icon: '📅', label: 'Programada', ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''), user: null, cls: 'text-blue-600' },
-                            (visit.confirmedAt || visit.confirmed) ? { icon: '✓', label: 'Confirmada', ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—', user: nameFor(visit.confirmedBy), cls: 'text-teal-600' } : null,
-                            visit.completedAt ? { icon: '✅', label: 'Realizada', ts: formatDateTime(visit.completedAt), user: nameFor(visit.completedBy), cls: 'text-green-600' } : null,
-                            visit.annulledAt ? { icon: '🚫', label: 'Anulada', ts: formatDateTime(visit.annulledAt), user: nameFor(visit.annulledBy), cls: 'text-orange-600' } : null,
-                            visit.cancelledAt ? { icon: '❌', label: 'Cancelada', ts: formatDateTime(visit.cancelledAt), user: nameFor(visit.cancelledBy), cls: 'text-amber-600' } : null,
+                            visit.createdAt ? { icon: '📝', label: 'Creada', ts: formatDateTime(visit.createdAt), user: nameFor(visit.createdBy), email: visit.createdBy || null, cls: 'text-slate-500' } : null,
+                            { icon: '📅', label: 'Programada', ts: formatDateOnly(visit.scheduledDate) + (visit.scheduledTime ? ' · ' + visit.scheduledTime : ''), user: null, email: null, cls: 'text-blue-600' },
+                            (visit.confirmedAt || visit.confirmed) ? { icon: '✓', label: 'Confirmada', ts: visit.confirmedAt ? formatDateTime(visit.confirmedAt) : '—', user: nameFor(visit.confirmedBy), email: visit.confirmedBy || null, cls: 'text-teal-600' } : null,
+                            visit.completedAt ? { icon: '✅', label: 'Realizada', ts: formatDateTime(visit.completedAt), user: nameFor(visit.completedBy), email: visit.completedBy || null, cls: 'text-green-600' } : null,
+                            visit.annulledAt ? { icon: '🚫', label: 'Anulada', ts: formatDateTime(visit.annulledAt), user: nameFor(visit.annulledBy), email: visit.annulledBy || null, cls: 'text-orange-600' } : null,
+                            visit.cancelledAt ? { icon: '❌', label: 'Cancelada', ts: formatDateTime(visit.cancelledAt), user: nameFor(visit.cancelledBy), email: visit.cancelledBy || null, cls: 'text-amber-600' } : null,
                           ].filter(Boolean);
                           return (
                             <div className="px-4 pb-3 pt-2 border-t border-slate-200">
@@ -737,7 +737,12 @@ export default function AllVisitsManager({ user }) {
                                   <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-xs">
                                     <span className={`w-[4.5rem] font-bold shrink-0 ${e.cls}`}>{e.icon} {e.label}</span>
                                     <span className="text-slate-600 tabular-nums">{e.ts}</span>
-                                    {e.user && <span className={`ml-auto font-medium shrink-0 ${e.cls}`}>{e.user}</span>}
+                                    {e.user && (
+                                      <div className={`ml-auto text-right shrink-0 ${e.cls}`}>
+                                        <span className="font-semibold block">{e.user}</span>
+                                        {e.email && <span className="font-normal opacity-60 text-[10px] block">{e.email}</span>}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
