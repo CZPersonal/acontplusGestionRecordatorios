@@ -42,6 +42,9 @@ Cada vez que interactúes con este repositorio para realizar mejoras, DEBES segu
 - [x] **[L8 - Multi-tenant]:** Diseñar modelo de datos con tenants/{tenantId}/tasks/... y sistema de invitación de usuarios por organización.
 - [x] **[L9 - Monitoreo costos]:** Configurar alertas de presupuesto en Firebase y usar getDocsFromCache antes de llamadas de red en vistas de solo lectura.
 
+### 🟣 Mejoras Post-Lanzamiento (Backlog)
+- [ ] **[P1 - Reportes]:** Agregar filtro por rango de fecha de confirmación (`confirmedAt`) en el módulo de exportación/reportes de Gestión de Visitas. Permite sacar reportes como "todas las visitas confirmadas en junio". El campo `confirmedAt` ya se guarda en Firestore; solo falta exponer el filtro en la UI. También agregar columna `confirmedAt`/`confirmedBy` como campo opcional en la configuración de exportación.
+
 ---
 
 ## 📝 Registro de Cambios
