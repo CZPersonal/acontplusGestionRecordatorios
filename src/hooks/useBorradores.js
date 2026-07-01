@@ -68,7 +68,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     const col = getCollectionRef('borradores');
     const q = onlyMine
       ? query(col, where('technicianEmail', '==', user.email), orderBy('createdAt', 'desc'), limit(200))
-      : query(col, limit(200));
+      : query(col, orderBy('createdAt', 'desc'), limit(200));
 
     const unsub = onSnapshot(q,
       snap => {
