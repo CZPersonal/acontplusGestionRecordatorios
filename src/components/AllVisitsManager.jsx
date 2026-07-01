@@ -208,7 +208,7 @@ export default function AllVisitsManager({ user }) {
 
   // ─── Filtrado ────────────────────────────────────────────────────────────────
   const isVisitOverdue = (v) => {
-    if (v.status !== 'Programada' && v.status !== 'Confirmada') return false;
+    if (v.status !== 'Programada') return false;
     if (v.scheduledDate < today) return true;
     if (v.scheduledDate === today && v.scheduledTime && v.scheduledTime < nowTime) return true;
     return false;
@@ -220,16 +220,22 @@ export default function AllVisitsManager({ user }) {
       if (filterStatus) {
         switch (filterStatus) {
           case '__no_confirmadas':
-            if (v.status !== 'Programada') return false;
+            if (v.status !== 'Programada' || v.confirmed) return false;
             break;
           case '__no_realizadas':
-            if (v.status !== 'Programada' && v.status !== 'Confirmada') return false;
+            if (v.status !== 'Programada') return false;
             break;
           case '__atrasadas':
             if (!isVisitOverdue(v)) return false;
             break;
           case '__a_tiempo':
-            if ((v.status !== 'Programada' && v.status !== 'Confirmada') || isVisitOverdue(v)) return false;
+            if (v.status !== 'Programada' || isVisitOverdue(v)) return false;
+            break;
+          case 'Programada':
+            if (v.status !== 'Programada' || v.confirmed) return false;
+            break;
+          case 'Confirmada':
+            if (v.status !== 'Programada' || !v.confirmed) return false;
             break;
           default:
             if (v.status !== filterStatus) return false;
