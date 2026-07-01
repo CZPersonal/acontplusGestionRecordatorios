@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle,
-  Search, Ban, Wrench, UserPlus, Lock, Navigation, Building2,
+  Search, Ban, Wrench, UserPlus, Lock, Navigation, Building2, WifiOff,
 } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
@@ -772,7 +772,12 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                       {borradoresDelDia.map(b => (
                         <div key={b.id} className="flex items-center gap-2 text-xs text-blue-800">
                           <span className="font-bold w-10 flex-shrink-0">{b.scheduledTime || 'S/H'}</span>
-                          <span className="truncate">{b.clientName}</span>
+                          <span className="truncate flex-1">{b.clientName}</span>
+                          {b._pending && (
+                            <span className="flex-shrink-0 flex items-center gap-0.5 text-[9px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full">
+                              <WifiOff size={8} />Local
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -866,13 +871,20 @@ function BorradorCard({ b, onEdit, onAnular }) {
               </p>
             )}
           </div>
-          <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
-            isPendiente ? 'bg-amber-200 text-amber-800'
-            : isAnulado  ? 'bg-red-100 text-red-700'
-            : 'bg-green-100 text-green-700'
-          }`}>
-            {isPendiente ? '⏳ Pendiente' : isAnulado ? '🚫 Anulado' : '✅ Convertido'}
-          </span>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+              isPendiente ? 'bg-amber-200 text-amber-800'
+              : isAnulado  ? 'bg-red-100 text-red-700'
+              : 'bg-green-100 text-green-700'
+            }`}>
+              {isPendiente ? '⏳ Pendiente' : isAnulado ? '🚫 Anulado' : '✅ Convertido'}
+            </span>
+            {isOffline && (
+              <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+                <WifiOff size={9} />Por sincronizar
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           {b.scheduledDate && (
@@ -900,9 +912,16 @@ function BorradorCard({ b, onEdit, onAnular }) {
       {isPendiente && (
         <div className="px-4 pb-3">
           {isOffline ? (
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-              📶 Sin conexión — se enviará cuando haya internet
-            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onEdit(b)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 transition-colors">
+                <Pencil size={12} />Editar
+              </button>
+              <span className="text-slate-300">·</span>
+              <p className="text-xs text-orange-600 font-semibold flex items-center gap-1">
+                <WifiOff size={10} />Guardado localmente — se subirá al reconectar
+              </p>
+            </div>
           ) : confirmAnular ? (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-red-700">¿Confirmar anulación?</span>
