@@ -743,11 +743,17 @@ export default function TechPortal({ user }) {
   }, [clients]);
 
   const getMapsLink = (clientId, contactId) => {
-    if (!clientId || !contactId) return '';
+    if (!clientId) return '';
     const client = clientsById[clientId];
     if (!client) return '';
-    const contact = getClientContacts(client).find(c => c.id === contactId);
-    return contact?.mapsLink || '';
+    const contacts = getClientContacts(client);
+    // Buscar primero en el contacto específico de la visita
+    if (contactId) {
+      const specific = contacts.find(c => c.id === contactId);
+      if (specific?.mapsLink) return specific.mapsLink;
+    }
+    // Fallback: primer contacto que tenga link guardado
+    return contacts.find(c => c.mapsLink)?.mapsLink || '';
   };
 
   // Visitas del técnico — legacy (tasks) + nuevas (visits store), por fecha, con filtro
