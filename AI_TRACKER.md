@@ -44,6 +44,7 @@ Cada vez que interactúes con este repositorio para realizar mejoras, DEBES segu
 
 ### 🟣 Mejoras Post-Lanzamiento (Backlog)
 - [ ] **[P1 - Reportes]:** Agregar filtro por rango de fecha de confirmación (`confirmedAt`) en el módulo de exportación/reportes de Gestión de Visitas. Permite sacar reportes como "todas las visitas confirmadas en junio". El campo `confirmedAt` ya se guarda en Firestore; solo falta exponer el filtro en la UI. También agregar columna `confirmedAt`/`confirmedBy` como campo opcional en la configuración de exportación.
+- [ ] **[P2 - Notificaciones]:** Agregar notificación audible en el portal del técnico cuando se le asigna una nueva visita. Implementar en dos capas: (1) **Sonido en-app** — detectar vía `onSnapshot` (ya activo en el store) cuando aparece una visita nueva asignada al técnico y reproducir un `.mp3` con Web Audio API; respetar la política de autoplay del navegador (requiere al menos una interacción previa del usuario en la sesión). (2) **FCM push** — extender la Cloud Function `notifyUrgentVisit` (ya existe en `functions/index.js`) para notificar al técnico asignado en toda visita nueva, no solo urgentes; el token FCM ya se registra en `useNotifications.js`. Limitación conocida: iOS requiere PWA instalada + iOS 16.4+ para recibir push.
 
 ---
 
