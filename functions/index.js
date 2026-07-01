@@ -361,6 +361,192 @@ exports.notifyTechnicianOnVisit = onDocumentCreated(
   }
 );
 
+// Convierte un documento de visita plana (nueva colección) en un objeto task-like
+// para reutilizar buildVisitEmailHtml y resolveRecipients sin cambios.
+function visitToTask(visit) {
+  return {
+    clientName:     visit.clientName    || '',
+    clientAddress:  visit.address       || visit.ubicacion || '',
+    clientPhone:    visit.phone         || '',
+    serviceType:    visit.serviceType   || '',
+    serviceOrder:   visit.serviceOrder  || '',
+    createdBy:      visit.createdBy     || '',
+    clientEmail:    visit.clientEmail   || '',
+    identification: '',
+  };
+}
+
+// ─── 3b. Notificación al crear una visita (colección plana nueva) ─────────────
+exports.notifyVisitCreatedNew = onDocumentCreated(
+  {
+    document: 'tenants/{tenantId}/visits/{visitId}',
+    region:   'us-central1',
+    secrets:  [resendApiKey],
+  },
+  async (event) => {
+    const visit = event.data.data();
+    if (visit.status !== 'Programada') return;
+
+    const db        = getFirestore();
+    const tenantId  = event.params.tenantId;
+    const configSnap = await db.doc(`tenants/${tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
+
+    const task      = visitToTask(visit);
+    const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
+    const toList    = await resolveRecipients(db, tenantId, config.notifCreada, visit, task, techEmail ? [techEmail] : []);
+
+    if (toList.length === 0) {
+      console.log(`notifyVisitCreatedNew: sin destinatarios — ${event.params.visitId}`);
+      return;
+    }
+
+    await resend.emails.send({
+      from:    getFromEmail(config.empresaNombre),
+      to:      toList,
+      subject: `🗓️ Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
+      html:    buildVisitEmailHtml({
+        title:      '🗓️ Nueva visita asignada',
+        intro:      'Se ha programado la siguiente visita en tu agenda.',
+        task, visit,
+        portalNote: true,
+      }),
+    });
+
+    console.log(`notifyVisitCreatedNew: email enviado a ${toList.join(', ')} — ${event.params.visitId}`);
+  }
+);
+
+// ─── 5b. Confirmación de cierre de visita (colección plana nueva) ─────────────
+exports.notifyVisitCompletedNew = onDocumentUpdated(
+  {
+    document: 'tenants/{tenantId}/visits/{visitId}',
+    region:   'us-central1',
+    secrets:  [resendApiKey],
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+    if (before.status === 'Realizada' || after.status !== 'Realizada') return;
+
+    const db        = getFirestore();
+    const tenantId  = event.params.tenantId;
+    const configSnap = await db.doc(`tenants/${tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
+
+    const task      = visitToTask(after);
+    const fallback  = task.createdBy?.includes('@') ? [task.createdBy] : [];
+    const toList    = await resolveRecipients(db, tenantId, config.notifRealizada, after, task, fallback);
+    if (toList.length === 0) return;
+
+    await resend.emails.send({
+      from:    getFromEmail(config.empresaNombre),
+      to:      toList,
+      subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
+      html:    buildVisitEmailHtml({
+        title:      '✅ Visita completada',
+        titleColor: '#16a34a',
+        intro:      'La siguiente visita fue marcada como <strong>Realizada</strong>.',
+        task, visit: after,
+      }),
+    });
+
+    console.log(`notifyVisitCompletedNew: email enviado a ${toList.join(', ')} — ${event.params.visitId}`);
+  }
+);
+
+// ─── 6b. Notificación de visita modificada (colección plana nueva) ────────────
+exports.notifyVisitUpdatedNew = onDocumentUpdated(
+  {
+    document: 'tenants/{tenantId}/visits/{visitId}',
+    region:   'us-central1',
+    secrets:  [resendApiKey],
+  },
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+    if (before.status !== 'Realizada' && after.status === 'Realizada') return;
+
+    const WATCHED = ['scheduledDate', 'scheduledTime', 'technician', 'technicianEmail', 'urgency', 'type', 'observations', 'status', 'confirmed'];
+    const LABELS  = { scheduledDate: 'Fecha', scheduledTime: 'Hora', technician: 'Técnico', technicianEmail: 'Email técnico', urgency: 'Urgencia', type: 'Tipo de servicio', observations: 'Observaciones', status: 'Estado', confirmed: 'Confirmación' };
+
+    const changes = WATCHED.filter(f => (before[f] ?? '') !== (after[f] ?? ''));
+    if (changes.length === 0) return;
+
+    const esConfirmacion = changes.length === 1 && changes[0] === 'confirmed' && after.confirmed === true;
+
+    const db        = getFirestore();
+    const tenantId  = event.params.tenantId;
+    const configSnap = await db.doc(`tenants/${tenantId}/configuracion/config_empresa`).get();
+    const config     = configSnap.exists ? configSnap.data() : {};
+    const resend     = new Resend(resendApiKey.value());
+
+    const task         = visitToTask(after);
+    const newTechEmail = after.technicianEmail  || (after.technician?.includes('@')  ? after.technician  : null);
+    const oldTechEmail = before.technicianEmail || (before.technician?.includes('@') ? before.technician : null);
+    const techCambiado = oldTechEmail && oldTechEmail !== newTechEmail;
+    const fallback     = [...new Set([newTechEmail, task.createdBy?.includes('@') ? task.createdBy : null].filter(Boolean))];
+
+    const notifCfg = esConfirmacion ? config.notifConfirmada : config.notifModificada;
+    const destList  = await resolveRecipients(db, tenantId, notifCfg, after, task, fallback);
+
+    const changeRows = changes.filter(f => f !== 'confirmed').map(f => `
+      <tr style="border-top:1px solid #f1f5f9;">
+        <td style="padding:7px 10px;color:#64748b;font-size:13px;width:140px;">${escHtml(LABELS[f] || f)}</td>
+        <td style="padding:7px 10px;color:#dc2626;font-size:13px;text-decoration:line-through;">${escHtml(String(before[f] ?? '—'))}</td>
+        <td style="padding:7px 10px;color:#16a34a;font-size:13px;font-weight:600;">${escHtml(String(after[f] ?? '—'))}</td>
+      </tr>`).join('');
+
+    const sends = [];
+
+    if (esConfirmacion) {
+      if (destList.length > 0) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      destList,
+          subject: `✅ Asistencia confirmada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildVisitEmailHtml({
+            title: '✅ Asistencia confirmada', titleColor: '#16a34a',
+            intro: `El técnico <strong>${escHtml(after.technician || after.technicianEmail || '—')}</strong> confirmó su asistencia.`,
+            task, visit: after,
+          }),
+        }));
+      }
+    } else {
+      if (techCambiado && oldTechEmail) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      [oldTechEmail],
+          subject: `ℹ️ Visita reasignada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildVisitEmailHtml({
+            title: 'ℹ️ Visita reasignada',
+            intro: `Fuiste removido de esta visita. Ha sido reasignada a <strong>${escHtml(after.technician || 'otro técnico')}</strong>.`,
+            task, visit: after,
+          }),
+        }));
+      }
+      if (destList.length > 0) {
+        sends.push(resend.emails.send({
+          from:    getFromEmail(config.empresaNombre),
+          to:      destList,
+          subject: `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          html:    buildVisitEmailHtml({
+            title: '✏️ Visita modificada',
+            intro: 'Se realizaron cambios en la siguiente visita.',
+            task, visit: after,
+            changes: changeRows || null,
+          }),
+        }));
+      }
+    }
+
+    await Promise.allSettled(sends);
+    console.log(`notifyVisitUpdatedNew: ${sends.length} email(s) — ${event.params.visitId} — cambios: ${changes.join(', ')}`);
+  }
+);
+
 // ─── 4. Agenda diaria de visitas ─────────────────────────────────────────────
 // Se ejecuta cada hora en zona horaria Ecuador.
 // Soporta dos tipos de agenda (configurable por tenant):
