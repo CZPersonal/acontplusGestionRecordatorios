@@ -7,6 +7,14 @@
         { "fieldPath": "scheduledDate", "order": "ASCENDING" },
         { "fieldPath": "status",        "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "borradores",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "technicianEmail", "order": "ASCENDING" },
+        { "fieldPath": "createdAt",       "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

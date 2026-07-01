@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, limit, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, limit, where, orderBy } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -67,7 +67,7 @@ export function useBorradores(user, { onlyMine = false } = {}) {
     if (!user || !tenantId) return;
     const col = getCollectionRef('borradores');
     const q = onlyMine
-      ? query(col, where('technicianEmail', '==', user.email), limit(50))
+      ? query(col, where('technicianEmail', '==', user.email), orderBy('createdAt', 'desc'), limit(200))
       : query(col, limit(200));
 
     const unsub = onSnapshot(q,
