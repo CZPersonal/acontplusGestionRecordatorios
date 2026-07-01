@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock, FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle, Search, Ban } from 'lucide-react';
+import {
+  Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock,
+  FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle,
+  Search, Ban, Wrench, UserPlus,
+} from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useAppStore } from '../lib/store';
+import { getClientContacts } from '../hooks/useClients.js';
+import { ClientForm } from './ClientsManager.jsx';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 
 function localToday() {
@@ -20,6 +26,79 @@ const EMPTY_FORM = {
   motivo:        '',
 };
 
+// ─── Modal: crear nuevo cliente desde el borrador ─────────────────────────────
+
+function ClientCreateModal({ onClose, onClientCreated }) {
+  const clients      = useAppStore(s => s.clients);
+  const createClient = useAppStore(s => s.createClient);
+  const addToast     = useAppStore(s => s.addToast);
+  const [saving, setSaving] = useState(false);
+
+  const existingIds = useMemo(
+    () => new Set(clients.map(c => c.identification?.replace(/\s/g, '')).filter(Boolean)),
+    [clients]
+  );
+
+  const handleSave = async (data) => {
+    setSaving(true);
+    const ok = await createClient(data);
+    setSaving(false);
+    if (ok) {
+      addToast({ type: 'success', title: '✅ Cliente creado', body: `${data.name} registrado correctamente.` });
+      const clientId = data.identification?.replace(/\s/g, '');
+      onClientCreated({
+        id:             clientId,
+        name:           data.name,
+        identification: data.identification,
+        foreign:        data.foreign ?? false,
+        contacts:       data.contacts || [],
+        active:         true,
+      });
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo crear el cliente.' });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex flex-col justify-end">
+      <div
+        className="absolute inset-0"
+        style={{ background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(3px)' }}
+        onClick={onClose}
+      />
+      <div
+        className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        style={{ maxHeight: '95vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
+          <div>
+            <p className="text-base font-bold text-slate-800">Nuevo cliente</p>
+            <p className="text-xs text-slate-400 mt-0.5">Completa los datos del cliente</p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <ClientForm
+            initial={null}
+            onSave={handleSave}
+            onCancel={onClose}
+            isLoading={saving}
+            existingIds={existingIds}
+            allClients={clients}
+            onActivateExisting={() => {}}
+            noBorder
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Formulario (reutilizado para crear y editar) ─────────────────────────────
 
 function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, borradores }) {
@@ -28,10 +107,31 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
   const tasks   = useAppStore(s => s.tasks);
   const clients = useAppStore(s => s.clients);
 
+  // Estado de cliente seleccionado
+  const [selectedClientId,  setSelectedClientId]  = useState(initial?.clientId  || null);
+  const [selectedContactId, setSelectedContactId] = useState(initial?.contactId || null);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+
+  // Buscador
   const [clientSearch,    setClientSearch]    = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef(null);
 
+  // ── Datos derivados del cliente seleccionado ──
+  const selectedClient = useMemo(
+    () => selectedClientId ? clients.find(c => c.id === selectedClientId) : null,
+    [clients, selectedClientId]
+  );
+  const clientContacts = useMemo(
+    () => selectedClient ? getClientContacts(selectedClient) : [],
+    [selectedClient]
+  );
+  const selectedContact = useMemo(
+    () => selectedContactId ? clientContacts.find(c => c.id === selectedContactId) : null,
+    [clientContacts, selectedContactId]
+  );
+
+  // Sugerencias: busca también en los teléfonos de las ubicaciones
   const suggestions = useMemo(() => {
     const q = clientSearch.trim().toLowerCase();
     if (!q || q.length < 2) return [];
@@ -40,24 +140,63 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
       .filter(c =>
         (c.name           || '').toLowerCase().includes(q) ||
         (c.identification || '').toLowerCase().includes(q) ||
-        (c.phone          || '').toLowerCase().includes(q)
+        getClientContacts(c).some(ct => ct.phone?.includes(q))
       )
       .slice(0, 6);
   }, [clients, clientSearch]);
 
-  const selectClient = (c) => {
+  // ── Aplicar datos de un contacto al formulario ──
+  const applyContact = (contact) => {
     setForm(prev => ({
       ...prev,
-      clientName:    c.name           || '',
-      clientIdNumber:c.identification || '',
-      clientPhone:   c.phone          || '',
-      clientEmail:   c.email          || '',
-      clientAddress: c.address        || '',
+      clientPhone:   contact.phone || '',
+      clientEmail:   contact.email || '',
+      clientAddress: [contact.ubicacion, contact.ciudad, contact.address].filter(Boolean).join(' · ') || '',
     }));
+  };
+
+  const selectContact = (contact) => {
+    setSelectedContactId(contact.id);
+    applyContact(contact);
+  };
+
+  // ── Al elegir cliente del buscador ──
+  const selectClient = (c) => {
+    const contacts = getClientContacts(c);
+    setSelectedClientId(c.id);
+    setForm(prev => ({
+      ...prev,
+      clientName:     c.name           || '',
+      clientIdNumber: c.identification || '',
+    }));
+    if (contacts.length === 1) {
+      setSelectedContactId(contacts[0].id);
+      applyContact(contacts[0]);
+    } else {
+      setSelectedContactId(null);
+      setForm(prev => ({ ...prev, clientPhone: '', clientEmail: '', clientAddress: '' }));
+    }
     setErrors(prev => ({ ...prev, clientName: null }));
     setClientSearch('');
     setShowSuggestions(false);
   };
+
+  // ── Auto-refresh: cuando el admin edita el cliente, actualiza los campos ──
+  useEffect(() => {
+    if (!selectedClientId) return;
+    const client = clients.find(c => c.id === selectedClientId);
+    if (!client) return;
+    setForm(prev => ({ ...prev, clientName: client.name || prev.clientName }));
+    if (!selectedContactId) return;
+    const contact = getClientContacts(client).find(c => c.id === selectedContactId);
+    if (!contact) return;
+    setForm(prev => ({
+      ...prev,
+      clientPhone:   contact.phone || prev.clientPhone,
+      clientEmail:   contact.email || prev.clientEmail,
+      clientAddress: [contact.ubicacion, contact.ciudad, contact.address].filter(Boolean).join(' · ') || prev.clientAddress,
+    }));
+  }, [clients, selectedClientId, selectedContactId]);
 
   // Cerrar sugerencias al hacer clic fuera
   useEffect(() => {
@@ -70,7 +209,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Visitas propias programadas o confirmadas para el día seleccionado
+  // Visitas propias programadas para el día seleccionado
   const visitasDelDia = useMemo(() => {
     if (!form.scheduledDate || !userEmail) return [];
     const lista = [];
@@ -87,7 +226,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     );
   }, [tasks, form.scheduledDate, userEmail]);
 
-  // Borradores propios pendientes para el día seleccionado (excluye el borrador en edición)
+  // Borradores propios pendientes para el día seleccionado
   const borradoresDelDia = useMemo(() => {
     if (!form.scheduledDate) return [];
     return (borradores || []).filter(b =>
@@ -115,6 +254,8 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     const ok = await onSave({
+      clientId:       selectedClientId  || null,
+      contactId:      selectedContactId || null,
       clientName:     form.clientName.trim(),
       clientIdNumber: form.clientIdNumber.trim(),
       clientAddress:  form.clientAddress.trim(),
@@ -140,238 +281,353 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
   const lbl = 'block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5';
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+    <>
+      <form onSubmit={handleSubmit} className="flex flex-col h-full">
 
-      {/* Cabecera */}
-      <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-slate-100">
-        <div>
-          <p className="text-base font-bold text-slate-800">
-            {isEdit ? 'Editar borrador' : 'Nuevo borrador de visita'}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {isEdit ? 'Modifica los datos del borrador' : 'El administrador lo convertirá en visita formal'}
-          </p>
-        </div>
-        <button type="button" onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* Campos scrollable */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-
-        {/* ── Sección cliente ── */}
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos del cliente</p>
-
-        {/* Buscador de clientes existentes */}
-        <div ref={searchRef} className="relative">
-          <label className={lbl}>Buscar cliente existente</label>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={clientSearch}
-              onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
-              onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
-              placeholder="Nombre, cédula o teléfono…"
-              className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
-            />
-            {clientSearch && (
-              <button type="button" onClick={() => { setClientSearch(''); setShowSuggestions(false); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                <X size={14} />
-              </button>
-            )}
+        {/* Cabecera */}
+        <div className="flex items-center justify-between px-5 py-4 flex-shrink-0 border-b border-slate-100">
+          <div>
+            <p className="text-base font-bold text-slate-800">
+              {isEdit ? 'Editar borrador' : 'Nuevo borrador de visita'}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isEdit ? 'Modifica los datos del borrador' : 'El administrador lo convertirá en visita formal'}
+            </p>
           </div>
-          {/* Dropdown de sugerencias */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-pink-200 rounded-2xl shadow-xl overflow-hidden">
-              {suggestions.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onMouseDown={() => selectClient(c)}
-                  className="w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-slate-100 last:border-0"
-                >
-                  <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    {c.identification && (
-                      <span className="text-xs text-slate-400 flex items-center gap-1">
-                        <Hash size={10} />{c.identification}
-                      </span>
-                    )}
-                    {c.phone && (
-                      <span className="text-xs text-slate-400 flex items-center gap-1">
-                        <Phone size={10} />{c.phone}
-                      </span>
-                    )}
-                  </div>
-                </button>
-              ))}
+          <button type="button" onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Campos scrollable */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* ── Sección cliente ── */}
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos del cliente</p>
+
+          {/* Fila: buscador + botón nuevo cliente */}
+          <div className="flex gap-2 items-end">
+            <div ref={searchRef} className="relative flex-1">
+              <label className={lbl}>Buscar cliente existente</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
+                  onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
+                  placeholder="Nombre, cédula o teléfono…"
+                  className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+                />
+                {clientSearch && (
+                  <button type="button"
+                    onClick={() => { setClientSearch(''); setShowSuggestions(false); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown sugerencias */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-pink-200 rounded-2xl shadow-xl overflow-hidden">
+                  {suggestions.map(c => {
+                    const contacts = getClientContacts(c);
+                    const mainPhone = contacts[0]?.phone || c.phone || '';
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onMouseDown={() => selectClient(c)}
+                        className="w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-slate-100 last:border-0"
+                      >
+                        <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          {c.identification && (
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                              <Hash size={10} />{c.identification}
+                            </span>
+                          )}
+                          {mainPhone && (
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                              <Phone size={10} />{mainPhone}
+                            </span>
+                          )}
+                          {contacts.length > 1 && (
+                            <span className="text-xs font-semibold text-blue-500">
+                              {contacts.length} ubicaciones
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {showSuggestions && clientSearch.trim().length >= 2 && suggestions.length === 0 && (
+                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-2xl shadow-xl px-4 py-3">
+                  <p className="text-sm text-slate-400">Sin resultados para "{clientSearch}"</p>
+                </div>
+              )}
+            </div>
+
+            {/* Botón nuevo cliente */}
+            <button
+              type="button"
+              onClick={() => setShowNewClientModal(true)}
+              title="Crear nuevo cliente"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-bold text-white transition-opacity active:opacity-80 mb-0"
+              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+            >
+              <UserPlus size={15} />
+              <span className="hidden sm:inline">Nuevo</span>
+            </button>
+          </div>
+
+          {/* ── Selector de ubicación (cuando hay múltiples contactos) ── */}
+          {selectedClient && clientContacts.length > 1 && (
+            <div>
+              <label className={`${lbl} text-blue-600`}>
+                <MapPin size={11} className="inline mr-1" />
+                Selecciona la ubicación
+              </label>
+              <div className="space-y-2">
+                {clientContacts.map(contact => {
+                  const summary = [contact.ubicacion, contact.ciudad].filter(Boolean).join(' · ')
+                    || contact.address || 'Ubicación sin nombre';
+                  const isSelected = selectedContactId === contact.id;
+                  return (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      onClick={() => selectContact(contact)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-pink-400 bg-pink-50 shadow-sm'
+                          : 'border-slate-200 hover:border-pink-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                          isSelected ? 'border-pink-500 bg-pink-500' : 'border-slate-300'
+                        }`}>
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">{summary}</p>
+                          {contact.phone && (
+                            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                              <Phone size={9} />{contact.phone}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Equipos de esta ubicación como chips */}
+                      {contact.installations?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2 pl-6">
+                          {contact.installations.map(inst => (
+                            <span key={inst.id}
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                              <Wrench size={8} />{inst.serviceType || 'Equipo'}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
-          {showSuggestions && clientSearch.trim().length >= 2 && suggestions.length === 0 && (
-            <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-2xl shadow-xl px-4 py-3">
-              <p className="text-sm text-slate-400">Sin resultados para "{clientSearch}"</p>
-            </div>
-          )}
-        </div>
 
-        <div>
-          <label className={lbl}>Nombre y apellido <span className="text-red-400">*</span></label>
-          <div className="relative">
-            <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" value={form.clientName} onChange={e => set('clientName', e.target.value)}
-              placeholder="Ej. Juan Pérez García" autoFocus
-              className={`${inp(errors.clientName)} pl-9`} />
-          </div>
-          {errors.clientName && <p className="text-xs text-red-600 mt-1">⚠️ {errors.clientName}</p>}
-        </div>
-
-        <div>
-          <label className={lbl}>Cédula / RUC</label>
-          <div className="relative">
-            <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" value={form.clientIdNumber} onChange={e => set('clientIdNumber', e.target.value)}
-              placeholder="0000000000"
-              className={`${inp(false)} pl-9`} />
-          </div>
-        </div>
-
-        <div>
-          <label className={lbl}>Dirección</label>
-          <div className="relative">
-            <MapPin size={14} className="absolute left-3 top-3.5 text-slate-400" />
-            <textarea value={form.clientAddress} onChange={e => set('clientAddress', e.target.value)}
-              placeholder="Calle, número, sector…" rows={2}
-              className={`${inp(false)} pl-9 resize-none`} />
-          </div>
-        </div>
-
-        <div>
-          <label className={lbl}>Teléfono</label>
-          <div className="relative">
-            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="tel" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)}
-              placeholder="09XXXXXXXX"
-              className={`${inp(false)} pl-9`} />
-          </div>
-        </div>
-
-        <div>
-          <label className={lbl}>Email</label>
-          <div className="relative">
-            <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)}
-              placeholder="correo@ejemplo.com"
-              className={`${inp(false)} pl-9`} />
-          </div>
-        </div>
-
-        {/* ── Sección visita ── */}
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
-
-        <div>
-          <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
-          <div className="relative">
-            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="date" value={form.scheduledDate} onChange={e => set('scheduledDate', e.target.value)}
-              required className={`${inp(errors.scheduledDate)} pl-9`} />
-          </div>
-          {errors.scheduledDate && <p className="text-xs text-red-600 mt-1">⚠️ {errors.scheduledDate}</p>}
-        </div>
-
-        {/* Mini-agenda del día */}
-        {form.scheduledDate && (
-          visitasDelDia.length === 0 && borradoresDelDia.length === 0 ? (
-            <div className="rounded-xl px-3 py-2.5 border bg-green-50 border-green-200">
-              <p className="text-xs font-bold text-green-700 flex items-center gap-1.5">
-                <CheckCircle2 size={12} />Día libre — sin visitas ni borradores
+          {/* ── Instalaciones de la ubicación seleccionada (cliente con 1 sola ubicación) ── */}
+          {selectedContact && selectedContact.installations?.length > 0 && clientContacts.length === 1 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <Wrench size={11} /> Equipos / Servicios en esta ubicación
               </p>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-
-              {/* Visitas programadas */}
-              {visitasDelDia.length > 0 && (
-                <div className="bg-amber-50 border-b border-amber-100">
-                  <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
-                    <AlertCircle size={12} />Visitas programadas — {visitasDelDia.length}
-                  </p>
-                  <div className="space-y-1 px-3 pb-2.5">
-                    {visitasDelDia.map(({ visit, task }) => (
-                      <div key={visit.id || task.id + visit.scheduledTime}
-                        className="flex items-center gap-2 text-xs text-amber-800">
-                        <span className="font-bold w-10 flex-shrink-0">{visit.scheduledTime || 'S/H'}</span>
-                        <span className="truncate">{task.clientName}</span>
-                        {visit.confirmed && (
-                          <span className="flex-shrink-0 font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
-                        )}
-                      </div>
-                    ))}
+              <div className="flex flex-wrap gap-2">
+                {selectedContact.installations.map(inst => (
+                  <div key={inst.id}
+                    className="flex items-start gap-1.5 px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg">
+                    <Wrench size={10} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-800 leading-tight">
+                        {inst.serviceType || 'Sin tipo'}
+                      </p>
+                      {inst.observacion && (
+                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{inst.observacion}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Borradores pendientes */}
-              {borradoresDelDia.length > 0 && (
-                <div className="bg-blue-50">
-                  <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
-                    <FileText size={12} />Borradores pendientes — {borradoresDelDia.length}
-                  </p>
-                  <div className="space-y-1 px-3 pb-2.5">
-                    {borradoresDelDia.map(b => (
-                      <div key={b.id} className="flex items-center gap-2 text-xs text-blue-800">
-                        <span className="font-bold w-10 flex-shrink-0">{b.scheduledTime || 'S/H'}</span>
-                        <span className="truncate">{b.clientName}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+                ))}
+              </div>
             </div>
-          )
-        )}
+          )}
 
-        <div>
-          <label className={lbl}>Hora <span className="text-slate-400 font-normal normal-case">(Ej. 10:30)</span></label>
-          <div className="relative">
-            <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" value={form.scheduledTime} onChange={handleTimeInput}
-              placeholder="10:30"
-              inputMode="numeric"
-              maxLength={5}
-              className={`${inp(false)} pl-9`} />
+          {/* ── Campos del cliente (editables manualmente) ── */}
+          <div>
+            <label className={lbl}>Nombre y apellido <span className="text-red-400">*</span></label>
+            <div className="relative">
+              <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" value={form.clientName} onChange={e => set('clientName', e.target.value)}
+                placeholder="Ej. Juan Pérez García" autoFocus
+                className={`${inp(errors.clientName)} pl-9`} />
+            </div>
+            {errors.clientName && <p className="text-xs text-red-600 mt-1">⚠️ {errors.clientName}</p>}
           </div>
+
+          <div>
+            <label className={lbl}>Cédula / RUC</label>
+            <div className="relative">
+              <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" value={form.clientIdNumber} onChange={e => set('clientIdNumber', e.target.value)}
+                placeholder="0000000000"
+                className={`${inp(false)} pl-9`} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Dirección</label>
+            <div className="relative">
+              <MapPin size={14} className="absolute left-3 top-3.5 text-slate-400" />
+              <textarea value={form.clientAddress} onChange={e => set('clientAddress', e.target.value)}
+                placeholder="Calle, número, sector…" rows={2}
+                className={`${inp(false)} pl-9 resize-none`} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Teléfono</label>
+            <div className="relative">
+              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="tel" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)}
+                placeholder="09XXXXXXXX"
+                className={`${inp(false)} pl-9`} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Email</label>
+            <div className="relative">
+              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)}
+                placeholder="correo@ejemplo.com"
+                className={`${inp(false)} pl-9`} />
+            </div>
+          </div>
+
+          {/* ── Sección visita ── */}
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
+
+          <div>
+            <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="date" value={form.scheduledDate} onChange={e => set('scheduledDate', e.target.value)}
+                required className={`${inp(errors.scheduledDate)} pl-9`} />
+            </div>
+            {errors.scheduledDate && <p className="text-xs text-red-600 mt-1">⚠️ {errors.scheduledDate}</p>}
+          </div>
+
+          {/* Mini-agenda del día */}
+          {form.scheduledDate && (
+            visitasDelDia.length === 0 && borradoresDelDia.length === 0 ? (
+              <div className="rounded-xl px-3 py-2.5 border bg-green-50 border-green-200">
+                <p className="text-xs font-bold text-green-700 flex items-center gap-1.5">
+                  <CheckCircle2 size={12} />Día libre — sin visitas ni borradores
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                {visitasDelDia.length > 0 && (
+                  <div className="bg-amber-50 border-b border-amber-100">
+                    <p className="text-xs font-bold text-amber-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+                      <AlertCircle size={12} />Visitas programadas — {visitasDelDia.length}
+                    </p>
+                    <div className="space-y-1 px-3 pb-2.5">
+                      {visitasDelDia.map(({ visit, task }) => (
+                        <div key={visit.id || task.id + visit.scheduledTime}
+                          className="flex items-center gap-2 text-xs text-amber-800">
+                          <span className="font-bold w-10 flex-shrink-0">{visit.scheduledTime || 'S/H'}</span>
+                          <span className="truncate">{task.clientName}</span>
+                          {visit.confirmed && (
+                            <span className="flex-shrink-0 font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {borradoresDelDia.length > 0 && (
+                  <div className="bg-blue-50">
+                    <p className="text-xs font-bold text-blue-700 flex items-center gap-1.5 px-3 pt-2.5 pb-1.5">
+                      <FileText size={12} />Borradores pendientes — {borradoresDelDia.length}
+                    </p>
+                    <div className="space-y-1 px-3 pb-2.5">
+                      {borradoresDelDia.map(b => (
+                        <div key={b.id} className="flex items-center gap-2 text-xs text-blue-800">
+                          <span className="font-bold w-10 flex-shrink-0">{b.scheduledTime || 'S/H'}</span>
+                          <span className="truncate">{b.clientName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          <div>
+            <label className={lbl}>Hora <span className="text-slate-400 font-normal normal-case">(Ej. 10:30)</span></label>
+            <div className="relative">
+              <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" value={form.scheduledTime} onChange={handleTimeInput}
+                placeholder="10:30" inputMode="numeric" maxLength={5}
+                className={`${inp(false)} pl-9`} />
+            </div>
+          </div>
+
+          <div>
+            <label className={lbl}>Motivo de la visita <span className="text-red-400">*</span></label>
+            <div className="relative">
+              <FileText size={14} className="absolute left-3 top-3.5 text-slate-400" />
+              <textarea value={form.motivo} onChange={e => set('motivo', e.target.value)}
+                placeholder="Describe brevemente el motivo o trabajo a realizar…" rows={3}
+                className={`${inp(errors.motivo)} pl-9 resize-none`} />
+            </div>
+            {errors.motivo && <p className="text-xs text-red-600 mt-1">⚠️ {errors.motivo}</p>}
+          </div>
+
         </div>
 
-        <div>
-          <label className={lbl}>Motivo de la visita <span className="text-red-400">*</span></label>
-          <div className="relative">
-            <FileText size={14} className="absolute left-3 top-3.5 text-slate-400" />
-            <textarea value={form.motivo} onChange={e => set('motivo', e.target.value)}
-              placeholder="Describe brevemente el motivo o trabajo a realizar…" rows={3}
-              className={`${inp(errors.motivo)} pl-9 resize-none`} />
-          </div>
-          {errors.motivo && <p className="text-xs text-red-600 mt-1">⚠️ {errors.motivo}</p>}
+        {/* Botones */}
+        <div className="flex gap-3 px-5 py-4 border-t border-slate-100 flex-shrink-0">
+          <button type="button" onClick={onClose} disabled={isLoading}
+            className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit" disabled={isLoading}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
+            style={{ background: isLoading ? '#f9a8d4' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+            {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+            {isLoading ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar borrador'}
+          </button>
         </div>
-      </div>
+      </form>
 
-      {/* Botones */}
-      <div className="flex gap-3 px-5 py-4 border-t border-slate-100 flex-shrink-0">
-        <button type="button" onClick={onClose} disabled={isLoading}
-          className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">
-          Cancelar
-        </button>
-        <button type="submit" disabled={isLoading}
-          className="flex-1 py-3 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
-          style={{ background: isLoading ? '#f9a8d4' : 'linear-gradient(135deg, #D61672, #FFA901)' }}>
-          {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-          {isLoading ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar borrador'}
-        </button>
-      </div>
-    </form>
+      {/* Modal crear nuevo cliente */}
+      {showNewClientModal && (
+        <ClientCreateModal
+          onClose={() => setShowNewClientModal(false)}
+          onClientCreated={(client) => {
+            setShowNewClientModal(false);
+            if (client) selectClient(client);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -481,8 +737,8 @@ export default function BorradorSheet({ user, showList = false }) {
 
   const [open,         setOpen]         = useState(false);
   const [editing,      setEditing]      = useState(null);
-  const [statusFilter, setStatusFilter] = useState('todos');   // 'todos' | 'pendiente' | 'convertido'
-  const [dateFilter,   setDateFilter]   = useState('');        // 'YYYY-MM-DD' | ''
+  const [statusFilter, setStatusFilter] = useState('todos');
+  const [dateFilter,   setDateFilter]   = useState('');
 
   // Cerrar con Escape
   useEffect(() => {
@@ -542,7 +798,6 @@ export default function BorradorSheet({ user, showList = false }) {
 
           {/* Filtros */}
           <div className="flex flex-col gap-2">
-            {/* Filtro estado */}
             <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
               {[
                 { id: 'todos',      label: 'Todos' },
@@ -563,7 +818,6 @@ export default function BorradorSheet({ user, showList = false }) {
                 </button>
               ))}
             </div>
-            {/* Filtro por día */}
             <div className="flex items-center gap-2">
               <div className="flex-1 relative">
                 <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -622,33 +876,30 @@ export default function BorradorSheet({ user, showList = false }) {
       {/* ── Bottom Sheet ── */}
       {open && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          {/* Backdrop */}
           <div
             className="absolute inset-0"
             style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(2px)' }}
             onClick={closeSheet}
           />
-
-          {/* Panel */}
           <div
             className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col"
             style={{ maxHeight: '92vh' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Handle */}
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 flex-shrink-0" />
-
             <BorradorForm
               initial={editing ? {
-                id:            editing.id,
-                clientName:    editing.clientName    || '',
-                clientIdNumber:editing.clientIdNumber|| '',
-                clientAddress: editing.clientAddress || '',
-                clientPhone:   editing.clientPhone   || '',
-                clientEmail:   editing.clientEmail   || '',
-                scheduledDate: editing.scheduledDate || localToday(),
-                scheduledTime: editing.scheduledTime || '',
-                motivo:        editing.motivo        || '',
+                id:             editing.id,
+                clientId:       editing.clientId       || null,
+                contactId:      editing.contactId      || null,
+                clientName:     editing.clientName     || '',
+                clientIdNumber: editing.clientIdNumber || '',
+                clientAddress:  editing.clientAddress  || '',
+                clientPhone:    editing.clientPhone    || '',
+                clientEmail:    editing.clientEmail    || '',
+                scheduledDate:  editing.scheduledDate  || localToday(),
+                scheduledTime:  editing.scheduledTime  || '',
+                motivo:         editing.motivo         || '',
               } : null}
               onSave={handleSave}
               onClose={closeSheet}
