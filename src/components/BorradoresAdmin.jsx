@@ -1,20 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, CheckCircle2, Search, X, AlertCircle, Loader2,
-  ArrowRight, Eye, Ban, Trash2,
+  ArrowRight, Eye, Ban, Trash2, Navigation, Building2,
 } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
-import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useAppStore } from '../lib/store';
-import { getVisitsRef } from '../lib/tenantDb';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
-import TaskForm from './TaskForm.jsx';
-import { VisitFormModal } from './VisitsModal.jsx';
-
-const STATUSES = ['Pendiente', 'En Proceso', 'Completado', 'Cancelado'];
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
@@ -24,14 +17,15 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
   const [confirmAnular, setConfirmAnular] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const row = (icon, label, value) => value ? (
+  const row = (icon, label, value, extra = null) => value ? (
     <div className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
       <div className="w-5 h-5 mt-0.5 flex-shrink-0 flex items-center justify-center">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
-        <p className="text-sm text-slate-800 font-medium mt-0.5">{value}</p>
+        <p className="text-sm text-slate-800 font-medium mt-0.5 break-words">{value}</p>
+        {extra}
       </div>
     </div>
   ) : null;
@@ -63,11 +57,25 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
         <div className="flex-1 overflow-y-auto p-5 space-y-1">
 
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Cliente</p>
-          {row(<User size={14} className="text-slate-400" />,       'Nombre y apellido',  b.clientName)}
           {row(<Hash size={14} className="text-slate-400" />,       'Cédula / RUC',       b.clientIdNumber)}
-          {row(<MapPin size={14} className="text-slate-400" />,     'Dirección',          b.clientAddress)}
+          {row(<User size={14} className="text-slate-400" />,       'Nombre y apellido',  b.clientName)}
           {row(<Phone size={14} className="text-slate-400" />,      'Teléfono',           b.clientPhone)}
           {row(<Mail size={14} className="text-slate-400" />,       'Email',              b.clientEmail)}
+          {row(<MapPin size={14} className="text-slate-400" />,     'Dirección',          b.clientAddress)}
+          {row(<MapPin size={14} className="text-slate-400" />,     'Ubicación',          b.clientUbicacion)}
+          {row(<Building2 size={14} className="text-slate-400" />,  'Ciudad',             b.clientCiudad)}
+          {row(<FileText size={14} className="text-slate-400" />,   'Referencia',         b.clientReferencia)}
+          {row(
+            <Navigation size={14} className="text-slate-400" />,
+            'Google Maps',
+            b.clientMapsLink,
+            b.clientMapsLink ? (
+              <a href={b.clientMapsLink} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
+                <Navigation size={10} />Abrir mapa
+              </a>
+            ) : null
+          )}
 
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2">Visita</p>
           {row(<Calendar size={14} className="text-slate-400" />,   'Fecha',
@@ -138,7 +146,7 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-60 transition-opacity"
                     style={{ background: converting ? '#86efac' : 'linear-gradient(135deg, #16a34a, #15803d)' }}>
                     {converting ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
-                    {converting ? 'Procesando…' : 'Convertir'}
+                    {converting ? 'Procesando…' : 'Convertir en visita'}
                   </button>
                 )}
                 {isPendiente && (
@@ -226,24 +234,46 @@ function BorradorRow({ b, onDetail }) {
 
 export default function BorradoresAdmin({ user }) {
   const { borradores, isLoading, convertBorrador, anuladoBorrador, deleteBorrador } = useBorradores(user);
-  const addToast     = useAppStore(s => s.addToast);
-  const addTask      = useAppStore(s => s.addTask);
-  const clients      = useAppStore(s => s.clients);
-  const serviceTypes = useAppStore(s => s.serviceTypes);
-  const { tecnicos }        = useTecnicos(user);
-  const { tiposParaSelect } = useTiposVisita(user);
+  const addToast          = useAppStore(s => s.addToast);
+  const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
+  const openNewVisit      = useAppStore(s => s.openNewVisit);
+  const highlightedVisitId = useAppStore(s => s.highlightedVisitId);
+  const { tecnicos } = useTecnicos(user);
 
   const adminName = useMemo(
     () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
     [tecnicos, user.email, user.displayName]
   );
 
-  const [filter,      setFilter]      = useState('pendientes');
-  const [search,      setSearch]      = useState('');
-  const [dateFilter,  setDateFilter]  = useState('');
-  const [detail,      setDetail]      = useState(null);
-  // convertFlow: null | { borrador, step: 'task'|'visit', taskId: string|null, client: object|null }
-  const [convertFlow, setConvertFlow] = useState(null);
+  const [filter,     setFilter]     = useState('pendientes');
+  const [search,     setSearch]     = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [detail,     setDetail]     = useState(null);
+
+  // Borrador en proceso de conversión: guardamos ref para el useEffect
+  const borradorConvertRef   = useRef(null);
+  const prevHighlightRef     = useRef(highlightedVisitId);
+  const prevOpenNewVisitRef  = useRef(openNewVisit);
+
+  // Detectar cuando se guarda la visita y completar la conversión
+  useEffect(() => {
+    const wasOpen = prevOpenNewVisitRef.current;
+    const isNowClosed = !openNewVisit;
+    const visitChanged = highlightedVisitId !== prevHighlightRef.current;
+
+    if (wasOpen && isNowClosed && visitChanged && borradorConvertRef.current) {
+      const borrador = borradorConvertRef.current;
+      borradorConvertRef.current = null;
+      convertBorrador(borrador.id, { visitId: highlightedVisitId, adminEmail: user.email })
+        .then(ok => {
+          if (ok) addToast({ type: 'success', title: '✅ Borrador convertido', body: `La visita de ${borrador.clientName} fue creada y el borrador marcado como convertido.` });
+          else    addToast({ type: 'error',   title: '⚠️ Atención',           body: 'La visita se guardó pero no se pudo marcar el borrador como convertido.' });
+        });
+    }
+
+    prevOpenNewVisitRef.current  = openNewVisit;
+    prevHighlightRef.current     = highlightedVisitId;
+  }, [openNewVisit, highlightedVisitId]);
 
   const filtered = useMemo(() => {
     let list = borradores;
@@ -282,53 +312,30 @@ export default function BorradoresAdmin({ user }) {
     }
   };
 
-  // Paso 0: abrir flujo de conversión → busca cliente en catálogo y muestra TaskForm
+  // Convertir: abre VisitFormUnified con datos del borrador pre-cargados
   const startConvert = (b) => {
     setDetail(null);
-    const client = clients.find(c => c.identification === b.clientIdNumber) || null;
-    setConvertFlow({ borrador: b, step: 'task', taskId: null, client });
-  };
-
-  // Paso 1: tarea guardada → abrir VisitFormModal (cliente ya existe en BD)
-  const handleTaskSaved = async (formData) => {
-    const taskId = await addTask(formData, user.email);
-    if (!taskId) {
-      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo crear la tarea.' });
-      return;
-    }
-    setConvertFlow(prev => ({ ...prev, step: 'visit', taskId }));
-  };
-
-  // Paso 2: visita guardada → marcar borrador como convertido
-  const handleVisitSaved = async (visitData) => {
-    const { borrador, taskId } = convertFlow;
-    const visitId = crypto.randomUUID();
-    try {
-      await setDoc(doc(getVisitsRef(taskId), visitId), {
-        id:                  visitId,
-        scheduledDate:       visitData.scheduledDate       || '',
-        scheduledTime:       visitData.scheduledTime       || '',
-        type:                visitData.type                || '',
-        urgency:             visitData.urgency             || 'Media',
-        observations:        visitData.observations        || '',
-        technician:          visitData.technician          || '',
-        technicianEmail:     visitData.technicianEmail     || '',
-        technicianPhone:     visitData.technicianPhone     || '',
-        status:              'Programada',
-        createdBy:           user.email,
-        createdAt:           new Date().toISOString(),
-        completedAt:         null,
-        completedBy:         null,
-        closingObservations: '',
-      });
-      await convertBorrador(borrador.id, { taskId, visitId, adminEmail: user.email });
-      addToast({ type: 'success', title: '✅ Visita registrada', body: `La visita de ${borrador.clientName} fue creada correctamente.` });
-    } catch (e) {
-      console.error('handleVisitSaved:', e);
-      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo registrar la visita. Intenta de nuevo.' });
-    } finally {
-      setConvertFlow(null);
-    }
+    borradorConvertRef.current = b;
+    openNewVisitModal({
+      clientId:        b.clientId        || null,
+      contactId:       b.contactId       || null,
+      clientName:      b.clientName      || '',
+      phone:           b.clientPhone     || '',
+      clientEmail:     b.clientEmail     || '',
+      address:         b.clientAddress   || '',
+      ubicacion:       b.clientUbicacion || '',
+      ciudad:          b.clientCiudad    || '',
+      referencia:      b.clientReferencia|| '',
+      mapsLink:        b.clientMapsLink  || '',
+      scheduledDate:   b.scheduledDate   || '',
+      scheduledTime:   b.scheduledTime   || '',
+      observations:    b.motivo          || '',
+      technician:      b.technicianName  || '',
+      technicianEmail: b.technicianEmail || '',
+      urgency:         'Media',
+      serviceOrder:    '',
+      type:            '',
+    });
   };
 
   return (
@@ -358,7 +365,6 @@ export default function BorradoresAdmin({ user }) {
 
       {/* Filtros */}
       <div className="flex flex-col gap-3">
-        {/* Fila 1: estado + fecha */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
             {[
@@ -396,7 +402,6 @@ export default function BorradoresAdmin({ user }) {
             )}
           </div>
         </div>
-        {/* Fila 2: búsqueda de texto */}
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
@@ -441,66 +446,6 @@ export default function BorradoresAdmin({ user }) {
           onAnular={handleAnular}
           onDelete={handleDelete}
           converting={false}
-        />
-      )}
-
-      {/* ── Flujo conversión Paso 1: Nueva Tarea ── */}
-      {convertFlow?.step === 'task' && (
-        <div className="fixed inset-0 z-[70] bg-slate-50 flex flex-col overflow-hidden">
-          <div className="flex items-center gap-3 px-5 py-4 bg-white border-b border-slate-200 flex-shrink-0">
-            <button onClick={() => setConvertFlow(null)}
-              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-              <X size={20} />
-            </button>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#D61672' }}>
-                Paso 1 de 2 — Convertir borrador
-              </p>
-              <p className="text-sm font-bold text-slate-800">{convertFlow.borrador.clientName}</p>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <TaskForm
-              onSubmit={handleTaskSaved}
-              initialData={{
-                clientId:       convertFlow.client?.id             || '',
-                clientName:     convertFlow.client?.name           || convertFlow.borrador.clientName     || '',
-                identification: convertFlow.client?.identification || convertFlow.borrador.clientIdNumber || '',
-                clientPhone:    convertFlow.client?.phone          || convertFlow.borrador.clientPhone    || '',
-                clientEmail:    convertFlow.client?.email          || convertFlow.borrador.clientEmail    || '',
-                clientAddress:  convertFlow.client?.address        || convertFlow.borrador.clientAddress  || '',
-                serviceOrder:   '',
-                serviceType:    '',
-                foreign:        convertFlow.client?.foreign ?? false,
-                status:         'Pendiente',
-                observations:   '',
-              }}
-              statuses={STATUSES}
-              onCancel={() => setConvertFlow(null)}
-              clients={clients}
-              serviceTypes={serviceTypes}
-              user={user}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── Flujo conversión Paso 2: Nueva Visita ── */}
-      {convertFlow?.step === 'visit' && (
-        <VisitFormModal
-          initial={{
-            scheduledDate:   convertFlow.borrador.scheduledDate   || '',
-            scheduledTime:   convertFlow.borrador.scheduledTime   || '',
-            observations:    convertFlow.borrador.motivo          || '',
-            technician:      convertFlow.borrador.technicianName  || '',
-            technicianEmail: convertFlow.borrador.technicianEmail || '',
-            technicianPhone: '',
-          }}
-          onSave={handleVisitSaved}
-          onClose={() => setConvertFlow(null)}
-          isEdit={false}
-          tiposParaSelect={tiposParaSelect}
-          tecnicosParaSelect={tecnicos}
         />
       )}
     </div>
