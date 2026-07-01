@@ -230,7 +230,7 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
             placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
             className={`${inp(errors.identification)} font-mono`}
             maxLength={form.foreign ? 30 : 13}
-            autoFocus
+            autoFocus={!initial}
           />
           {errors.identification && (
             errors.identification.startsWith('__INACTIVE__:')
@@ -254,7 +254,7 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
       {/* ── Fila 2: Nombre ── */}
       <div>
         <label className={lbl}>Nombre <span className="text-red-400">*</span></label>
-        <input type="text" value={form.name} autoFocus
+        <input type="text" value={form.name} autoFocus={!!initial}
           onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setErrors(p => ({ ...p, name: '' })); }}
           placeholder="Nombre completo o razón social"
           className={inp(errors.name)} />
