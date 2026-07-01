@@ -154,7 +154,7 @@ function CompleteModal({ visit, task, onSave, onClose, isNewVisit = false }) {
 
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
-function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false, emailToName = {} }) {
+function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false, emailToName = {}, mapsLink = '' }) {
   const today       = localToday();
   const nowTime     = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -229,6 +229,12 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             <MapPin size={14} className="text-slate-400 mt-0.5 flex-shrink-0" />
             <span>{task.clientAddress}</span>
           </p>
+        )}
+        {mapsLink && (
+          <a href={mapsLink} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
+            <Navigation size={13} />Abrir mapa
+          </a>
         )}
         {(task.clientPhone || task.clientEmail) && (
           <div className="flex gap-2 pt-1">
@@ -328,10 +334,10 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
           style={{ background: color + '20', color }}>{visits.length}</span>
       </div>
       <div className="space-y-3">
-        {visits.map(({ visit, task: t, isNewVisit }) => (
+        {visits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
           <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
             onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
-            emailToName={emailToName} />
+            emailToName={emailToName} mapsLink={mapsLink || ''} />
         ))}
       </div>
     </div>
@@ -783,7 +789,7 @@ export default function TechPortal({ user }) {
         id:           v.id,
         clientName:   v.clientName   || '',
         clientPhone:  v.phone        || '',
-        clientAddress: v.ubicacion   || '',
+        clientAddress: v.address || v.ubicacion || '',
         serviceOrder: v.serviceOrder || '',
         visits: [],
       };
