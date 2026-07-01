@@ -147,9 +147,12 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
   };
 
   const addContact = () => {
-    const newIdx = contacts.length;
-    setContacts(prev => [...prev, emptyContact()]);
-    setExpandedContacts(prev => new Set([...prev, newIdx]));
+    setContacts(prev => [emptyContact(), ...prev]);
+    setExpandedContacts(prev => {
+      const next = new Set([0]);
+      prev.forEach(i => next.add(i + 1));
+      return next;
+    });
   };
   const removeContact = (idx) => {
     setContacts(prev => prev.filter((_, i) => i !== idx));
