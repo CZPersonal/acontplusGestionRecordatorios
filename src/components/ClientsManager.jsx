@@ -230,6 +230,7 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
             placeholder={form.foreign ? 'Pasaporte...' : 'Ej: 1712345678'}
             className={`${inp(errors.identification)} font-mono`}
             maxLength={form.foreign ? 30 : 13}
+            autoFocus
           />
           {errors.identification && (
             errors.identification.startsWith('__INACTIVE__:')

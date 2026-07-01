@@ -663,31 +663,33 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             </div>
           </div>
 
-          {/* 6. Ubicación + Ciudad en grilla */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}>Ubicación</label>
-              <div className="relative">
-                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" value={form.clientUbicacion}
-                  onChange={e => !isLocked && set('clientUbicacion', e.target.value)}
-                  readOnly={isLocked} placeholder="Sector, barrio…"
-                  className={`${inp(false, isLocked)} pl-9`} />
-              </div>
-            </div>
-            <div>
-              <label className={lbl}>Ciudad</label>
-              <div className="relative">
-                <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" value={form.clientCiudad}
-                  onChange={e => !isLocked && set('clientCiudad', e.target.value)}
-                  readOnly={isLocked} placeholder="Ej. Guayaquil"
-                  className={`${inp(false, isLocked)} pl-9`} />
-              </div>
+          {/* 6. Ubicación */}
+          <div>
+            <label className={lbl}>Ubicación</label>
+            <div className="relative">
+              <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="text" value={form.clientUbicacion}
+                onChange={e => !isLocked && set('clientUbicacion', e.target.value)}
+                readOnly={isLocked} placeholder="Sector, barrio…"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
           </div>
 
-          {/* 7. Referencia */}
+          {/* 7. Ciudad */}
+          <div>
+            <label className={lbl}>Ciudad</label>
+            <div className="relative">
+              <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="text" value={form.clientCiudad}
+                onChange={e => !isLocked && set('clientCiudad', e.target.value)}
+                readOnly={isLocked} placeholder="Ej. Guayaquil"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
+            </div>
+          </div>
+
+          {/* 8. Referencia */}
           <div>
             <label className={lbl}>Referencia</label>
             <div className="relative">
@@ -700,7 +702,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             </div>
           </div>
 
-          {/* 8. Google Maps */}
+          {/* 9. Google Maps */}
           <div>
             <label className={lbl}>Google Maps</label>
             <div className="relative">
