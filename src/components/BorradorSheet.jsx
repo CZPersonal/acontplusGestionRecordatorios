@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle,
-  Search, Ban, Wrench, UserPlus,
+  Search, Ban, Wrench, UserPlus, Lock, Navigation, Building2,
 } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
@@ -16,14 +16,18 @@ function localToday() {
 }
 
 const EMPTY_FORM = {
-  clientName:    '',
-  clientIdNumber:'',
-  clientAddress: '',
-  clientPhone:   '',
-  clientEmail:   '',
-  scheduledDate: localToday(),
-  scheduledTime: '',
-  motivo:        '',
+  clientName:      '',
+  clientIdNumber:  '',
+  clientAddress:   '',
+  clientPhone:     '',
+  clientEmail:     '',
+  clientUbicacion: '',
+  clientCiudad:    '',
+  clientReferencia:'',
+  clientMapsLink:  '',
+  scheduledDate:   localToday(),
+  scheduledTime:   '',
+  motivo:          '',
 };
 
 // ─── Modal: crear nuevo cliente desde el borrador ─────────────────────────────
@@ -99,6 +103,71 @@ function ClientCreateModal({ onClose, onClientCreated }) {
   );
 }
 
+// ─── Modal: editar cliente existente desde el borrador ───────────────────────
+
+function ClientEditModal({ client, onClose }) {
+  const clients      = useAppStore(s => s.clients);
+  const updateClient = useAppStore(s => s.updateClient);
+  const addToast     = useAppStore(s => s.addToast);
+  const [saving, setSaving] = useState(false);
+
+  const existingIds = useMemo(
+    () => new Set(clients.filter(c => c.id !== client.id).map(c => c.identification?.replace(/\s/g, '')).filter(Boolean)),
+    [clients, client.id]
+  );
+
+  const handleSave = async (data) => {
+    setSaving(true);
+    const ok = await updateClient(client.id, data);
+    setSaving(false);
+    if (ok) {
+      addToast({ type: 'success', title: '✅ Cliente actualizado', body: `${data.name} actualizado correctamente.` });
+      onClose();
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo actualizar el cliente.' });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex flex-col justify-end">
+      <div
+        className="absolute inset-0"
+        style={{ background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(3px)' }}
+        onClick={onClose}
+      />
+      <div
+        className="relative bg-white rounded-t-3xl shadow-2xl flex flex-col"
+        style={{ maxHeight: '95vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1 flex-shrink-0" />
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
+          <div>
+            <p className="text-base font-bold text-slate-800">Editar cliente</p>
+            <p className="text-xs text-slate-400 mt-0.5">{client.name}</p>
+          </div>
+          <button type="button" onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <ClientForm
+            initial={client}
+            onSave={handleSave}
+            onCancel={onClose}
+            isLoading={saving}
+            existingIds={existingIds}
+            allClients={clients}
+            onActivateExisting={() => {}}
+            noBorder
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Formulario (reutilizado para crear y editar) ─────────────────────────────
 
 function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, borradores }) {
@@ -108,9 +177,10 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
   const clients = useAppStore(s => s.clients);
 
   // Estado de cliente seleccionado
-  const [selectedClientId,  setSelectedClientId]  = useState(initial?.clientId  || null);
-  const [selectedContactId, setSelectedContactId] = useState(initial?.contactId || null);
+  const [selectedClientId,   setSelectedClientId]   = useState(initial?.clientId  || null);
+  const [selectedContactId,  setSelectedContactId]  = useState(initial?.contactId || null);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
 
   // Buscador
   const [clientSearch,    setClientSearch]    = useState('');
@@ -149,9 +219,13 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
   const applyContact = (contact) => {
     setForm(prev => ({
       ...prev,
-      clientPhone:   contact.phone || '',
-      clientEmail:   contact.email || '',
-      clientAddress: [contact.ubicacion, contact.ciudad, contact.address].filter(Boolean).join(' · ') || '',
+      clientPhone:     contact.phone     || '',
+      clientEmail:     contact.email     || '',
+      clientAddress:   contact.address   || '',
+      clientUbicacion: contact.ubicacion || '',
+      clientCiudad:    contact.ciudad    || '',
+      clientReferencia:contact.referencia|| '',
+      clientMapsLink:  contact.mapsLink  || '',
     }));
   };
 
@@ -174,11 +248,26 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
       applyContact(contacts[0]);
     } else {
       setSelectedContactId(null);
-      setForm(prev => ({ ...prev, clientPhone: '', clientEmail: '', clientAddress: '' }));
+      setForm(prev => ({
+        ...prev,
+        clientPhone: '', clientEmail: '', clientAddress: '',
+        clientUbicacion: '', clientCiudad: '', clientReferencia: '', clientMapsLink: '',
+      }));
     }
     setErrors(prev => ({ ...prev, clientName: null }));
     setClientSearch('');
     setShowSuggestions(false);
+  };
+
+  // ── Deseleccionar cliente actual ──
+  const clearClient = () => {
+    setSelectedClientId(null);
+    setSelectedContactId(null);
+    setForm(prev => ({
+      ...prev,
+      clientName: '', clientIdNumber: '', clientAddress: '', clientPhone: '', clientEmail: '',
+      clientUbicacion: '', clientCiudad: '', clientReferencia: '', clientMapsLink: '',
+    }));
   };
 
   // ── Auto-refresh: cuando el admin edita el cliente, actualiza los campos ──
@@ -192,9 +281,13 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     if (!contact) return;
     setForm(prev => ({
       ...prev,
-      clientPhone:   contact.phone || prev.clientPhone,
-      clientEmail:   contact.email || prev.clientEmail,
-      clientAddress: [contact.ubicacion, contact.ciudad, contact.address].filter(Boolean).join(' · ') || prev.clientAddress,
+      clientPhone:     contact.phone      || prev.clientPhone,
+      clientEmail:     contact.email      || prev.clientEmail,
+      clientAddress:   contact.address    || prev.clientAddress,
+      clientUbicacion: contact.ubicacion  || prev.clientUbicacion,
+      clientCiudad:    contact.ciudad     || prev.clientCiudad,
+      clientReferencia:contact.referencia || prev.clientReferencia,
+      clientMapsLink:  contact.mapsLink   || prev.clientMapsLink,
     }));
   }, [clients, selectedClientId, selectedContactId]);
 
@@ -254,16 +347,20 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     const ok = await onSave({
-      clientId:       selectedClientId  || null,
-      contactId:      selectedContactId || null,
-      clientName:     form.clientName.trim(),
-      clientIdNumber: form.clientIdNumber.trim(),
-      clientAddress:  form.clientAddress.trim(),
-      clientPhone:    form.clientPhone.trim(),
-      clientEmail:    form.clientEmail.trim().toLowerCase(),
-      scheduledDate:  form.scheduledDate,
-      scheduledTime:  form.scheduledTime,
-      motivo:         form.motivo.trim(),
+      clientId:        selectedClientId  || null,
+      contactId:       selectedContactId || null,
+      clientName:      form.clientName.trim(),
+      clientIdNumber:  form.clientIdNumber.trim(),
+      clientAddress:   form.clientAddress.trim(),
+      clientPhone:     form.clientPhone.trim(),
+      clientEmail:     form.clientEmail.trim().toLowerCase(),
+      clientUbicacion: form.clientUbicacion.trim(),
+      clientCiudad:    form.clientCiudad.trim(),
+      clientReferencia:form.clientReferencia.trim(),
+      clientMapsLink:  form.clientMapsLink.trim(),
+      scheduledDate:   form.scheduledDate,
+      scheduledTime:   form.scheduledTime,
+      motivo:          form.motivo.trim(),
     });
     if (ok) onClose();
   };
@@ -274,9 +371,12 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     set('scheduledTime', formatted);
   };
 
-  const inp = (hasErr) =>
-    `w-full border-2 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors bg-white ${
-      hasErr ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-pink-400'
+  const isLocked = !!selectedClientId;
+  const inp = (hasErr, locked = false) =>
+    `w-full border-2 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors ${
+      locked   ? 'bg-slate-50 text-slate-600 border-slate-200 cursor-default' :
+      hasErr   ? 'border-red-400 focus:border-red-500 bg-white' :
+                 'border-slate-200 focus:border-pink-400 bg-white'
     }`;
   const lbl = 'block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5';
 
@@ -304,86 +404,122 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
           {/* ── Sección cliente ── */}
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos del cliente</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Datos del cliente</p>
+            {isLocked && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                <Lock size={10} />Bloqueado
+              </span>
+            )}
+          </div>
 
-          {/* Fila: buscador + botón nuevo cliente */}
-          <div className="flex gap-2 items-end">
-            <div ref={searchRef} className="relative flex-1">
-              <label className={lbl}>Buscar cliente existente</label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={clientSearch}
-                  onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
-                  onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
-                  placeholder="Nombre, cédula o teléfono…"
-                  className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
-                />
-                {clientSearch && (
-                  <button type="button"
-                    onClick={() => { setClientSearch(''); setShowSuggestions(false); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X size={14} />
-                  </button>
+          {/* Buscador + Nuevo — solo visible cuando no hay cliente asignado */}
+          {!isLocked && (
+            <div className="flex gap-2 items-end">
+              <div ref={searchRef} className="relative flex-1">
+                <label className={lbl}>Buscar cliente existente</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={clientSearch}
+                    onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
+                    onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
+                    placeholder="Nombre, cédula o teléfono…"
+                    className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+                  />
+                  {clientSearch && (
+                    <button type="button"
+                      onClick={() => { setClientSearch(''); setShowSuggestions(false); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown sugerencias */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-pink-200 rounded-2xl shadow-xl overflow-hidden">
+                    {suggestions.map(c => {
+                      const contacts = getClientContacts(c);
+                      const mainPhone = contacts[0]?.phone || c.phone || '';
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => selectClient(c)}
+                          className="w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-slate-100 last:border-0"
+                        >
+                          <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            {c.identification && (
+                              <span className="text-xs text-slate-400 flex items-center gap-1">
+                                <Hash size={10} />{c.identification}
+                              </span>
+                            )}
+                            {mainPhone && (
+                              <span className="text-xs text-slate-400 flex items-center gap-1">
+                                <Phone size={10} />{mainPhone}
+                              </span>
+                            )}
+                            {contacts.length > 1 && (
+                              <span className="text-xs font-semibold text-blue-500">
+                                {contacts.length} ubicaciones
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {showSuggestions && clientSearch.trim().length >= 2 && suggestions.length === 0 && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-2xl shadow-xl px-4 py-3">
+                    <p className="text-sm text-slate-400">Sin resultados para "{clientSearch}"</p>
+                  </div>
                 )}
               </div>
 
-              {/* Dropdown sugerencias */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-pink-200 rounded-2xl shadow-xl overflow-hidden">
-                  {suggestions.map(c => {
-                    const contacts = getClientContacts(c);
-                    const mainPhone = contacts[0]?.phone || c.phone || '';
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onMouseDown={() => selectClient(c)}
-                        className="w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors border-b border-slate-100 last:border-0"
-                      >
-                        <p className="text-sm font-semibold text-slate-800 truncate">{c.name}</p>
-                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                          {c.identification && (
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Hash size={10} />{c.identification}
-                            </span>
-                          )}
-                          {mainPhone && (
-                            <span className="text-xs text-slate-400 flex items-center gap-1">
-                              <Phone size={10} />{mainPhone}
-                            </span>
-                          )}
-                          {contacts.length > 1 && (
-                            <span className="text-xs font-semibold text-blue-500">
-                              {contacts.length} ubicaciones
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {showSuggestions && clientSearch.trim().length >= 2 && suggestions.length === 0 && (
-                <div className="absolute z-50 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-2xl shadow-xl px-4 py-3">
-                  <p className="text-sm text-slate-400">Sin resultados para "{clientSearch}"</p>
-                </div>
-              )}
+              {/* Botón nuevo cliente */}
+              <button
+                type="button"
+                onClick={() => setShowNewClientModal(true)}
+                title="Crear nuevo cliente"
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-bold text-white transition-opacity active:opacity-80"
+                style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+              >
+                <UserPlus size={15} />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
             </div>
+          )}
 
-            {/* Botón nuevo cliente */}
-            <button
-              type="button"
-              onClick={() => setShowNewClientModal(true)}
-              title="Crear nuevo cliente"
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-3 rounded-xl text-xs font-bold text-white transition-opacity active:opacity-80 mb-0"
-              style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
-            >
-              <UserPlus size={15} />
-              <span className="hidden sm:inline">Nuevo</span>
-            </button>
-          </div>
+          {/* Chip de cliente seleccionado con botones Editar / Cambiar */}
+          {isLocked && selectedClient && (
+            <div className="rounded-xl border-2 border-blue-200 bg-blue-50 px-4 py-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <User size={16} className="text-blue-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-800 truncate">{selectedClient.name}</p>
+                  {selectedClient.identification && (
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                      <Hash size={9} />{selectedClient.identification}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button type="button" onClick={() => setShowEditClientModal(true)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-2.5 py-1.5 rounded-lg transition-colors">
+                  <Pencil size={12} />Editar
+                </button>
+                <button type="button" onClick={clearClient}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition-colors">
+                  <X size={12} />Cambiar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Selector de ubicación (cuando hay múltiples contactos) ── */}
           {selectedClient && clientContacts.length > 1 && (
@@ -423,7 +559,6 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                           )}
                         </div>
                       </div>
-                      {/* Equipos de esta ubicación como chips */}
                       {contact.installations?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-2 pl-6">
                           {contact.installations.map(inst => (
@@ -441,7 +576,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             </div>
           )}
 
-          {/* ── Instalaciones de la ubicación seleccionada (cliente con 1 sola ubicación) ── */}
+          {/* ── Instalaciones (cliente con 1 sola ubicación) ── */}
           {selectedContact && selectedContact.installations?.length > 0 && clientContacts.length === 1 && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
@@ -453,9 +588,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                     className="flex items-start gap-1.5 px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg">
                     <Wrench size={10} className="text-amber-500 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs font-semibold text-amber-800 leading-tight">
-                        {inst.serviceType || 'Sin tipo'}
-                      </p>
+                      <p className="text-xs font-semibold text-amber-800 leading-tight">{inst.serviceType || 'Sin tipo'}</p>
                       {inst.observacion && (
                         <p className="text-[10px] text-slate-500 leading-tight mt-0.5">{inst.observacion}</p>
                       )}
@@ -466,56 +599,127 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             </div>
           )}
 
-          {/* ── Campos del cliente (editables manualmente) ── */}
-          <div>
-            <label className={lbl}>Nombre y apellido <span className="text-red-400">*</span></label>
-            <div className="relative">
-              <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={form.clientName} onChange={e => set('clientName', e.target.value)}
-                placeholder="Ej. Juan Pérez García" autoFocus
-                className={`${inp(errors.clientName)} pl-9`} />
-            </div>
-            {errors.clientName && <p className="text-xs text-red-600 mt-1">⚠️ {errors.clientName}</p>}
-          </div>
-
+          {/* ── Campos del cliente ── */}
+          {/* 1. Cédula / RUC */}
           <div>
             <label className={lbl}>Cédula / RUC</label>
             <div className="relative">
               <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={form.clientIdNumber} onChange={e => set('clientIdNumber', e.target.value)}
-                placeholder="0000000000"
-                className={`${inp(false)} pl-9`} />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="text" value={form.clientIdNumber}
+                onChange={e => !isLocked && set('clientIdNumber', e.target.value)}
+                readOnly={isLocked} autoFocus placeholder="0000000000"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
           </div>
 
+          {/* 2. Nombre y Apellido */}
           <div>
-            <label className={lbl}>Dirección</label>
+            <label className={lbl}>Nombre y apellido <span className="text-red-400">*</span></label>
             <div className="relative">
-              <MapPin size={14} className="absolute left-3 top-3.5 text-slate-400" />
-              <textarea value={form.clientAddress} onChange={e => set('clientAddress', e.target.value)}
-                placeholder="Calle, número, sector…" rows={2}
-                className={`${inp(false)} pl-9 resize-none`} />
+              <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="text" value={form.clientName}
+                onChange={e => !isLocked && set('clientName', e.target.value)}
+                readOnly={isLocked} placeholder="Ej. Juan Pérez García"
+                className={`${inp(errors.clientName, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
+            {errors.clientName && <p className="text-xs text-red-600 mt-1">⚠️ {errors.clientName}</p>}
           </div>
 
+          {/* 3. Teléfono */}
           <div>
             <label className={lbl}>Teléfono</label>
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="tel" value={form.clientPhone} onChange={e => set('clientPhone', e.target.value)}
-                placeholder="09XXXXXXXX"
-                className={`${inp(false)} pl-9`} />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="tel" value={form.clientPhone}
+                onChange={e => !isLocked && set('clientPhone', e.target.value)}
+                readOnly={isLocked} placeholder="09XXXXXXXX"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
           </div>
 
+          {/* 4. Email */}
           <div>
             <label className={lbl}>Email</label>
             <div className="relative">
               <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="email" value={form.clientEmail} onChange={e => set('clientEmail', e.target.value)}
-                placeholder="correo@ejemplo.com"
-                className={`${inp(false)} pl-9`} />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="email" value={form.clientEmail}
+                onChange={e => !isLocked && set('clientEmail', e.target.value)}
+                readOnly={isLocked} placeholder="correo@ejemplo.com"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
+          </div>
+
+          {/* 5. Dirección */}
+          <div>
+            <label className={lbl}>Dirección</label>
+            <div className="relative">
+              <MapPin size={14} className="absolute left-3 top-3.5 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-3.5 text-slate-300" />}
+              <textarea value={form.clientAddress}
+                onChange={e => !isLocked && set('clientAddress', e.target.value)}
+                readOnly={isLocked} placeholder="Calle, número…" rows={2}
+                className={`${inp(false, isLocked)} pl-9 resize-none ${isLocked ? 'pr-8' : ''}`} />
+            </div>
+          </div>
+
+          {/* 6. Ubicación + Ciudad en grilla */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={lbl}>Ubicación</label>
+              <div className="relative">
+                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="text" value={form.clientUbicacion}
+                  onChange={e => !isLocked && set('clientUbicacion', e.target.value)}
+                  readOnly={isLocked} placeholder="Sector, barrio…"
+                  className={`${inp(false, isLocked)} pl-9`} />
+              </div>
+            </div>
+            <div>
+              <label className={lbl}>Ciudad</label>
+              <div className="relative">
+                <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="text" value={form.clientCiudad}
+                  onChange={e => !isLocked && set('clientCiudad', e.target.value)}
+                  readOnly={isLocked} placeholder="Ej. Guayaquil"
+                  className={`${inp(false, isLocked)} pl-9`} />
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Referencia */}
+          <div>
+            <label className={lbl}>Referencia</label>
+            <div className="relative">
+              <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="text" value={form.clientReferencia}
+                onChange={e => !isLocked && set('clientReferencia', e.target.value)}
+                readOnly={isLocked} placeholder="Ej. Frente al parque, edificio azul…"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
+            </div>
+          </div>
+
+          {/* 8. Google Maps */}
+          <div>
+            <label className={lbl}>Google Maps</label>
+            <div className="relative">
+              <Navigation size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
+              <input type="url" value={form.clientMapsLink}
+                onChange={e => !isLocked && set('clientMapsLink', e.target.value)}
+                readOnly={isLocked} placeholder="https://maps.google.com/…"
+                className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
+            </div>
+            {form.clientMapsLink && (
+              <a href={form.clientMapsLink} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800">
+                <Navigation size={10} />Abrir mapa
+              </a>
+            )}
           </div>
 
           {/* ── Sección visita ── */}
@@ -625,6 +829,14 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             setShowNewClientModal(false);
             if (client) selectClient(client);
           }}
+        />
+      )}
+
+      {/* Modal editar cliente existente */}
+      {showEditClientModal && selectedClient && (
+        <ClientEditModal
+          client={selectedClient}
+          onClose={() => setShowEditClientModal(false)}
         />
       )}
     </>
@@ -889,17 +1101,21 @@ export default function BorradorSheet({ user, showList = false }) {
             <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 flex-shrink-0" />
             <BorradorForm
               initial={editing ? {
-                id:             editing.id,
-                clientId:       editing.clientId       || null,
-                contactId:      editing.contactId      || null,
-                clientName:     editing.clientName     || '',
-                clientIdNumber: editing.clientIdNumber || '',
-                clientAddress:  editing.clientAddress  || '',
-                clientPhone:    editing.clientPhone    || '',
-                clientEmail:    editing.clientEmail    || '',
-                scheduledDate:  editing.scheduledDate  || localToday(),
-                scheduledTime:  editing.scheduledTime  || '',
-                motivo:         editing.motivo         || '',
+                id:              editing.id,
+                clientId:        editing.clientId        || null,
+                contactId:       editing.contactId       || null,
+                clientName:      editing.clientName      || '',
+                clientIdNumber:  editing.clientIdNumber  || '',
+                clientAddress:   editing.clientAddress   || '',
+                clientPhone:     editing.clientPhone     || '',
+                clientEmail:     editing.clientEmail     || '',
+                clientUbicacion: editing.clientUbicacion || '',
+                clientCiudad:    editing.clientCiudad    || '',
+                clientReferencia:editing.clientReferencia|| '',
+                clientMapsLink:  editing.clientMapsLink  || '',
+                scheduledDate:   editing.scheduledDate   || localToday(),
+                scheduledTime:   editing.scheduledTime   || '',
+                motivo:          editing.motivo          || '',
               } : null}
               onSave={handleSave}
               onClose={closeSheet}
