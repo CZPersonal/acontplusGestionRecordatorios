@@ -173,7 +173,7 @@ function ClientEditModal({ client, onClose }) {
 function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, borradores }) {
   const [form, setForm] = useState(initial || { ...EMPTY_FORM, scheduledDate: localToday() });
   const [errors, setErrors] = useState({});
-  const tasks   = useAppStore(s => s.tasks);
+  const visits  = useAppStore(s => s.visits);
   const clients = useAppStore(s => s.clients);
 
   // Estado de cliente seleccionado
@@ -302,22 +302,17 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Visitas propias programadas para el día seleccionado
+  // Visitas propias programadas/confirmadas para el día seleccionado (colección plana)
   const visitasDelDia = useMemo(() => {
     if (!form.scheduledDate || !userEmail) return [];
-    const lista = [];
-    tasks.forEach(task => {
-      (task.visits || []).forEach(visit => {
-        const esMia = visit.technicianEmail === userEmail || visit.technician === userEmail;
-        const activa = visit.status === 'Programada' || visit.status === 'Confirmada';
-        const esHoy  = visit.scheduledDate === form.scheduledDate;
-        if (esMia && activa && esHoy) lista.push({ visit, task });
-      });
-    });
-    return lista.sort((a, b) =>
-      (a.visit.scheduledTime || '99:99').localeCompare(b.visit.scheduledTime || '99:99')
-    );
-  }, [tasks, form.scheduledDate, userEmail]);
+    return visits
+      .filter(v =>
+        (v.technicianEmail === userEmail || v.technician === userEmail) &&
+        v.status === 'Programada' &&
+        v.scheduledDate === form.scheduledDate
+      )
+      .sort((a, b) => (a.scheduledTime || '99:99').localeCompare(b.scheduledTime || '99:99'));
+  }, [visits, form.scheduledDate, userEmail]);
 
   // Borradores propios pendientes para el día seleccionado
   const borradoresDelDia = useMemo(() => {
@@ -426,6 +421,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                     onChange={e => { setClientSearch(e.target.value); setShowSuggestions(true); }}
                     onFocus={() => { if (clientSearch.trim().length >= 2) setShowSuggestions(true); }}
                     placeholder="Nombre, cédula o teléfono…"
+                    autoFocus={!isEdit}
                     className="w-full pl-9 pr-8 py-3 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
                   />
                   {clientSearch && (
@@ -599,16 +595,17 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             </div>
           )}
 
-          {/* ── Campos del cliente ── */}
+          {/* ── Campos del cliente — solo visibles cuando hay cliente asignado ── */}
+          {isLocked && <div>
           {/* 1. Cédula / RUC */}
-          <div>
+          <div className="space-y-4"><div>
             <label className={lbl}>Cédula / RUC</label>
             <div className="relative">
               <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               {isLocked && <Lock size={11} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300" />}
               <input type="text" value={form.clientIdNumber}
                 onChange={e => !isLocked && set('clientIdNumber', e.target.value)}
-                readOnly={isLocked} autoFocus placeholder="0000000000"
+                readOnly={isLocked} placeholder="0000000000"
                 className={`${inp(false, isLocked)} pl-9 ${isLocked ? 'pr-8' : ''}`} />
             </div>
           </div>
@@ -720,7 +717,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                 <Navigation size={10} />Abrir mapa
               </a>
             )}
-          </div>
+          </div></div></div>}
 
           {/* ── Sección visita ── */}
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
@@ -751,12 +748,12 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
                       <AlertCircle size={12} />Visitas programadas — {visitasDelDia.length}
                     </p>
                     <div className="space-y-1 px-3 pb-2.5">
-                      {visitasDelDia.map(({ visit, task }) => (
-                        <div key={visit.id || task.id + visit.scheduledTime}
+                      {visitasDelDia.map(v => (
+                        <div key={v.id}
                           className="flex items-center gap-2 text-xs text-amber-800">
-                          <span className="font-bold w-10 flex-shrink-0">{visit.scheduledTime || 'S/H'}</span>
-                          <span className="truncate">{task.clientName}</span>
-                          {visit.confirmed && (
+                          <span className="font-bold w-10 flex-shrink-0">{v.scheduledTime || 'S/H'}</span>
+                          <span className="truncate">{v.clientName}</span>
+                          {v.confirmed && (
                             <span className="flex-shrink-0 font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full">✓</span>
                           )}
                         </div>
