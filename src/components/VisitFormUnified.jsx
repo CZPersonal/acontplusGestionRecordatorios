@@ -341,6 +341,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       ubicacion:   selectedContact?.ubicacion || '',
       ciudad:      selectedContact?.ciudad    || '',
       phone:       selectedContact?.phone     || '',
+      clientEmail: selectedContact?.email    || '',
       // Establecimiento
       establecimientoId:     selectedEst?.id     || null,
       establecimientoNombre: selectedEst?.nombre || '',

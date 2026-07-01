@@ -149,6 +149,7 @@ export const useAppStore = create((set, get) => ({
       ubicacion:       parentVisit.ubicacion,
       ciudad:          parentVisit.ciudad,
       phone:           parentVisit.phone,
+      clientEmail:     parentVisit.clientEmail || '',
       scheduledDate:   todayStr,
       scheduledTime:   '',
       type:            parentVisit.type            || '',

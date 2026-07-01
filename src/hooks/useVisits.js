@@ -219,6 +219,7 @@ export function useVisits(user) {
       ubicacion:   parentVisit.ubicacion,
       ciudad:      parentVisit.ciudad,
       phone:       parentVisit.phone,
+      clientEmail: parentVisit.clientEmail || '',
       // Datos de la nueva visita
       scheduledDate: today,
       scheduledTime: '',
