@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, getDocs, query, where } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, writeBatch, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
@@ -60,7 +60,8 @@ export function useClients(user) {
   const saveClient = async (clientData) => {
     if (!user || !clientData.identification?.trim()) return null;
 
-    const clientId = clientData.identification.replace(/\s/g, '');
+    const clientId  = clientData.identification.replace(/\s/g, '');
+    const clientRef = doc(getCollectionRef('clients'), clientId);
 
     // Construir contacts desde el payload del formulario
     let incoming = clientData.contacts || [];
@@ -68,17 +69,23 @@ export function useClients(user) {
       const hasLegacy = clientData.clientPhone || clientData.clientAddress;
       if (hasLegacy) {
         incoming = [emptyContact({
-          phone:     clientData.clientPhone,
-          address:   clientData.clientAddress,
-          email:     clientData.clientEmail,
-          ciudad:    clientData.ciudad,
-          ubicacion: clientData.ubicacion,
+          phone:      clientData.clientPhone,
+          address:    clientData.clientAddress,
+          email:      clientData.clientEmail,
+          ciudad:     clientData.ciudad,
+          ubicacion:  clientData.ubicacion,
+          referencia: clientData.referencia || '',
+          mapsLink:   clientData.mapsLink   || '',
         })];
       }
     }
 
     try {
-      const existing = clients.find(c => c.id === clientId);
+      // Leer siempre desde Firestore para evitar estado React desactualizado.
+      // Usando el estado React (clients.find) se arriesga a obtener un snapshot
+      // congelado desde el login, lo que provoca setDoc sin merge y pérdida de datos.
+      const snap     = await getDoc(clientRef);
+      const existing = snap.exists() ? snap.data() : null;
 
       if (existing) {
         const existingContacts = getClientContacts(existing);
@@ -86,7 +93,7 @@ export function useClients(user) {
           if (existingContacts.length === 0) {
             existingContacts.push(...incoming);
           } else {
-            // Actualizar contacts[0] con campos no vacíos (no sobreescribir si vacío)
+            // Actualizar contacts[0] solo con campos no vacíos (preserva instalaciones)
             const inc = incoming[0];
             existingContacts[0] = {
               ...existingContacts[0],
@@ -98,27 +105,26 @@ export function useClients(user) {
               ...(inc.mapsLink    ? { mapsLink:    inc.mapsLink }    : {}),
               ...(inc.referencia  ? { referencia:  inc.referencia }  : {}),
             };
-            // Agregar contactos adicionales (idx >= 1) si vinieron del formulario
             for (let i = 1; i < incoming.length; i++) {
               const alreadyExists = existingContacts.some(c => c.id === incoming[i].id);
               if (!alreadyExists) existingContacts.push(incoming[i]);
             }
           }
         }
-        // Agregar ubicaciones nuevas para cliente existente (desde TaskForm)
         if (clientData.additionalContacts?.length > 0) {
           for (const c of clientData.additionalContacts) {
             const alreadyExists = existingContacts.some(ec => ec.id === c.id);
             if (!alreadyExists) existingContacts.push(c);
           }
         }
-        await updateDoc(doc(getCollectionRef('clients'), clientId), {
+        await updateDoc(clientRef, {
           name:      clientData.clientName || existing.name,
           contacts:  existingContacts,
           updatedAt: new Date().toISOString(),
         });
       } else {
-        await setDoc(doc(getCollectionRef('clients'), clientId), {
+        // Cliente nuevo — setDoc sin merge (documento no existía)
+        await setDoc(clientRef, {
           id:             clientId,
           name:           clientData.clientName,
           identification: clientData.identification,
@@ -237,6 +243,11 @@ export function useClients(user) {
     const errors = [];
     const total = rows.length;
 
+    // IDs de clientes que ya existen en Firestore (cargados por onSnapshot).
+    // Para estos solo se actualizan campos básicos; contacts[] NO se toca
+    // para no sobreescribir ubicaciones e instalaciones ingresadas manualmente.
+    const existingIds = new Set(clients.map(c => c.id));
+
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const chunk = rows.slice(i, i + BATCH_SIZE);
       const batch = writeBatch(db);
@@ -247,23 +258,36 @@ export function useClients(user) {
           continue;
         }
         const clientId = row.identification.replace(/\s/g, '');
-        const ref = doc(getCollectionRef('clients'), clientId);
-        batch.set(ref, {
-          id:             clientId,
-          name:           row.name.trim(),
-          identification: row.identification.trim(),
-          foreign:        row.foreign ?? false,
-          contacts: [emptyContact({
-            phone:     row.phone,
-            address:   row.address,
-            email:     row.email,
-            ciudad:    row.ciudad,
-            ubicacion: row.ubicacion,
-          })],
-          active:    true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
+        const ref      = doc(getCollectionRef('clients'), clientId);
+
+        if (existingIds.has(clientId)) {
+          // Cliente existente — solo actualizar campos básicos, preservar contacts[]
+          batch.set(ref, {
+            name:           row.name.trim(),
+            identification: row.identification.trim(),
+            foreign:        row.foreign ?? false,
+            active:         true,
+            updatedAt:      new Date().toISOString(),
+          }, { merge: true });
+        } else {
+          // Cliente nuevo — crear con contacts[] completo
+          batch.set(ref, {
+            id:             clientId,
+            name:           row.name.trim(),
+            identification: row.identification.trim(),
+            foreign:        row.foreign ?? false,
+            contacts: [emptyContact({
+              phone:     row.phone,
+              address:   row.address,
+              email:     row.email,
+              ciudad:    row.ciudad,
+              ubicacion: row.ubicacion,
+            })],
+            active:    true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
       }
 
       try {
