@@ -48,7 +48,14 @@ function ClientCreateModal({ onClose, onClientCreated }) {
     const ok = await createClient(data);
     setSaving(false);
     if (ok) {
-      addToast({ type: 'success', title: '✅ Cliente creado', body: `${data.name} registrado correctamente.` });
+      const offline = !navigator.onLine;
+      addToast({
+        type:  'success',
+        title: '✅ Cliente creado',
+        body:  offline
+          ? `${data.name} guardado localmente — se sincronizará al reconectar.`
+          : `${data.name} registrado correctamente.`,
+      });
       const clientId = data.identification?.replace(/\s/g, '');
       onClientCreated({
         id:             clientId,

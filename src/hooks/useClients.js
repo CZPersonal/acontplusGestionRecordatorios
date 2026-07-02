@@ -148,7 +148,7 @@ export function useClients(user) {
     if (!user || !identification?.trim() || !name?.trim()) return false;
     const clientId = identification.replace(/\s/g, '');
     try {
-      await setDoc(doc(getCollectionRef('clients'), clientId), {
+      const writePromise = setDoc(doc(getCollectionRef('clients'), clientId), {
         id:             clientId,
         name:           name.trim(),
         identification: identification.trim(),
@@ -158,6 +158,13 @@ export function useClients(user) {
         createdAt:      new Date().toISOString(),
         updatedAt:      new Date().toISOString(),
       });
+      // Offline: Firestore escribe en IndexedDB inmediatamente pero la promise
+      // no resuelve hasta confirmación del servidor — no bloquear la UI.
+      if (!navigator.onLine) {
+        writePromise.catch(e => console.error('createClient (queue):', e));
+        return true;
+      }
+      await writePromise;
       return true;
     } catch (error) {
       console.error('Error al crear cliente:', error);
