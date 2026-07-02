@@ -188,12 +188,21 @@ export function useClients(user) {
 
     try {
       if (!idChanged) {
-        await updateDoc(doc(getCollectionRef('clients'), id), baseData);
+        const writePromise = updateDoc(doc(getCollectionRef('clients'), id), baseData);
+        if (!navigator.onLine) {
+          // Offline: Firestore guarda en IndexedDB y sincroniza al reconectar.
+          // La promise no resuelve hasta confirmación del servidor — no bloquear UI.
+          writePromise.catch(e => console.error('updateClient (queue):', e));
+          return true;
+        }
+        await writePromise;
         return true;
       }
 
-      // Rename: crear nuevo doc, actualizar tareas, borrar viejo
-      const existing = clients.find(c => c.id === id);
+      // Rename: requiere servidor para consultar y actualizar tareas vinculadas.
+      if (!navigator.onLine) return false;
+
+      const existing          = clients.find(c => c.id === id);
       const oldIdentification = existing?.identification || id;
 
       await setDoc(doc(getCollectionRef('clients'), newId), {
@@ -209,7 +218,7 @@ export function useClients(user) {
       );
       if (!tasksSnap.empty) {
         const BATCH_LIMIT = 500;
-        const taskDocs = tasksSnap.docs;
+        const taskDocs    = tasksSnap.docs;
         for (let i = 0; i < taskDocs.length; i += BATCH_LIMIT) {
           const batch = writeBatch(db);
           taskDocs.slice(i, i + BATCH_LIMIT).forEach(d =>
