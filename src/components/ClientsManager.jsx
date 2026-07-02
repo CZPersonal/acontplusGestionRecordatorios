@@ -98,13 +98,25 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
   const [contacts, setContacts] = useState(() => {
     const existing = getClientContacts(initial || {});
     return existing.length > 0
-      ? existing.map(c => ({ ...c, installations: c.installations || [] }))
+      ? existing.map(c => ({
+          id:            c.id            || crypto.randomUUID(),
+          ubicacion:     c.ubicacion     || '',
+          ciudad:        c.ciudad        || '',
+          address:       c.address       || '',
+          phone:         c.phone         || '',
+          email:         c.email         || '',
+          mapsLink:      c.mapsLink      || '',
+          referencia:    c.referencia    || '',
+          installations: (c.installations || []).map(inst => ({
+            id:          inst.id          || crypto.randomUUID(),
+            serviceType: inst.serviceType || '',
+            observacion: inst.observacion || '',
+          })),
+        }))
       : [emptyContact()];
   });
-  // Acordeón: índices expandidos. Los existentes empiezan colapsados; los nuevos, expandidos.
-  const [expandedContacts, setExpandedContacts] = useState(() =>
-    getClientContacts(initial || {}).length === 0 ? new Set([0]) : new Set()
-  );
+  // Acordeón: el primer contacto siempre arranca expandido para que el usuario vea sus datos.
+  const [expandedContacts, setExpandedContacts] = useState(() => new Set([0]));
   const toggleContact = (idx) =>
     setExpandedContacts(prev => {
       const next = new Set(prev);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { doc, setDoc, updateDoc, deleteDoc, onSnapshot, query, limit, where, orderBy } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, query, limit, where, orderBy } from 'firebase/firestore';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
@@ -11,21 +11,39 @@ let _globalSyncing = false;
 async function syncClientFromBorrador(docData) {
   const id = docData.clientIdNumber?.replace(/\s/g, '');
   if (!id || !docData.clientName) return;
-  await setDoc(
-    doc(getCollectionRef('clients'), id),
-    {
+
+  const clientRef = doc(getCollectionRef('clients'), id);
+  const snap      = await getDoc(clientRef);
+  const existing  = snap.exists() ? snap.data() : null;
+
+  if (existing?.contacts?.length > 0) {
+    // Cliente ya tiene ubicaciones — solo actualizar nombre/meta sin pisar contacts
+    await updateDoc(clientRef, {
+      name:      docData.clientName,
+      updatedAt: new Date().toISOString(),
+    });
+  } else {
+    // Cliente nuevo o sin contacts[] — guardar con estructura completa
+    await setDoc(clientRef, {
       id,
       name:           docData.clientName,
       identification: docData.clientIdNumber,
-      phone:          docData.clientPhone   || '',
-      address:        docData.clientAddress || '',
-      email:          docData.clientEmail   || '',
       foreign:        false,
       active:         true,
-      updatedAt:      new Date().toISOString(),
-    },
-    { merge: true }
-  );
+      contacts: [{
+        id:           `${id}_main`,
+        phone:        docData.clientPhone      || '',
+        address:      docData.clientAddress    || '',
+        email:        docData.clientEmail      || '',
+        ciudad:       docData.clientCiudad     || '',
+        ubicacion:    docData.clientUbicacion  || '',
+        referencia:   docData.clientReferencia || '',
+        mapsLink:     docData.clientMapsLink   || '',
+        installations: [],
+      }],
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+  }
 }
 
 // ─── Cola offline en localStorage ─────────────────────────────────────────────

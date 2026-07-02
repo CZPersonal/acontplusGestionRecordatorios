@@ -995,9 +995,13 @@ export default function BorradorSheet({ user, showList = false }) {
         await saveClient({
           identification: data.clientIdNumber,
           clientName:     data.clientName,
-          clientPhone:    data.clientPhone    || '',
-          clientAddress:  data.clientAddress  || '',
-          clientEmail:    data.clientEmail    || '',
+          clientPhone:    data.clientPhone     || '',
+          clientAddress:  data.clientAddress   || '',
+          clientEmail:    data.clientEmail     || '',
+          ciudad:         data.clientCiudad    || '',
+          ubicacion:      data.clientUbicacion || '',
+          referencia:     data.clientReferencia|| '',
+          mapsLink:       data.clientMapsLink  || '',
         });
       }
       const ok = editing
