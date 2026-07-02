@@ -148,7 +148,10 @@ export function useClients(user) {
     if (!user || !identification?.trim() || !name?.trim()) return false;
     const clientId = identification.replace(/\s/g, '');
     try {
-      const writePromise = setDoc(doc(getCollectionRef('clients'), clientId), {
+      // persistentLocalCache confirma la escritura desde IndexedDB de inmediato
+      // (online y offline). Awaitar confirmación del servidor bloquea la UI
+      // indefinidamente en este setup — el SDK sincroniza en segundo plano.
+      setDoc(doc(getCollectionRef('clients'), clientId), {
         id:             clientId,
         name:           name.trim(),
         identification: identification.trim(),
@@ -157,14 +160,7 @@ export function useClients(user) {
         active:         true,
         createdAt:      new Date().toISOString(),
         updatedAt:      new Date().toISOString(),
-      });
-      // Offline: Firestore escribe en IndexedDB inmediatamente pero la promise
-      // no resuelve hasta confirmación del servidor — no bloquear la UI.
-      if (!navigator.onLine) {
-        writePromise.catch(e => console.error('createClient (queue):', e));
-        return true;
-      }
-      await writePromise;
+      }).catch(e => console.error('createClient:', e));
       return true;
     } catch (error) {
       console.error('Error al crear cliente:', error);
@@ -188,14 +184,10 @@ export function useClients(user) {
 
     try {
       if (!idChanged) {
-        const writePromise = updateDoc(doc(getCollectionRef('clients'), id), baseData);
-        if (!navigator.onLine) {
-          // Offline: Firestore guarda en IndexedDB y sincroniza al reconectar.
-          // La promise no resuelve hasta confirmación del servidor — no bloquear UI.
-          writePromise.catch(e => console.error('updateClient (queue):', e));
-          return true;
-        }
-        await writePromise;
+        // Mismo patrón que createClient: persistentLocalCache garantiza la
+        // escritura local. No awaitar el servidor para no bloquear la UI.
+        updateDoc(doc(getCollectionRef('clients'), id), baseData)
+          .catch(e => console.error('updateClient:', e));
         return true;
       }
 
