@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -11,7 +11,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, Mail, MapPin, Navigation, Phone, Wrench, X,
-  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History,
+  ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History, WifiOff,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
@@ -711,6 +711,18 @@ export default function TechPortal({ user }) {
     [misBorradores]
   );
 
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+
   const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana' | 'borradores'
   const [calDate,         setCalDate]         = useState(today);
   const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas' | 'realizadas'
@@ -973,6 +985,16 @@ export default function TechPortal({ user }) {
           )}
         </div>
       </div>
+
+      {/* Banner sin conexión — visible en cualquier pantalla */}
+      {!isOnline && (
+        <div className="sticky top-[var(--header-h,0px)] z-10 bg-red-600 text-white px-4 py-2.5 flex items-center justify-center gap-2 shadow-md">
+          <WifiOff size={15} className="flex-shrink-0" />
+          <p className="text-xs font-bold tracking-wide">
+            Sin conexión — los cambios se guardan localmente y se sincronizarán al reconectar
+          </p>
+        </div>
+      )}
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-6">
 
