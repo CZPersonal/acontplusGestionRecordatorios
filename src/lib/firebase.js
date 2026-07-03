@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getMessaging, isSupported } from 'firebase/messaging';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -47,4 +48,6 @@ isSupported().then(supported => {
   if (supported) messaging = getMessaging(app);
 }).catch(() => {});
 
-export { app, auth, db, messaging };
+const storage = getStorage(app);
+
+export { app, auth, db, messaging, storage };

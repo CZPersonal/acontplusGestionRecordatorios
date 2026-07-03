@@ -5,7 +5,8 @@ import {
   Mail, Clock, X,
 } from 'lucide-react';
 import { doc, getDoc, getDocs, query, collection, where, arrayUnion, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import { useConfiguracion } from '../hooks/useConfiguracion.js';
 import TecnicosForm from './TecnicosForm.jsx';
@@ -155,12 +156,14 @@ function TabEntidad({ user }) {
   const { config, isLoading, isSaving, saveConfig } = useConfiguracion(user);
   const tenantName = useAppStore(s => s.tenantName);
   const tenantRuc  = useAppStore(s => s.tenantRuc);
+  const tenantId   = useAppStore(s => s.tenantId);
 
   const [form, setForm] = useState({
     empresaNombre: '', ruc: '', empresaSlogan: '',
     whatsappNumero: '', whatsappPrefijo: '593', logoUrl: '',
   });
   const [logoPreview, setLogoPreview] = useState('');
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [saved,       setSaved]       = useState(false);
   const [error,       setError]       = useState('');
   const fileInputRef                  = useRef(null);
@@ -182,18 +185,30 @@ function TabEntidad({ user }) {
     setSaved(false); setError('');
   };
 
-  const handleLogoChange = (e) => {
+  // Sube el archivo a Firebase Storage y guarda la URL pública resultante.
+  // Los data: URI (base64 embebido) no sirven para el logo del correo del
+  // cliente — Gmail y otros clientes de correo los bloquean por completo.
+  const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { setError('El logotipo no debe superar los 500 KB.'); return; }
+    if (file.size > 2 * 1024 * 1024) { setError('El logotipo no debe superar los 2 MB.'); return; }
     if (!file.type.startsWith('image/')) { setError('Solo se permiten archivos de imagen (PNG, JPG, SVG, WebP).'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setLogoPreview(ev.target.result);
-      setForm(prev => ({ ...prev, logoUrl: ev.target.result }));
-      setError('');
-    };
-    reader.readAsDataURL(file);
+    setError('');
+    setUploadingLogo(true);
+    try {
+      const path    = `tenants/${tenantId}/logo/${Date.now()}_${file.name}`;
+      const fileRef = ref(storage, path);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      setLogoPreview(url);
+      setForm(prev => ({ ...prev, logoUrl: url }));
+    } catch (err) {
+      console.error('Error al subir logo:', err);
+      setError('No se pudo subir el logotipo. Verifica tu conexión.');
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleRemoveLogo = () => {
@@ -283,7 +298,7 @@ function TabEntidad({ user }) {
           </div>
           <div>
             <p className="text-sm font-bold text-slate-700">Logotipo de la empresa</p>
-            <p className="text-xs text-slate-400">PNG, JPG o SVG · Máximo 500 KB</p>
+            <p className="text-xs text-slate-400">PNG, JPG o SVG · Máximo 2 MB</p>
           </div>
         </div>
         <div className="p-6">
@@ -291,18 +306,23 @@ function TabEntidad({ user }) {
             <div className="flex-shrink-0">
               <div className={`w-28 h-28 rounded-2xl border-2 flex items-center justify-center overflow-hidden transition-all ${
                 logoPreview ? 'border-pink-200 bg-white' : 'border-dashed border-slate-200 bg-slate-50'}`}>
-                {logoPreview
-                  ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-2" />
-                  : <div className="text-center text-slate-300"><Image size={32} className="mx-auto mb-1" /><p className="text-[10px]">Sin logo</p></div>}
+                {uploadingLogo
+                  ? <span className="animate-spin text-2xl">⏳</span>
+                  : logoPreview
+                    ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain p-2" />
+                    : <div className="text-center text-slate-300"><Image size={32} className="mx-auto mb-1" /><p className="text-[10px]">Sin logo</p></div>}
               </div>
               <p className="text-[10px] text-slate-400 text-center mt-1.5">Vista previa</p>
             </div>
             <div className="flex-1 space-y-3">
               <div>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" id="logo-upload" />
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} disabled={uploadingLogo} className="hidden" id="logo-upload" />
                 <label htmlFor="logo-upload"
-                  className="flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all w-full justify-center border-2 border-dashed border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-500 hover:text-pink-600">
-                  <Upload size={16} /><span>Seleccionar imagen</span>
+                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all w-full justify-center border-2 border-dashed ${
+                    uploadingLogo
+                      ? 'cursor-not-allowed opacity-60 border-slate-300 text-slate-400'
+                      : 'cursor-pointer border-slate-300 hover:border-pink-400 hover:bg-pink-50 text-slate-500 hover:text-pink-600'}`}>
+                  <Upload size={16} /><span>{uploadingLogo ? 'Subiendo...' : 'Seleccionar imagen'}</span>
                 </label>
               </div>
               {logoPreview && (
@@ -314,7 +334,7 @@ function TabEntidad({ user }) {
               <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
                 <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-600 leading-relaxed">
-                  El logo se guarda en la base de datos y se usa en los documentos PDF y en la app. Recomendado: fondo transparente (PNG) o blanco, tamaño cuadrado.
+                  El logo se sube a un almacenamiento con URL pública y se usa en los documentos PDF, la app y los correos a clientes. Recomendado: fondo transparente (PNG) o blanco, tamaño cuadrado.
                 </p>
               </div>
             </div>
