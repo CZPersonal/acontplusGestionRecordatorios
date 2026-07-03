@@ -7,12 +7,10 @@ const { getMessaging }      = require('firebase-admin/messaging');
 const { defineSecret } = require('firebase-functions/params');
 const { Resend }       = require('resend');
 const QRCode           = require('qrcode');
-const crypto           = require('crypto');
 
 initializeApp();
 
 const resendApiKey   = defineSecret('RESEND_API_KEY');
-const confirmSecret  = defineSecret('CONFIRM_SECRET');
 const FROM_ADDRESS   = process.env.FROM_ADDRESS || 'noreply@notificaciones.resuelveyaa.com';
 
 function getFromEmail(empresaNombre) {
@@ -51,65 +49,6 @@ function timeToMinutes(timeStr) {
   const m = parseInt(parts[1], 10);
   if (isNaN(h) || isNaN(m)) return null;
   return h * 60 + m;
-}
-
-// Genera token firmado para confirmar asistencia
-function generateConfirmToken(tenantId, taskId, visitId, secret) {
-  const payload = `${tenantId}|${taskId}|${visitId}`;
-  const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 16);
-  return Buffer.from(`${payload}|${sig}`).toString('base64url');
-}
-
-// Valida y decodifica token de confirmación
-function decodeConfirmToken(token, secret) {
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString('utf8');
-    const parts   = decoded.split('|');
-    if (parts.length !== 4) return null;
-    const [tenantId, taskId, visitId, sig] = parts;
-    const payload  = `${tenantId}|${taskId}|${visitId}`;
-    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 16);
-    if (sig !== expected) return null;
-    return { tenantId, taskId, visitId };
-  } catch { return null; }
-}
-
-// HTML de respuesta para la página de confirmación
-function confirmHtml(type, message) {
-  const styles = {
-    success: { bg: '#f0fdf4', border: '#86efac', icon: '✅', title: 'Asistencia confirmada',  text: '#15803d' },
-    already: { bg: '#fefce8', border: '#fde68a', icon: 'ℹ️', title: 'Ya confirmada',          text: '#854d0e' },
-    info:    { bg: '#eff6ff', border: '#93c5fd', icon: 'ℹ️', title: 'Visita actualizada',     text: '#1d4ed8' },
-    error:   { bg: '#fef2f2', border: '#fca5a5', icon: '❌', title: 'Enlace inválido',         text: '#991b1b' },
-  };
-  const s = styles[type] || styles.error;
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Acontplus — Confirmación de visita</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:sans-serif;min-height:100vh;display:flex;align-items:center;
-         justify-content:center;background:#f8fafc;padding:20px}
-    .card{max-width:420px;width:100%;background:${s.bg};border:2px solid ${s.border};
-          border-radius:20px;padding:40px 32px;text-align:center}
-    .icon{font-size:52px;margin-bottom:16px}
-    .title{font-size:22px;font-weight:800;color:${s.text};margin-bottom:12px}
-    .msg{font-size:15px;color:#475569;line-height:1.6}
-    .brand{margin-top:32px;font-size:12px;color:#94a3b8}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">${s.icon}</div>
-    <div class="title">${s.title}</div>
-    <p class="msg">${message}</p>
-    <div class="brand">Acontplus Gestión Recordatorios</div>
-  </div>
-</body>
-</html>`;
 }
 
 // Escapa caracteres HTML en valores de Firestore antes de insertar en emails
@@ -1144,7 +1083,7 @@ exports.checkVisitNotifications = onSchedule(
   {
     schedule: 'every 5 minutes',
     timeZone: 'America/Guayaquil',
-    secrets:  [resendApiKey, confirmSecret],
+    secrets:  [resendApiKey],
     region:   'us-central1',
   },
   async () => {
@@ -1384,72 +1323,3 @@ exports.generateQrCode = onRequest(
   }
 );
 
-// ─── 9. Confirmación de asistencia del técnico ───────────────────────────────
-// HTTP endpoint expuesto en /confirmar via Firebase Hosting rewrite.
-// El técnico hace clic en el link del email; se valida el token HMAC y se
-// escribe technicianConfirmed:true en el documento de visita.
-exports.confirmVisitAttendance = onRequest(
-  {
-    region:  'us-central1',
-    secrets: [confirmSecret],
-    invoker: 'public',
-  },
-  async (req, res) => {
-    const token = req.query.t;
-    if (!token) {
-      res.status(400).send(confirmHtml('error', 'Enlace sin token. Verifica que copiaste el enlace completo.'));
-      return;
-    }
-
-    const parsed = decodeConfirmToken(token, confirmSecret.value());
-    if (!parsed) {
-      res.status(400).send(confirmHtml('error', 'El enlace no es válido o fue modificado.'));
-      return;
-    }
-
-    const { tenantId, taskId, visitId } = parsed;
-    const db = getFirestore();
-
-    try {
-      const visitRef  = db.doc(`tenants/${tenantId}/water_filter_tasks/${taskId}/visits/${visitId}`);
-      const visitSnap = await visitRef.get();
-
-      if (!visitSnap.exists) {
-        res.status(404).send(confirmHtml('error', 'La visita no fue encontrada en el sistema.'));
-        return;
-      }
-
-      const visit = visitSnap.data();
-
-      if (visit.technicianConfirmed) {
-        res.send(confirmHtml('already', 'Tu asistencia a esta visita ya estaba confirmada. ¡Gracias!'));
-        return;
-      }
-
-      if (visit.status !== 'Programada') {
-        res.send(confirmHtml('info', `Esta visita ya fue marcada como <strong>${escHtml(visit.status)}</strong>.`));
-        return;
-      }
-
-      await visitRef.update({
-        technicianConfirmed: true,
-        confirmedAt: new Date().toISOString(),
-      });
-
-      const taskRef  = db.doc(`tenants/${tenantId}/water_filter_tasks/${taskId}`);
-      const taskSnap = await taskRef.get();
-      const clientName = taskSnap.exists ? (taskSnap.data().clientName || '') : '';
-
-      const when = [
-        visit.scheduledDate,
-        visit.scheduledTime ? `a las ${visit.scheduledTime}` : '',
-        clientName ? `con ${escHtml(clientName)}` : '',
-      ].filter(Boolean).join(' ');
-
-      res.send(confirmHtml('success', `Tu asistencia para la visita${when ? ' ' + when : ''} ha sido confirmada. El administrador ha sido notificado.`));
-    } catch (err) {
-      console.error('confirmVisitAttendance error:', err);
-      res.status(500).send(confirmHtml('error', 'Error interno al procesar la confirmación. Intenta de nuevo.'));
-    }
-  }
-);
