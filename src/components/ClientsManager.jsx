@@ -746,6 +746,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
   const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
   const visits            = useAppStore(s => s.visits);
+  const addToast          = useAppStore(s => s.addToast);
 
   const [search,         setSearch]         = useState('');
   const [showInactive,   setShowInactive]   = useState(false);
@@ -794,15 +795,36 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const pagination = usePagination(filtered, 15);
 
   const handleSave = async (formData) => {
+    const isEditing = !!editing;
+    const idChanged = isEditing
+      && formData.identification?.trim().replace(/\s/g, '') !== editing.id;
+
     setIsLoading(true);
     try {
-      if (editing) {
-        await updateClient(editing.id, formData);
+      const ok = isEditing
+        ? await updateClient(editing.id, formData)
+        : await createClient(formData);
+
+      if (ok) {
+        const offline = !navigator.onLine;
+        addToast({
+          type:  'success',
+          title: isEditing ? '✅ Cliente actualizado' : '✅ Cliente creado',
+          body:  offline
+            ? `${formData.name} guardado localmente — se sincronizará al reconectar.`
+            : `${formData.name} ${isEditing ? 'actualizado' : 'registrado'} correctamente.`,
+        });
+        setShowForm(false);
+        setEditing(null);
       } else {
-        await createClient(formData);
+        addToast({
+          type:  'error',
+          title: '❌ Error',
+          body:  idChanged && !navigator.onLine
+            ? 'Cambiar la cédula/RUC requiere conexión a internet.'
+            : `No se pudo ${isEditing ? 'actualizar' : 'crear'} el cliente.`,
+        });
       }
-      setShowForm(false);
-      setEditing(null);
     } finally {
       setIsLoading(false);
     }
@@ -814,9 +836,23 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   };
 
   const handleToggleActive = async (client) => {
+    const activating = client.active === false;
     setIsLoading(true);
     try {
-      await setClientActive(client.id, client.active === false ? true : false);
+      const ok = await setClientActive(client.id, activating);
+      if (ok) {
+        addToast({
+          type:  'success',
+          title: activating ? '✅ Cliente activado' : '🚫 Cliente desactivado',
+          body:  `${client.name} ${activating ? 'fue reactivado' : 'fue desactivado'} correctamente.`,
+        });
+      } else {
+        addToast({
+          type:  'error',
+          title: '❌ Error',
+          body:  `No se pudo ${activating ? 'activar' : 'desactivar'} el cliente.`,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -869,9 +905,18 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           onActivateExisting={async (clientId) => {
             setIsLoading(true);
             try {
-              await setClientActive(clientId, true);
-              setShowForm(false);
-              setEditing(null);
+              const ok = await setClientActive(clientId, true);
+              if (ok) {
+                addToast({
+                  type:  'success',
+                  title: '✅ Cliente activado',
+                  body:  'El cliente existente fue reactivado correctamente.',
+                });
+                setShowForm(false);
+                setEditing(null);
+              } else {
+                addToast({ type: 'error', title: '❌ Error', body: 'No se pudo activar el cliente.' });
+              }
             } finally {
               setIsLoading(false);
             }
