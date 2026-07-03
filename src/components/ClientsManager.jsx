@@ -509,9 +509,10 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onDelete, isAdmin, isLoading }) {
-  const [open,       setOpen]       = useState(false);
-  const [confirming, setConfirming] = useState(false);
+function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, onDelete, isAdmin, isLoading }) {
+  const [open,           setOpen]           = useState(false);
+  const [confirming,     setConfirming]     = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -520,6 +521,7 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onDelete, isA
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpen(false);
         setConfirming(false);
+        setConfirmingDelete(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -529,7 +531,7 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onDelete, isA
   return (
     <div className="relative mt-2" ref={menuRef}>
       <button
-        onClick={() => { setOpen(p => !p); setConfirming(false); }}
+        onClick={() => { setOpen(p => !p); setConfirming(false); setConfirmingDelete(false); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">
         Acciones <ChevronDown size={11} />
       </button>
@@ -597,12 +599,41 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onDelete, isA
           {isAdmin && (
             <>
               <div className="border-t border-slate-100 my-1" />
-              <button
-                onClick={() => { onDelete(client); setOpen(false); setConfirming(false); }}
-                disabled={isLoading}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors">
-                <Trash2 size={12} /> Eliminar
-              </button>
+              {!confirmingDelete ? (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-red-600 hover:bg-red-50 transition-colors">
+                  <Trash2 size={12} /> Eliminar
+                </button>
+              ) : (
+                <div className="px-3 py-2.5">
+                  <p className="text-xs text-slate-600 font-medium mb-1">
+                    ¿Eliminar definitivamente a {client.name}?
+                  </p>
+                  {visitCount > 0 && (
+                    <p className="text-xs text-amber-600 mb-2">
+                      Tiene {visitCount} visita{visitCount !== 1 ? 's' : ''} registrada{visitCount !== 1 ? 's' : ''} que quedará{visitCount !== 1 ? 'n' : ''} sin cliente asociado.
+                    </p>
+                  )}
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={async () => {
+                        await onDelete(client);
+                        setOpen(false);
+                        setConfirmingDelete(false);
+                      }}
+                      disabled={isLoading}
+                      className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                      {isLoading ? '...' : 'Eliminar'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(false)}
+                      className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -658,6 +689,7 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, onDelete, isAdm
           </div>
           <ActionsMenu
             client={client}
+            visitCount={visitCount}
             onNewVisit={onNewVisit}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
@@ -875,14 +907,10 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     }
   };
 
+  // Confirmación resuelta inline en ActionsMenu (no window.confirm: en PWAs
+  // instaladas en modo standalone el diálogo nativo puede resolverse como
+  // "cancelar" sin llegar a mostrarse, dejando el botón sin efecto aparente).
   const handleDeleteClient = async (client) => {
-    const visitCount = visitCountMap[client.id] || 0;
-    const warning = visitCount > 0
-      ? ` Este cliente tiene ${visitCount} visita${visitCount !== 1 ? 's' : ''} registrada${visitCount !== 1 ? 's' : ''} que quedarán sin cliente asociado.`
-      : '';
-    if (!window.confirm(`¿Eliminar definitivamente a ${client.name}? Esta acción no se puede deshacer.${warning}`)) {
-      return;
-    }
     setIsLoading(true);
     try {
       const ok = await deleteClient(client.id);
