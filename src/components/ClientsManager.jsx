@@ -509,7 +509,7 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) {
+function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onDelete, isAdmin, isLoading }) {
   const [open,       setOpen]       = useState(false);
   const [confirming, setConfirming] = useState(false);
   const menuRef = useRef(null);
@@ -592,6 +592,19 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) 
               </div>
             </div>
           )}
+
+          {/* Eliminar — solo panel de administrador */}
+          {isAdmin && (
+            <>
+              <div className="border-t border-slate-100 my-1" />
+              <button
+                onClick={() => { onDelete(client); setOpen(false); setConfirming(false); }}
+                disabled={isLoading}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors">
+                <Trash2 size={12} /> Eliminar
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -599,7 +612,7 @@ function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, isLoading }) 
 }
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
-function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit, onHistorial }) {
+function ClientRow({ client, visitCount, onEdit, onToggleActive, onDelete, isAdmin, isLoading, onNewVisit, onHistorial }) {
   const contacts   = getClientContacts(client);
   const rowCount   = Math.max(contacts.length, 1);
   const inactiveCls = !client.active ? 'opacity-60' : '';
@@ -648,6 +661,8 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
             onNewVisit={onNewVisit}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
+            onDelete={onDelete}
+            isAdmin={isAdmin}
             isLoading={isLoading}
           />
         </div>
@@ -743,10 +758,12 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNe
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ClientsManager({ clients, tasks, useClientsHook, pendingClientHistorial, onClearPendingHistorial }) {
-  const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
+  const { createClient, updateClient, setClientActive, deleteClient, importClients } = useClientsHook;
   const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
   const visits            = useAppStore(s => s.visits);
   const addToast          = useAppStore(s => s.addToast);
+  const userRole          = useAppStore(s => s.userRole);
+  const isAdmin           = userRole === 'admin';
 
   const [search,         setSearch]         = useState('');
   const [showInactive,   setShowInactive]   = useState(false);
@@ -852,6 +869,27 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           title: '❌ Error',
           body:  `No se pudo ${activating ? 'activar' : 'desactivar'} el cliente.`,
         });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteClient = async (client) => {
+    const visitCount = visitCountMap[client.id] || 0;
+    const warning = visitCount > 0
+      ? ` Este cliente tiene ${visitCount} visita${visitCount !== 1 ? 's' : ''} registrada${visitCount !== 1 ? 's' : ''} que quedarán sin cliente asociado.`
+      : '';
+    if (!window.confirm(`¿Eliminar definitivamente a ${client.name}? Esta acción no se puede deshacer.${warning}`)) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const ok = await deleteClient(client.id);
+      if (ok) {
+        addToast({ type: 'success', title: '🗑️ Cliente eliminado', body: `${client.name} fue eliminado correctamente.` });
+      } else {
+        addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el cliente.' });
       }
     } finally {
       setIsLoading(false);
@@ -987,6 +1025,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       visitCount={visitCountMap[client.id] || 0}
                       onEdit={handleEdit}
                       onToggleActive={handleToggleActive}
+                      onDelete={handleDeleteClient}
+                      isAdmin={isAdmin}
                       isLoading={isLoading}
                       onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
                       onHistorial={(c) => setHistorialClient(c)}

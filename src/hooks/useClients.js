@@ -242,6 +242,18 @@ export function useClients(user) {
     }
   };
 
+  // ─── deleteClient: eliminación definitiva (solo panel de administrador) ───
+  const deleteClient = async (id) => {
+    if (!user) return false;
+    try {
+      await deleteDoc(doc(getCollectionRef('clients'), id));
+      return true;
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
+      return false;
+    }
+  };
+
   // ─── importClients: lote desde Excel/CSV ──────────────────────────────────
   const importClients = async (rows, onProgress) => {
     if (!user) return { ok: 0, errors: [] };
@@ -314,9 +326,9 @@ export function useClients(user) {
   useEffect(() => { useAppStore.setState({ clients }); }, [clients]);
 
   useEffect(() => {
-    useAppStore.setState({ saveClient, createClient, updateClient, setClientActive, importClients });
+    useAppStore.setState({ saveClient, createClient, updateClient, setClientActive, deleteClient, importClients });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  return { clients, saveClient, createClient, updateClient, setClientActive, importClients };
+  return { clients, saveClient, createClient, updateClient, setClientActive, deleteClient, importClients };
 }

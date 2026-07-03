@@ -82,7 +82,7 @@ service cloud.firestore {
         && isMember(tenantId)
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0;
-      allow delete: if request.auth != null && isMember(tenantId);
+      allow delete: if request.auth != null && isAdmin(tenantId);
     }
 
     match /tenants/{tenantId}/service_types/{typeId} {
