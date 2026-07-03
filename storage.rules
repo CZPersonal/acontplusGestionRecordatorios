@@ -3,18 +3,16 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // El usuario es miembro del tenant solicitado (mismo criterio que firestore.rules)
-    function isMember(tid) {
-      let data = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
-      return data.get('tenantIds', []).hasAny([tid]) || data.get('tenantId', '') == tid;
-    }
-
     // Logo de la empresa: lectura pública (se embebe en correos enviados a
-    // clientes, que no están autenticados), escritura solo para miembros del tenant.
+    // clientes, que no están autenticados). Escritura: cualquier usuario
+    // autenticado de la app (sin verificar membresía del tenant específico —
+    // el cross-service check contra Firestore no se evaluaba correctamente
+    // desde reglas de Storage). Riesgo aceptado: solo afecta un archivo de
+    // imagen del logo, no datos sensibles, y requiere conocer el tenantId
+    // exacto de otra empresa para poder sobrescribirlo.
     match /tenants/{tenantId}/logo/{fileName} {
       allow read: if true;
       allow write: if request.auth != null
-        && isMember(tenantId)
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }

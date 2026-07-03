@@ -331,6 +331,12 @@ function TabEntidad({ user }) {
                   Quitar logo
                 </button>
               )}
+              {error && (
+                <div className="flex items-center space-x-2 p-3 bg-red-50 rounded-xl border border-red-200">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                  <p className="text-xs text-red-700">{error}</p>
+                </div>
+              )}
               <div className="flex items-start space-x-2 p-3 bg-blue-50 rounded-lg">
                 <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-600 leading-relaxed">
