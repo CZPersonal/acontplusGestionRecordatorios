@@ -794,11 +794,15 @@ export default function AllVisitsManager({ user }) {
                               <UserCheck size={11} /> Confirmar
                             </button>
                           )}
-                          <button disabled={isBusy}
+                          <button disabled={isBusy || !visit.confirmed}
                             onClick={() => setCompleteModal(visit)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 transition-colors">
+                            title={!visit.confirmed ? 'Confirma la visita antes de marcarla como realizada' : undefined}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             <CheckCircle2 size={11} /> Realizada
                           </button>
+                          {!visit.confirmed && (
+                            <span className="text-xs text-slate-400 italic">Confirma primero</span>
+                          )}
                           <button disabled={isBusy}
                             onClick={() => doAction(cancelVisit, visit.id)}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 transition-colors">
