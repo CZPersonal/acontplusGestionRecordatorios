@@ -55,6 +55,7 @@ export default function AppRouter() {
   const createClient    = useAppStore(s => s.createClient);
   const updateClient    = useAppStore(s => s.updateClient);
   const setClientActive = useAppStore(s => s.setClientActive);
+  const deleteClient    = useAppStore(s => s.deleteClient);
   const importClients   = useAppStore(s => s.importClients);
 
   const [pendingClientHistorial, setPendingClientHistorial] = useState(null);
@@ -167,7 +168,7 @@ export default function AppRouter() {
           <ClientsManager
             clients={clients}
             tasks={tasks}
-            useClientsHook={{ createClient, updateClient, setClientActive, importClients }}
+            useClientsHook={{ createClient, updateClient, setClientActive, deleteClient, importClients }}
             pendingClientHistorial={pendingClientHistorial}
             onClearPendingHistorial={() => setPendingClientHistorial(null)}
           />

@@ -919,6 +919,9 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       } else {
         addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el cliente.' });
       }
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el cliente.' });
     } finally {
       setIsLoading(false);
     }
