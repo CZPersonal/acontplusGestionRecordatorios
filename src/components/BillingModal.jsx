@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import {
   calcPaymentSummary, saveVisitBilling,
-  addPayment, deletePayment, generateReceiptNo
+  addPayment, deletePayment, generateReceiptNo,
+  saveFlatVisitBilling, addFlatVisitPayment, deleteFlatVisitPayment,
 } from '../services/visitBilling.js';
 
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
@@ -236,7 +237,11 @@ function PaymentForm({ visitId, onAdd, onCancel, isLoading, maxAmount }) {
 
 // ─── Modal principal ───────────────────────────────────────────────────────────
 
-export default function BillingModal({ task, visit, allVisits, onClose, onUpdate, user }) {
+// flatMode: true cuando la visita vive en la colección plana tenants/{id}/visits
+// (Gestión de visitas) en vez del modelo legado tarea→visitas embebidas.
+// En ese caso `task` es solo un objeto sintético para mostrar datos del cliente
+// y `allVisits`/`onUpdate` no se usan — cada visita es su propio documento.
+export default function BillingModal({ task, visit, allVisits, onClose, onUpdate, user, flatMode = false }) {
   const [showPayForm,    setShowPayForm]    = useState(false);
   const [isLoading,      setIsLoading]      = useState(false);
   const [localVisit,     setLocalVisit]     = useState(visit);
@@ -255,13 +260,21 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
   const handleSaveBilling = async () => {
     setIsLoading(true);
     try {
-      const updated = await saveVisitBilling(task.id, allVisits, localVisit.id, {
+      const patch = {
         valorCobrar:    billingForm.valorCobrar    ? parseFloat(billingForm.valorCobrar) : undefined,
         commitmentDate: billingForm.commitmentDate || '',
-      });
-      const fresh = updated.find(v => v.id === localVisit.id);
-      setLocalVisit(fresh);
-      onUpdate(updated);
+      };
+      if (flatMode) {
+        await saveFlatVisitBilling(localVisit.id, patch);
+        const fresh = { ...localVisit, ...patch };
+        setLocalVisit(fresh);
+        onUpdate?.(fresh);
+      } else {
+        const updated = await saveVisitBilling(task.id, allVisits, localVisit.id, patch);
+        const fresh = updated.find(v => v.id === localVisit.id);
+        setLocalVisit(fresh);
+        onUpdate(updated);
+      }
       setEditingBilling(false);
     } catch (err) {
       console.error(err);
@@ -274,15 +287,22 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
   const handleAddPayment = async (formData) => {
     setIsLoading(true);
     try {
-      const { updatedVisits, newPayment } = await addPayment(
-        task.id, allVisits, localVisit.id, formData, user.email
-      );
-      const fresh = updatedVisits.find(v => v.id === localVisit.id);
-      setLocalVisit(fresh);
-      onUpdate(updatedVisits);
-      setShowPayForm(false);
-      // Imprimir comprobante automáticamente
-      printReceipt(task, fresh, newPayment);
+      if (flatMode) {
+        const { updatedVisit, newPayment } = await addFlatVisitPayment(localVisit, formData, user.email);
+        setLocalVisit(updatedVisit);
+        onUpdate?.(updatedVisit);
+        setShowPayForm(false);
+        printReceipt(task, updatedVisit, newPayment);
+      } else {
+        const { updatedVisits, newPayment } = await addPayment(
+          task.id, allVisits, localVisit.id, formData, user.email
+        );
+        const fresh = updatedVisits.find(v => v.id === localVisit.id);
+        setLocalVisit(fresh);
+        onUpdate(updatedVisits);
+        setShowPayForm(false);
+        printReceipt(task, fresh, newPayment);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -295,10 +315,16 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
     if (!window.confirm('¿Eliminar este abono? Esta acción no se puede deshacer.')) return;
     setIsLoading(true);
     try {
-      const updated = await deletePayment(task.id, allVisits, localVisit.id, paymentId);
-      const fresh   = updated.find(v => v.id === localVisit.id);
-      setLocalVisit(fresh);
-      onUpdate(updated);
+      if (flatMode) {
+        const fresh = await deleteFlatVisitPayment(localVisit, paymentId);
+        setLocalVisit(fresh);
+        onUpdate?.(fresh);
+      } else {
+        const updated = await deletePayment(task.id, allVisits, localVisit.id, paymentId);
+        const fresh   = updated.find(v => v.id === localVisit.id);
+        setLocalVisit(fresh);
+        onUpdate(updated);
+      }
     } catch (err) {
       console.error(err);
     } finally {

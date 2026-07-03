@@ -1,6 +1,6 @@
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { getVisitsRef } from '../lib/tenantDb';
+import { getVisitsRef, getVisitsFlatRef } from '../lib/tenantDb';
 
 // ─── Helpers de cálculo ────────────────────────────────────────────────────────
 
@@ -78,4 +78,38 @@ export async function deletePayment(taskId, visits, visitId, paymentId) {
 
   await saveVisitsToSubcollection(taskId, updatedVisits);
   return updatedVisits;
+}
+
+// ─── Equivalentes para la colección plana tenants/{tenantId}/visits ──────────
+// A diferencia del modelo legado (array de visitas embebido en una tarea), aquí
+// cada visita es su propio documento — se actualiza directamente, sin batch.
+
+export async function saveFlatVisitBilling(visitId, billingData) {
+  const patch = {};
+  if (billingData.valorCobrar    !== undefined) patch.valorCobrar    = billingData.valorCobrar;
+  if (billingData.commitmentDate !== undefined) patch.commitmentDate = billingData.commitmentDate;
+  await updateDoc(doc(getVisitsFlatRef(), visitId), patch);
+  return patch;
+}
+
+export async function addFlatVisitPayment(visit, paymentData, userEmail) {
+  const newPayment = {
+    id:           crypto.randomUUID(),
+    date:         paymentData.date,
+    amount:       parseFloat(paymentData.amount) || 0,
+    method:       paymentData.method,
+    note:         paymentData.note  || '',
+    receiptNo:    generateReceiptNo(visit.id),
+    registeredBy: userEmail,
+    registeredAt: new Date().toISOString(),
+  };
+  const payments = [...(visit.payments || []), newPayment];
+  await updateDoc(doc(getVisitsFlatRef(), visit.id), { payments });
+  return { updatedVisit: { ...visit, payments }, newPayment };
+}
+
+export async function deleteFlatVisitPayment(visit, paymentId) {
+  const payments = (visit.payments || []).filter(p => p.id !== paymentId);
+  await updateDoc(doc(getVisitsFlatRef(), visit.id), { payments });
+  return { ...visit, payments };
 }

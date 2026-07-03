@@ -107,16 +107,22 @@ export function useVisits(user) {
   };
 
   // ─── Completar visita ────────────────────────────────────────────────────────
+  // El valor registrado al cerrar la visita se vincula directamente con Cobros:
+  // se guarda como visitValue (dato de campo) y también como valorCobrar
+  // (monto a cobrar), listo para registrar abonos sin volver a digitarlo.
   const completeVisit = async (visitId, closingData) => {
     const { user: u } = useAppStore.getState();
     if (!u) return false;
     try {
+      const visitValue = parseFloat(closingData.visitValue) || 0;
       await updateDoc(doc(getVisitsFlatRef(), visitId), {
         status:              'Realizada',
         closingObservations: closingData.closingObservations || '',
         completedAt:         new Date().toISOString(),
         completedBy:         u.email,
         updatedAt:           new Date().toISOString(),
+        ...(closingData.visitValue !== undefined && { visitValue }),
+        ...(visitValue > 0 && { valorCobrar: visitValue }),
       });
       logAudit(u, 'visit_completed', 'visit', visitId, { completedBy: u.email });
       return true;

@@ -5,11 +5,14 @@ import { useTiposVisita } from '../hooks/useTiposVisita';
 import { getClientContacts } from '../hooks/useClients.js';
 import { printVisitPDF, shareVisitWhatsApp } from './VisitsModal.jsx';
 import VisitsReport from './VisitsReport.jsx';
+import BillingModal from './BillingModal.jsx';
+import { calcPaymentSummary } from '../services/visitBilling.js';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
+import { fmtMoney } from '../utils/format.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
-  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar,
+  Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar, DollarSign,
 } from 'lucide-react';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
@@ -61,16 +64,14 @@ function CompleteVisitModal({ visit, onClose }) {
   const [value, setValue] = useState('0');
   const [busy,  setBusy]  = useState(false);
   const completeVisit = useAppStore(s => s.completeVisit);
-  const editVisit     = useAppStore(s => s.editVisit);
   const addToast      = useAppStore(s => s.addToast);
 
   const handleSave = async () => {
     setBusy(true);
     const parsedValue = parseFloat(value) || 0;
-    const ok = await completeVisit(visit.id, { closingObservations: obs.trim() });
-    if (ok && parsedValue > 0) {
-      await editVisit(visit.id, { visitValue: parsedValue });
-    }
+    // El valor ingresado aquí se guarda como visitValue y también como
+    // valorCobrar (queda listo en el módulo de Cobros sin volver a digitarlo).
+    const ok = await completeVisit(visit.id, { closingObservations: obs.trim(), visitValue: parsedValue });
     if (!ok) addToast({ type: 'error', title: '❌ Error', body: 'No se pudo completar la visita.' });
     setBusy(false);
     onClose();
@@ -172,6 +173,7 @@ export default function AllVisitsManager({ user }) {
   const [filterTo, setFilterTo]           = useState('');
   const [filterEst, setFilterEst]         = useState('');
   const [completeModal, setCompleteModal] = useState(null);
+  const [billingTarget, setBillingTarget] = useState(null);
   const [annulConfirm,  setAnnulConfirm]  = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(null);
@@ -339,6 +341,7 @@ export default function AllVisitsManager({ user }) {
     identification: '',
     clientPhone:   visit.phone         || '',
     clientAddress: `${visit.ubicacion || ''} ${visit.address || ''}`.trim(),
+    serviceType:   visit.serviceType   || '',
   });
 
   // ─── Estilos ─────────────────────────────────────────────────────────────────
@@ -352,6 +355,16 @@ export default function AllVisitsManager({ user }) {
       {/* Modales */}
       {completeModal && (
         <CompleteVisitModal visit={completeModal} onClose={() => setCompleteModal(null)} />
+      )}
+      {billingTarget && (
+        <BillingModal
+          flatMode
+          task={makeTaskForPDF(billingTarget)}
+          visit={billingTarget}
+          user={user}
+          onClose={() => setBillingTarget(null)}
+          onUpdate={(fresh) => setBillingTarget(fresh)}
+        />
       )}
       {annulConfirm && (
         <ConfirmDialog
@@ -713,12 +726,24 @@ export default function AllVisitsManager({ user }) {
                                 <p className="text-sm text-green-700 italic">{visit.closingObservations}</p>
                               </div>
                             )}
-                            {visit.visitValue != null && Number(visit.visitValue) > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor</p>
-                                <p className="font-bold text-emerald-700">${Number(visit.visitValue).toFixed(2)}</p>
-                              </div>
-                            )}
+                            {visit.visitValue != null && Number(visit.visitValue) > 0 && (() => {
+                              const summary = calcPaymentSummary(visit);
+                              return (
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor</p>
+                                  <p className="font-bold text-emerald-700">
+                                    ${Number(visit.visitValue).toFixed(2)}
+                                    {summary.abonado > 0 && (
+                                      <span className="ml-2 font-normal text-xs">
+                                        {summary.pagado
+                                          ? <span className="text-green-600">✅ Pagado</span>
+                                          : <span className="text-amber-600">Abonado ${fmtMoney(summary.abonado)} · Saldo ${fmtMoney(summary.saldo)}</span>}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -801,6 +826,16 @@ export default function AllVisitsManager({ user }) {
                             onClick={() => onGenerateSupport(visit)}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 disabled:opacity-40 transition-colors">
                             <RefreshCw size={11} /> Generar soporte
+                          </button>
+                        )}
+
+                        {/* Cobrar */}
+                        {visit.status === 'Realizada' && (
+                          <button
+                            onClick={() => setBillingTarget(visit)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white"
+                            style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                            <DollarSign size={11} /> Cobrar
                           </button>
                         )}
 
