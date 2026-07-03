@@ -44,7 +44,7 @@ export function useVisits(user) {
     const visitRef   = doc(db, 'tenants', tenantId, 'visits', visitId);
     try {
       let visitNumber;
-      await runTransaction(db, async (tx) => {
+      const transactionPromise = runTransaction(db, async (tx) => {
         const snap = await tx.get(counterRef);
         const next = (snap.exists() ? (snap.data().last ?? 0) : 0) + 1;
         visitNumber = `V-${String(next).padStart(4, '0')}`;
@@ -67,6 +67,17 @@ export function useVisits(user) {
           parentVisitId: data.parentVisitId || null,
         });
       });
+      // Las transacciones de Firestore requieren ida y vuelta real al servidor
+      // (no tienen camino rápido por caché local como setDoc/updateDoc) — si
+      // la conexión se degrada a mitad de la transacción puede quedar
+      // esperando indefinidamente y el botón "Guardando..." nunca se libera.
+      // Este timeout defensivo libera la UI aunque la transacción de fondo
+      // rara vez tarde tanto; si igual llega a completarse después, no rompe
+      // nada (el conteo/documento ya se habría creado correctamente).
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tiempo de espera agotado al crear la visita')), 15000)
+      );
+      await Promise.race([transactionPromise, timeoutPromise]);
       logAudit(u, 'visit_created', 'visit', visitId, { clientName: data.clientName, visitNumber });
       return visitId;
     } catch (err) {
