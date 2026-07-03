@@ -41,6 +41,22 @@ function getNowMinutesEcuador() {
   return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
+// Formatea un timestamp ISO (UTC, p.ej. completedAt) a fecha y hora local de
+// Ecuador (UTC-5, sin DST) — usado para mostrar el momento real de un evento,
+// no solo la fecha programada.
+function formatDateTimeEcuador(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '';
+  const ecu   = new Date(d.getTime() - 5 * 60 * 60 * 1000);
+  const day   = String(ecu.getUTCDate()).padStart(2, '0');
+  const month = String(ecu.getUTCMonth() + 1).padStart(2, '0');
+  const year  = ecu.getUTCFullYear();
+  const hh    = String(ecu.getUTCHours()).padStart(2, '0');
+  const mm    = String(ecu.getUTCMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} · ${hh}:${mm}`;
+}
+
 // Convierte "HH:MM" a minutos desde medianoche
 function timeToMinutes(timeStr) {
   if (!timeStr) return null;
@@ -95,6 +111,7 @@ function buildVisitEmailHtml({ title, titleColor = '#D61672', intro, task, visit
     visit.observations
       ? `<tr><td style="${tdL}">Observaciones</td><td style="${tdR};font-style:italic;">${escHtml(visit.observations)}</td></tr>`
       : '',
+    row('Fecha realizada',  formatDateTimeEcuador(visit.completedAt), false),
     visit.closingObservations
       ? `<tr><td style="${tdL}">Obs. cierre</td><td style="${tdR};font-style:italic;">${escHtml(visit.closingObservations)}</td></tr>`
       : '',
@@ -254,8 +271,10 @@ async function buildClientVisitEmailHtml({ eventType, config, task, visit, befor
   const timeChanged = eventType === 'modificada' && before?.scheduledTime && before.scheduledTime !== visit.scheduledTime;
 
   const visitRows = [
-    row('📅', eventType === 'realizada' ? 'Fecha realizada' : eventType === 'modificada' ? 'Nueva fecha' : 'Fecha',
-      visit.scheduledDate, dateChanged ? `Antes: ${before.scheduledDate}` : ''),
+    eventType === 'realizada'
+      ? row('📅', 'Fecha realizada', formatDateTimeEcuador(visit.completedAt) || visit.scheduledDate)
+      : row('📅', eventType === 'modificada' ? 'Nueva fecha' : 'Fecha',
+          visit.scheduledDate, dateChanged ? `Antes: ${before.scheduledDate}` : ''),
     eventType !== 'realizada'
       ? row('🕐', eventType === 'modificada' ? 'Nueva hora' : 'Hora', visit.scheduledTime, timeChanged ? `Antes: ${before.scheduledTime}` : '')
       : '',
