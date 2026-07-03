@@ -291,7 +291,12 @@ const CLIENT_EVENT_META = {
 async function buildClientVisitEmailHtml({ eventType, config, task, visit, before = null }) {
   const meta           = CLIENT_EVENT_META[eventType] || CLIENT_EVENT_META.creada;
   const empresaNombre  = config.empresaNombre || 'Acontplus';
-  const logoUrl        = config.logoUrl || 'https://gestorrecordatorios.web.app/logo.png';
+  // Gmail bloquea por completo las imágenes data: URI en correos HTML — si el
+  // logo se subió como archivo (TabEntidad lo guarda como base64), no serviría
+  // en el correo, así que se usa el logo genérico alojado como respaldo.
+  const logoUrl        = (config.logoUrl && !config.logoUrl.startsWith('data:'))
+    ? config.logoUrl
+    : 'https://gestorrecordatorios.web.app/logo.png';
   const location       = [visit.ubicacion, visit.address].filter(Boolean).join(' — ');
   const showTechnician = eventType !== 'cancelada';
 
@@ -332,25 +337,19 @@ async function buildClientVisitEmailHtml({ eventType, config, task, visit, befor
       </td>
     </tr>`;
 
+    // El QR se sirve desde un endpoint HTTP real (generateQrCode, vía rewrite
+    // de Hosting) en vez de un data: URI embebido — Gmail bloquea por
+    // completo las imágenes data: URI en correos HTML.
     const techWaPhone = formatPhoneForWhatsApp(visit.technicianPhone, config.whatsappPrefijo);
     if (techWaPhone) {
-      let qrDataUri = null;
-      try {
-        qrDataUri = await QRCode.toDataURL(`https://wa.me/${techWaPhone}`, {
-          width: 150, margin: 1, color: { dark: '#1e293b', light: '#ffffff' },
-        });
-      } catch (err) {
-        console.error('Error al generar QR de WhatsApp del técnico:', err);
-      }
-      if (qrDataUri) {
-        qrRow = `<tr>
-          <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">📲</td>
-          <td style="padding:9px 10px;vertical-align:top;">
-            <p style="margin:0 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">Escanea para chatear por WhatsApp</p>
-            <img src="${qrDataUri}" width="90" height="90" alt="Código QR de WhatsApp" style="display:block;border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:white;" />
-          </td>
-        </tr>`;
-      }
+      const qrImgUrl = `https://gestorrecordatorios.web.app/api/qrcode?phone=${techWaPhone}`;
+      qrRow = `<tr>
+        <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">📲</td>
+        <td style="padding:9px 10px;vertical-align:top;">
+          <p style="margin:0 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">Escanea para chatear por WhatsApp</p>
+          <img src="${qrImgUrl}" width="90" height="90" alt="Código QR de WhatsApp" style="display:block;border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:white;" />
+        </td>
+      </tr>`;
     }
   }
 
@@ -1354,6 +1353,34 @@ exports.notifyBorradorCreado = onDocumentCreated(
     });
 
     console.log(`notifyBorradorCreado: email enviado a ${toList.join(', ')} — ${event.params.borradoreId}`);
+  }
+);
+
+// ─── 8b. Generador de QR para los correos al cliente ──────────────────────────
+// HTTP endpoint expuesto en /api/qrcode via Firebase Hosting rewrite.
+// Los clientes de correo (especialmente Gmail) bloquean por completo las
+// imágenes data: URI en HTML, así que el QR debe servirse desde una URL http
+// real en vez de embeberse en base64 dentro del correo.
+exports.generateQrCode = onRequest(
+  { region: 'us-central1' },
+  async (req, res) => {
+    const digits = String(req.query.phone || '').replace(/\D/g, '');
+    if (!digits || digits.length < 8 || digits.length > 15) {
+      res.status(400).send('Número inválido');
+      return;
+    }
+    try {
+      const buffer = await QRCode.toBuffer(`https://wa.me/${digits}`, {
+        width: 300, margin: 1,
+        color: { dark: '#1e293b', light: '#ffffff' },
+      });
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'public, max-age=604800, immutable');
+      res.send(buffer);
+    } catch (err) {
+      console.error('Error al generar QR:', err);
+      res.status(500).send('Error al generar QR');
+    }
   }
 );
 
