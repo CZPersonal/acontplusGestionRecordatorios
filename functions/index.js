@@ -1301,7 +1301,7 @@ exports.notifyBorradorCreado = onDocumentCreated(
 // imágenes data: URI en HTML, así que el QR debe servirse desde una URL http
 // real en vez de embeberse en base64 dentro del correo.
 exports.generateQrCode = onRequest(
-  { region: 'us-central1' },
+  { region: 'us-central1', invoker: 'public' },
   async (req, res) => {
     const digits = String(req.query.phone || '').replace(/\D/g, '');
     if (!digits || digits.length < 8 || digits.length > 15) {
