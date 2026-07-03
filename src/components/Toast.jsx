@@ -38,9 +38,23 @@ const STYLES = {
   },
 };
 
+// Duración de auto-cierre para toasts simples (confirmaciones de éxito/error)
+const AUTO_DISMISS_MS = 4500;
+
 function ToastItem({ toast, onClose }) {
+  const isSimple = !toast.task && !toast.visit;
+
+  // Los toasts simples (éxito/error de guardado) se cierran solos.
+  // Las alertas de visitas (retrasada/hoy/urgente) permanecen hasta que el
+  // usuario las cierre manualmente, ya que requieren acción de su parte.
+  useEffect(() => {
+    if (!isSimple) return;
+    const timer = setTimeout(() => onClose(toast.id), AUTO_DISMISS_MS);
+    return () => clearTimeout(timer);
+  }, [isSimple, toast.id, onClose]);
+
   // Toast simple: error o "sin alertas"
-  if (!toast.task && !toast.visit) {
+  if (isSimple) {
     const isError = toast.type === 'error';
     return (
       <div className={`relative flex items-start space-x-3 p-3 rounded-xl border-2 ${
