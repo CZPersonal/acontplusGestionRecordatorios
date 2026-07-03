@@ -6,6 +6,7 @@ const { getFirestore }      = require('firebase-admin/firestore');
 const { getMessaging }      = require('firebase-admin/messaging');
 const { defineSecret } = require('firebase-functions/params');
 const { Resend }       = require('resend');
+const QRCode           = require('qrcode');
 const crypto           = require('crypto');
 
 initializeApp();
@@ -223,6 +224,15 @@ async function resolveRecipients(db, tenantId, notifCfg, visit, task, fallbackEm
   return emails.size > 0 ? [...emails] : fallbackEmails;
 }
 
+// Separa el email del cliente (si notifCfg.cliente está activo y quedó incluido
+// en la lista resuelta) del resto de destinatarios, para poder enviarle una
+// plantilla propia (buildClientVisitEmailHtml) en vez de la interna/técnica.
+function splitClientRecipient(toList, notifCfg, task) {
+  const clientEmail = notifCfg?.cliente && task.clientEmail?.includes('@') ? task.clientEmail : null;
+  if (!clientEmail || !toList.includes(clientEmail)) return { internalList: toList, clientEmail: null };
+  return { internalList: toList.filter(e => e !== clientEmail), clientEmail };
+}
+
 // Lee la config del tenant y la cachea para no hacer lecturas repetidas por ejecución
 async function getTenantConfig(db, tenantId, configCache) {
   if (configCache[tenantId] !== undefined) return configCache[tenantId];
@@ -253,6 +263,144 @@ function buildClientVisitReminderHtml({ empresaNombre, task, visit, minutosAntes
       <p style="color:#555;font-size:13px;">Si tiene alguna consulta puede comunicarse con nosotros.</p>
       <hr style="margin:20px 0;border:none;border-top:1px solid #eee;">
       <p style="font-size:12px;color:#aaa;">${empresa}</p>
+    </div>`;
+}
+
+// Formatea un número local a formato E.164 sin '+' para enlaces wa.me
+function formatPhoneForWhatsApp(numero, prefijo = '593') {
+  if (!numero) return '';
+  const raw = String(numero).replace(/\D/g, '');
+  if (!raw) return '';
+  const num = raw.startsWith('0') ? raw.slice(1) : raw;
+  return `${prefijo}${num}`;
+}
+
+const CLIENT_EVENT_META = {
+  creada:     { icon: '🗓️', title: 'Tu visita fue programada',       color: '#1d4ed8', bg: '#eff6ff', lead: 'Te confirmamos que hemos agendado una visita técnica. Aquí tienes los detalles:' },
+  modificada: { icon: '✏️', title: 'Tu visita fue modificada',       color: '#b45309', bg: '#fffbeb', lead: 'Hubo un cambio en tu visita programada. Estos son los datos actualizados:' },
+  confirmada: { icon: '✅', title: '¡Tu técnico confirmó la visita!', color: '#0d9488', bg: '#f0fdfa', lead: 'Tu técnico confirmó que asistirá a la visita como estaba programada:' },
+  realizada:  { icon: '🏁', title: '¡Visita completada!',            color: '#16a34a', bg: '#f0fdf4', lead: 'Tu visita fue realizada con éxito. Gracias por confiar en nosotros:' },
+  cancelada:  { icon: '🚫', title: 'Tu visita fue cancelada',        color: '#b91c1c', bg: '#fef2f2', lead: 'La visita que teníamos programada para ti fue cancelada. Contáctanos para reagendarla cuando gustes.' },
+};
+
+// Construye el email orientado al CLIENTE — enfocado en fecha/hora/técnico y
+// datos de la empresa (logo, marca), sin datos internos del cliente (cédula,
+// orden de servicio) que solo generan confusión.
+// eventType: 'creada' | 'modificada' | 'confirmada' | 'realizada' | 'cancelada'
+// before: snapshot previo de la visita (solo para 'modificada', muestra "Antes: ...")
+async function buildClientVisitEmailHtml({ eventType, config, task, visit, before = null }) {
+  const meta           = CLIENT_EVENT_META[eventType] || CLIENT_EVENT_META.creada;
+  const empresaNombre  = config.empresaNombre || 'Acontplus';
+  const logoUrl        = config.logoUrl || 'https://gestorrecordatorios.web.app/logo.png';
+  const location       = [visit.ubicacion, visit.address].filter(Boolean).join(' — ');
+  const showTechnician = eventType !== 'cancelada';
+
+  const row = (icon, label, value, sub = '') => value
+    ? `<tr>
+         <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">${icon}</td>
+         <td style="padding:9px 10px;vertical-align:top;">
+           <p style="margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">${escHtml(label)}</p>
+           <p style="margin:1px 0 0;font-size:14px;font-weight:700;color:#1e293b;">${escHtml(value)}</p>
+           ${sub ? `<p style="margin:2px 0 0;font-size:12px;color:#64748b;">${escHtml(sub)}</p>` : ''}
+         </td>
+       </tr>`
+    : '';
+
+  const dateChanged = eventType === 'modificada' && before?.scheduledDate && before.scheduledDate !== visit.scheduledDate;
+  const timeChanged = eventType === 'modificada' && before?.scheduledTime && before.scheduledTime !== visit.scheduledTime;
+
+  const visitRows = [
+    row('📅', eventType === 'realizada' ? 'Fecha realizada' : eventType === 'modificada' ? 'Nueva fecha' : 'Fecha',
+      visit.scheduledDate, dateChanged ? `Antes: ${before.scheduledDate}` : ''),
+    eventType !== 'realizada'
+      ? row('🕐', eventType === 'modificada' ? 'Nueva hora' : 'Hora', visit.scheduledTime, timeChanged ? `Antes: ${before.scheduledTime}` : '')
+      : '',
+    row('📍', 'Lugar de la visita', location),
+    (eventType !== 'cancelada' && eventType !== 'realizada') ? row('🔧', 'Tipo de servicio', visit.type) : '',
+  ].join('');
+
+  let techBlock = '';
+  let qrRow     = '';
+  if (showTechnician && visit.technician) {
+    const callHref = visit.technicianPhone ? `tel:${visit.technicianPhone.replace(/\s/g, '')}` : null;
+    techBlock = `<tr>
+      <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">👷</td>
+      <td style="padding:9px 10px;vertical-align:top;">
+        <p style="margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">${eventType === 'realizada' ? 'Técnico' : 'Técnico asignado'}</p>
+        <p style="margin:1px 0 0;font-size:14px;font-weight:700;color:#1e293b;">${escHtml(visit.technician)}</p>
+        ${callHref ? `<a href="${callHref}" style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:8px;text-decoration:none;">📞 ${escHtml(visit.technicianPhone)}</a>` : ''}
+      </td>
+    </tr>`;
+
+    const techWaPhone = formatPhoneForWhatsApp(visit.technicianPhone, config.whatsappPrefijo);
+    if (techWaPhone) {
+      let qrDataUri = null;
+      try {
+        qrDataUri = await QRCode.toDataURL(`https://wa.me/${techWaPhone}`, {
+          width: 150, margin: 1, color: { dark: '#1e293b', light: '#ffffff' },
+        });
+      } catch (err) {
+        console.error('Error al generar QR de WhatsApp del técnico:', err);
+      }
+      if (qrDataUri) {
+        qrRow = `<tr>
+          <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">📲</td>
+          <td style="padding:9px 10px;vertical-align:top;">
+            <p style="margin:0 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">Escanea para chatear por WhatsApp</p>
+            <img src="${qrDataUri}" width="90" height="90" alt="Código QR de WhatsApp" style="display:block;border:1px solid #e2e8f0;border-radius:8px;padding:6px;background:white;" />
+          </td>
+        </tr>`;
+      }
+    }
+  }
+
+  const obsRow = (eventType === 'realizada' && visit.closingObservations)
+    ? `<tr>
+         <td style="padding:9px 10px;font-size:16px;width:26px;vertical-align:top;">📝</td>
+         <td style="padding:9px 10px;vertical-align:top;">
+           <p style="margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:600;">Observación del técnico</p>
+           <p style="margin:1px 0 0;font-size:13.5px;font-style:italic;color:#334155;">${escHtml(visit.closingObservations)}</p>
+         </td>
+       </tr>`
+    : '';
+
+  const chargeAmount = Number(visit.valorCobrar ?? visit.visitValue) || 0;
+  const chargeBlock = (eventType === 'realizada' && chargeAmount > 0)
+    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 18px;text-align:center;margin-bottom:18px;">
+         <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#166534;font-weight:700;">Valor cobrado</p>
+         <p style="margin:2px 0 0;font-size:22px;font-weight:800;color:#166534;">$${chargeAmount.toFixed(2)}</p>
+       </div>`
+    : '';
+
+  const whatsappCompany = formatPhoneForWhatsApp(config.whatsappNumero, config.whatsappPrefijo);
+
+  return `
+    <div style="font-family:sans-serif;max-width:520px;margin:auto;color:#1e293b;">
+      <div style="text-align:center;margin-bottom:16px;">
+        <img src="${logoUrl}" alt="${escHtml(empresaNombre)}" style="max-width:200px;max-height:64px;" />
+      </div>
+      <p style="text-align:center;font-size:15px;font-weight:700;color:#D61672;margin:4px 0 2px;">${escHtml(empresaNombre)}</p>
+      ${config.empresaSlogan ? `<p style="text-align:center;font-size:12px;color:#64748b;margin:0 0 20px;">${escHtml(config.empresaSlogan)}</p>` : '<div style="margin-bottom:14px;"></div>'}
+
+      <div style="text-align:center;padding:14px 10px;border-radius:10px;margin-bottom:20px;background:${meta.bg};">
+        <span style="font-size:28px;display:block;margin-bottom:4px;">${meta.icon}</span>
+        <p style="margin:0;font-size:18px;font-weight:800;color:${meta.color};">${meta.title}</p>
+      </div>
+
+      <p style="font-size:14px;color:#334155;margin-bottom:4px;">Hola ${escHtml(task.clientName || '')},</p>
+      <p style="font-size:14px;color:#475569;margin:0 0 20px;line-height:1.5;">${meta.lead}</p>
+
+      <table style="border-collapse:collapse;width:100%;background:#f8fafc;border-radius:12px;margin-bottom:18px;border:1px solid #e2e8f0;">
+        ${visitRows}${techBlock}${qrRow}${obsRow}
+      </table>
+
+      ${chargeBlock}
+
+      <div style="margin-top:26px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
+        <p style="font-size:13px;font-weight:700;color:#1e293b;margin:0 0 2px;">${escHtml(empresaNombre)}</p>
+        ${config.ruc ? `<p style="font-size:11.5px;color:#94a3b8;margin:0;">RUC ${escHtml(config.ruc)}</p>` : ''}
+        ${whatsappCompany ? `<a href="https://wa.me/${whatsappCompany}" style="display:inline-flex;align-items:center;gap:5px;margin-top:8px;background:#f0fdf4;color:#15803d;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;text-decoration:none;border:1px solid #bbf7d0;">💬 WhatsApp</a>` : ''}
+      </div>
     </div>`;
 }
 
@@ -402,25 +550,44 @@ exports.notifyVisitCreatedNew = onDocumentCreated(
     const task      = visitToTask(visit);
     const techEmail = visit.technicianEmail || (visit.technician?.includes('@') ? visit.technician : null);
     const toList    = await resolveRecipients(db, tenantId, config.notifCreada, visit, task, techEmail ? [techEmail] : []);
+    const { internalList, clientEmail } = splitClientRecipient(toList, config.notifCreada, task);
 
-    if (toList.length === 0) {
+    const sends = [];
+
+    if (internalList.length > 0) {
+      sends.push(resend.emails.send({
+        from:    getFromEmail(config.empresaNombre),
+        to:      internalList,
+        subject: `🗓️ Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
+        html:    buildVisitEmailHtml({
+          title:      '🗓️ Nueva visita asignada',
+          intro:      'Se ha programado la siguiente visita en tu agenda.',
+          task, visit,
+          portalNote: true,
+        }),
+      }));
+    }
+
+    if (clientEmail) {
+      sends.push(
+        buildClientVisitEmailHtml({ eventType: 'creada', config, task, visit }).then(html =>
+          resend.emails.send({
+            from:    getFromEmail(config.empresaNombre),
+            to:      [clientEmail],
+            subject: `🗓️ Tu visita fue programada — ${config.empresaNombre || 'Acontplus'}`,
+            html,
+          })
+        )
+      );
+    }
+
+    if (sends.length === 0) {
       console.log(`notifyVisitCreatedNew: sin destinatarios — ${event.params.visitId}`);
       return;
     }
 
-    await resend.emails.send({
-      from:    getFromEmail(config.empresaNombre),
-      to:      toList,
-      subject: `🗓️ Nueva visita asignada: ${task.clientName} — ${visit.scheduledDate || 'fecha por confirmar'}`,
-      html:    buildVisitEmailHtml({
-        title:      '🗓️ Nueva visita asignada',
-        intro:      'Se ha programado la siguiente visita en tu agenda.',
-        task, visit,
-        portalNote: true,
-      }),
-    });
-
-    console.log(`notifyVisitCreatedNew: email enviado a ${toList.join(', ')} — ${event.params.visitId}`);
+    await Promise.allSettled(sends);
+    console.log(`notifyVisitCreatedNew: ${sends.length} email(s) — ${event.params.visitId}`);
   }
 );
 
@@ -445,21 +612,40 @@ exports.notifyVisitCompletedNew = onDocumentUpdated(
     const task      = visitToTask(after);
     const fallback  = task.createdBy?.includes('@') ? [task.createdBy] : [];
     const toList    = await resolveRecipients(db, tenantId, config.notifRealizada, after, task, fallback);
-    if (toList.length === 0) return;
+    const { internalList, clientEmail } = splitClientRecipient(toList, config.notifRealizada, task);
 
-    await resend.emails.send({
-      from:    getFromEmail(config.empresaNombre),
-      to:      toList,
-      subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
-      html:    buildVisitEmailHtml({
-        title:      '✅ Visita completada',
-        titleColor: '#16a34a',
-        intro:      'La siguiente visita fue marcada como <strong>Realizada</strong>.',
-        task, visit: after,
-      }),
-    });
+    const sends = [];
 
-    console.log(`notifyVisitCompletedNew: email enviado a ${toList.join(', ')} — ${event.params.visitId}`);
+    if (internalList.length > 0) {
+      sends.push(resend.emails.send({
+        from:    getFromEmail(config.empresaNombre),
+        to:      internalList,
+        subject: `✅ Visita completada: ${task.clientName} — ${after.scheduledDate || ''}`,
+        html:    buildVisitEmailHtml({
+          title:      '✅ Visita completada',
+          titleColor: '#16a34a',
+          intro:      'La siguiente visita fue marcada como <strong>Realizada</strong>.',
+          task, visit: after,
+        }),
+      }));
+    }
+
+    if (clientEmail) {
+      sends.push(
+        buildClientVisitEmailHtml({ eventType: 'realizada', config, task, visit: after }).then(html =>
+          resend.emails.send({
+            from:    getFromEmail(config.empresaNombre),
+            to:      [clientEmail],
+            subject: `🏁 Tu visita fue completada — ${config.empresaNombre || 'Acontplus'}`,
+            html,
+          })
+        )
+      );
+    }
+
+    if (sends.length === 0) return;
+    await Promise.allSettled(sends);
+    console.log(`notifyVisitCompletedNew: ${sends.length} email(s) — ${event.params.visitId}`);
   }
 );
 
@@ -482,6 +668,7 @@ exports.notifyVisitUpdatedNew = onDocumentUpdated(
     if (changes.length === 0) return;
 
     const esConfirmacion = changes.length === 1 && changes[0] === 'confirmed' && after.confirmed === true;
+    const esCancelacion  = changes.includes('status') && after.status === 'Cancelada' && before.status !== 'Cancelada';
 
     const db        = getFirestore();
     const tenantId  = event.params.tenantId;
@@ -497,6 +684,7 @@ exports.notifyVisitUpdatedNew = onDocumentUpdated(
 
     const notifCfg = esConfirmacion ? config.notifConfirmada : config.notifModificada;
     const destList  = await resolveRecipients(db, tenantId, notifCfg, after, task, fallback);
+    const { internalList, clientEmail } = splitClientRecipient(destList, notifCfg, task);
 
     const changeRows = changes.filter(f => f !== 'confirmed').map(f => `
       <tr style="border-top:1px solid #f1f5f9;">
@@ -508,10 +696,10 @@ exports.notifyVisitUpdatedNew = onDocumentUpdated(
     const sends = [];
 
     if (esConfirmacion) {
-      if (destList.length > 0) {
+      if (internalList.length > 0) {
         sends.push(resend.emails.send({
           from:    getFromEmail(config.empresaNombre),
-          to:      destList,
+          to:      internalList,
           subject: `✅ Asistencia confirmada: ${task.clientName} — ${after.scheduledDate || ''}`,
           html:    buildVisitEmailHtml({
             title: '✅ Asistencia confirmada', titleColor: '#16a34a',
@@ -519,6 +707,18 @@ exports.notifyVisitUpdatedNew = onDocumentUpdated(
             task, visit: after,
           }),
         }));
+      }
+      if (clientEmail) {
+        sends.push(
+          buildClientVisitEmailHtml({ eventType: 'confirmada', config, task, visit: after }).then(html =>
+            resend.emails.send({
+              from:    getFromEmail(config.empresaNombre),
+              to:      [clientEmail],
+              subject: `✅ Tu técnico confirmó la visita — ${config.empresaNombre || 'Acontplus'}`,
+              html,
+            })
+          )
+        );
       }
     } else {
       if (techCambiado && oldTechEmail) {
@@ -533,18 +733,38 @@ exports.notifyVisitUpdatedNew = onDocumentUpdated(
           }),
         }));
       }
-      if (destList.length > 0) {
+      if (internalList.length > 0) {
         sends.push(resend.emails.send({
           from:    getFromEmail(config.empresaNombre),
-          to:      destList,
-          subject: `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`,
+          to:      internalList,
+          subject: esCancelacion
+            ? `🚫 Visita cancelada: ${task.clientName} — ${after.scheduledDate || ''}`
+            : `✏️ Visita modificada: ${task.clientName} — ${after.scheduledDate || ''}`,
           html:    buildVisitEmailHtml({
-            title: '✏️ Visita modificada',
-            intro: 'Se realizaron cambios en la siguiente visita.',
+            title:      esCancelacion ? '🚫 Visita cancelada' : '✏️ Visita modificada',
+            titleColor: esCancelacion ? '#dc2626' : undefined,
+            intro:      esCancelacion ? 'La siguiente visita fue cancelada.' : 'Se realizaron cambios en la siguiente visita.',
             task, visit: after,
             changes: changeRows || null,
           }),
         }));
+      }
+      if (clientEmail) {
+        sends.push(
+          buildClientVisitEmailHtml({
+            eventType: esCancelacion ? 'cancelada' : 'modificada',
+            config, task, visit: after, before,
+          }).then(html =>
+            resend.emails.send({
+              from:    getFromEmail(config.empresaNombre),
+              to:      [clientEmail],
+              subject: esCancelacion
+                ? `🚫 Tu visita fue cancelada — ${config.empresaNombre || 'Acontplus'}`
+                : `✏️ Tu visita fue modificada — ${config.empresaNombre || 'Acontplus'}`,
+              html,
+            })
+          )
+        );
       }
     }
 
