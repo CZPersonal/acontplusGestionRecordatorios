@@ -23,13 +23,33 @@ export default function UpdatePrompt() {
       }
     };
 
+    // Fuerza a cualquier Service Worker ya registrado (p. ej. uno antiguo que
+    // quedó cacheando agresivamente antes de migrar a este sistema de
+    // polling) a re-chequear su script de inmediato, en vez de esperar el
+    // heurístico pasivo del navegador (~24h) — ese SW viejo puede estar
+    // sirviendo un index.html/JS obsoleto para siempre si nadie lo fuerza.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => regs.forEach(reg => reg.update().catch(() => {})))
+        .catch(() => {});
+    }
+
     // Primera comprobación a los 30 s (dar tiempo a que el SW kill-switch termine)
     const firstTimer = setTimeout(check, 30_000);
     intervalRef.current = setInterval(check, POLL_INTERVAL);
 
+    // Re-chequear de inmediato al volver a la app: en móvil el navegador suele
+    // congelar temporizadores en segundo plano, así que sin esto la próxima
+    // comprobación podría tardar mucho más de 60s tras reabrir la PWA.
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+
     return () => {
       clearTimeout(firstTimer);
       clearInterval(intervalRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
     };
   }, []);
 
