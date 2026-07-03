@@ -158,6 +158,12 @@ function buildVisitEmailHtml({ title, titleColor = '#D61672', intro, task, visit
     visit.closingObservations
       ? `<tr><td style="${tdL}">Obs. cierre</td><td style="${tdR};font-style:italic;">${escHtml(visit.closingObservations)}</td></tr>`
       : '',
+    (() => {
+      const chargeAmount = Number(visit.valorCobrar ?? visit.visitValue) || 0;
+      return chargeAmount > 0
+        ? `<tr><td style="${tdL}">Valor a cobrar</td><td style="${tdR}font-weight:700;color:#166534;">$${chargeAmount.toFixed(2)}</td></tr>`
+        : '';
+    })(),
   ].join('');
 
   const changesBlock = changes
