@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import {
   Filter, X, ChevronDown, ChevronUp, Download,
-  FileText, Search, Calendar, User, Phone, Wrench, Package, Settings
+  FileText, Search, Calendar, User, Phone, Wrench, Package, Settings, DollarSign
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
+import { fmtMoney } from '../utils/format.js';
+import { useAppStore } from '../lib/store';
+import { VisitStatusBadge as SharedVisitStatusBadge } from './VisitStatusBadge.jsx';
 
 const formatDateTime = (isoString) => {
   if (!isoString) return '—';
@@ -16,7 +19,7 @@ const formatDateTime = (isoString) => {
   });
 };
 
-// ─── Aplanar visitas desde todas las tareas ────────────────────────────────────
+// ─── Aplanar visitas desde todas las tareas (modelo legado) ───────────────────
 function flattenVisits(tasks) {
   const rows = [];
   tasks.forEach(task => {
@@ -34,6 +37,7 @@ function flattenVisits(tasks) {
         visitType:            visit.type                 || '',
         urgency:              visit.urgency              || '',
         visitStatus:          visit.status               || '',
+        confirmed:            !!visit.confirmed,
         technician:           visit.technician           || '',
         observations:         visit.observations         || '',
         closingObservations:  visit.closingObservations  || '',
@@ -41,6 +45,7 @@ function flattenVisits(tasks) {
         completedBy:          visit.completedBy          || '',
         confirmedAt:          visit.confirmedAt          || '',
         confirmedBy:          visit.confirmedBy          || '',
+        valorCobrar:          Number(visit.valorCobrar ?? visit.visitValue) || 0,
         taskId:               task.id,
         clientName:           task.clientName            || '',
         clientPhone:          task.clientPhone           || '',
@@ -53,20 +58,41 @@ function flattenVisits(tasks) {
       });
     });
   });
-  return rows.sort((a, b) => {
-    if (b.scheduledDate !== a.scheduledDate) return b.scheduledDate.localeCompare(a.scheduledDate);
-    return (b.scheduledTime || '').localeCompare(a.scheduledTime || '');
-  });
+  return rows;
 }
 
-// ─── Badges de estado ─────────────────────────────────────────────────────────
-function VisitStatusBadge({ status }) {
-  const cls = {
-    'Programada': 'bg-blue-100 text-blue-700',
-    'Realizada':  'bg-green-100 text-green-700',
-    'Cancelada':  'bg-amber-100 text-amber-700',
-  }[status] || 'bg-slate-100 text-slate-500';
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{status || '—'}</span>;
+// ─── Aplanar visitas de la colección plana (Gestión de visitas) ──────────────
+function flattenNewVisits(visits) {
+  return visits.map(visit => ({
+    visitNumber:          visit.visitNumber          || '',
+    visitId:              visit.id,
+    scheduledDate:        visit.scheduledDate        || '',
+    scheduledTime:        visit.scheduledTime        || '',
+    visitType:            visit.type                 || '',
+    urgency:              visit.urgency              || '',
+    visitStatus:          visit.status               || '',
+    confirmed:            !!visit.confirmed,
+    technician:           visit.technician           || '',
+    observations:         visit.observations         || '',
+    closingObservations:  visit.closingObservations  || '',
+    completedAt:          visit.completedAt          || '',
+    completedBy:          visit.completedBy          || '',
+    confirmedAt:          visit.confirmedAt          || '',
+    confirmedBy:          visit.confirmedBy          || '',
+    valorCobrar:          Number(visit.valorCobrar ?? visit.visitValue) || 0,
+    taskId:               visit.id,
+    clientName:           visit.clientName           || '',
+    clientPhone:          visit.phone                || '',
+    serviceOrder:         visit.serviceOrder         || '',
+    serviceType:          visit.serviceType          || '',
+    taskStatus:           '',
+    task: {
+      clientName: visit.clientName || '', clientPhone: visit.phone || '',
+      serviceOrder: visit.serviceOrder || '', serviceType: visit.serviceType || '',
+    },
+    visit,
+    isNew: true,
+  }));
 }
 
 function UrgencyBadge({ urgency }) {
@@ -94,15 +120,22 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
   const [filters,        setFilters]        = useState(INITIAL_FILTERS);
   const [showFilters,    setShowFilters]    = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const newVisits = useAppStore(s => s.visits);
 
-  // Aplanar todas las visitas
-  const allRows = useMemo(() => flattenVisits(tasks), [tasks]);
+  // Aplanar y unir el modelo legado (tareas) con el nuevo (Gestión de visitas)
+  const allRows = useMemo(() => {
+    const rows = [...flattenVisits(tasks), ...flattenNewVisits(newVisits)];
+    return rows.sort((a, b) => {
+      if (b.scheduledDate !== a.scheduledDate) return b.scheduledDate.localeCompare(a.scheduledDate);
+      return (b.scheduledTime || '').localeCompare(a.scheduledTime || '');
+    });
+  }, [tasks, newVisits]);
 
   // Valores únicos para los selects
   const uniqueServiceTypes = useMemo(() => {
-    const t = tasks.map(t => t.serviceType).filter(Boolean);
+    const t = [...tasks.map(t => t.serviceType), ...newVisits.map(v => v.serviceType)].filter(Boolean);
     return [...new Set(t)].sort();
-  }, [tasks]);
+  }, [tasks, newVisits]);
 
   const handleFilter = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -126,7 +159,13 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
       if (filters.dateFrom && row.scheduledDate < filters.dateFrom) return false;
       if (filters.dateTo   && row.scheduledDate > filters.dateTo)   return false;
       if (filters.serviceType !== 'Todos' && row.serviceType !== filters.serviceType) return false;
-      if (filters.visitStatus !== 'Todos' && row.visitStatus !== filters.visitStatus) return false;
+      if (filters.visitStatus !== 'Todos') {
+        if (filters.visitStatus === 'Confirmada') {
+          if (row.visitStatus !== 'Programada' || !row.confirmed) return false;
+        } else if (filters.visitStatus === 'Programada') {
+          if (row.visitStatus !== 'Programada' || row.confirmed) return false;
+        } else if (row.visitStatus !== filters.visitStatus) return false;
+      }
       if (filters.urgency     !== 'Todos' && row.urgency     !== filters.urgency)     return false;
       return true;
     });
@@ -136,10 +175,11 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
 
   // KPIs rápidos del resultado filtrado
   const kpis = useMemo(() => ({
-    total:      filteredRows.length,
-    realizadas: filteredRows.filter(r => r.visitStatus === 'Realizada').length,
-    programadas:filteredRows.filter(r => r.visitStatus === 'Programada').length,
-    canceladas: filteredRows.filter(r => r.visitStatus === 'Cancelada').length,
+    total:       filteredRows.length,
+    realizadas:  filteredRows.filter(r => r.visitStatus === 'Realizada').length,
+    programadas: filteredRows.filter(r => r.visitStatus === 'Programada' && !r.confirmed).length,
+    confirmadas: filteredRows.filter(r => r.visitStatus === 'Programada' && r.confirmed).length,
+    canceladas:  filteredRows.filter(r => r.visitStatus === 'Cancelada' || r.visitStatus === 'Anulada').length,
   }), [filteredRows]);
 
   const lbl = "block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1";
@@ -191,10 +231,11 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
           { label: 'Total',       value: kpis.total,       color: 'text-slate-700',  bg: 'bg-slate-100'  },
           { label: 'Programadas', value: kpis.programadas, color: 'text-pink-700',   bg: 'bg-pink-100'   },
+          { label: 'Confirmadas', value: kpis.confirmadas, color: 'text-teal-700',   bg: 'bg-teal-100'   },
           { label: 'Realizadas',  value: kpis.realizadas,  color: 'text-green-700',  bg: 'bg-green-100'  },
           { label: 'Canceladas',  value: kpis.canceladas,  color: 'text-slate-500',  bg: 'bg-slate-100'  },
         ].map(({ label, value, color, bg }) => (
@@ -302,7 +343,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                 onChange={e => handleFilter('visitStatus', e.target.value)}
                 className={inp}>
                 <option value="Todos">Todos</option>
-                {['Programada', 'Realizada', 'Cancelada'].map(s => (
+                {['Programada', 'Confirmada', 'Realizada', 'Cancelada', 'Anulada'].map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -392,6 +433,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Estado</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Técnico</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Observaciones</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Valor a pagar</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -473,7 +515,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
 
                         {/* Estado */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <VisitStatusBadge status={row.visitStatus} />
+                          <SharedVisitStatusBadge status={row.visitStatus} confirmed={row.confirmed} size="xs" />
                           {row.confirmedAt && (
                             <p className="text-xs text-teal-600 mt-0.5">🕐 Conf: {formatDateTime(row.confirmedAt)}</p>
                           )}
@@ -499,11 +541,18 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                               {row.observations}
                             </p>
                           ) : <span className="text-slate-300 text-xs">—</span>}
-                          {row.closingObservations && (
+                          {row.visitStatus === 'Realizada' && row.closingObservations && (
                             <p className="text-xs text-green-600 italic truncate mt-0.5" title={row.closingObservations}>
                               ✅ {row.closingObservations}
                             </p>
                           )}
+                        </td>
+
+                        {/* Valor a pagar — solo si la visita ya está realizada */}
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {row.visitStatus === 'Realizada' && row.valorCobrar > 0
+                            ? <span className="text-sm font-bold text-green-700">${fmtMoney(row.valorCobrar)}</span>
+                            : <span className="text-slate-300 text-xs">—</span>}
                         </td>
                       </tr>
                     );

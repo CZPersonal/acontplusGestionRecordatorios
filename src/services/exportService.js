@@ -57,6 +57,7 @@ function visitValue(key, { task, visit }) {
     case 'technician':           return visit.technician           || '';
     case 'observations':         return visit.observations         || '';
     case 'closingObservations':  return visit.closingObservations  || '';
+    case 'valorCobrar':          return visit.status === 'Realizada' ? String(Number(visit.valorCobrar ?? visit.visitValue) || 0) : '';
     case 'completedBy':          return visit.completedBy          || '';
     case 'completedAt':          return visit.completedAt ? fmt(visit.completedAt) : '';
     case 'taskStatus':           return task.status                || '';

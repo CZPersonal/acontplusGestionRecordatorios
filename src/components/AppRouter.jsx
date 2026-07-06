@@ -4,7 +4,6 @@ import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import NavItem from './NavItem.jsx';
 import Dashboard from './Dashboard.jsx';
-import Reports from './Reports.jsx';
 import VisitsReport from './VisitsReport.jsx';
 import BillingReport from './BillingReport.jsx';
 import ExportConfigManager from './ExportConfigManager.jsx';
@@ -186,13 +185,6 @@ export default function AppRouter() {
           />
         )}
         {activeTab === 'reports' && (
-          <Reports
-            tasks={tasks}
-            exportConfig={getActiveColumns('tasks')}
-            onOpenConfig={() => setShowExportConfig(true)}
-          />
-        )}
-        {activeTab === 'visits-report' && (
           <VisitsReport
             tasks={tasks}
             exportConfig={getActiveColumns('visits')}

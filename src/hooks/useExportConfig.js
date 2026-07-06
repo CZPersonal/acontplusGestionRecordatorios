@@ -39,6 +39,7 @@ export const VISIT_COLUMNS = [
   { key: 'technician',          label: 'Técnico',                    enabled: true  },
   { key: 'observations',        label: 'Observaciones',              enabled: true  },
   { key: 'closingObservations', label: 'Obs. cierre',                enabled: false },
+  { key: 'valorCobrar',         label: 'Valor a pagar',              enabled: false },
   { key: 'completedBy',         label: 'Completado por',             enabled: false },
   { key: 'completedAt',         label: 'Fecha completado',           enabled: false },
   { key: 'taskStatus',          label: 'Estado tarea',               enabled: false },
