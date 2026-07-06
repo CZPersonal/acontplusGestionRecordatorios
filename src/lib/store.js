@@ -56,6 +56,7 @@ export const useAppStore = create((set, get) => ({
   visits:              [],
   isLoadingVisits:     true,
   addVisit:            async () => false,
+  addVisitSeries:      async () => false,
   editVisit:           async () => false,
   deleteVisit:         async () => false,
   completeVisit:       async () => false,
@@ -121,6 +122,17 @@ export const useAppStore = create((set, get) => ({
       addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo guardar la visita. Verifica tu conexión.' });
     }
     return savedId;
+  },
+  handleAddVisitSeries: async (baseData, dates) => {
+    const { addVisitSeries, addToast } = get();
+    const savedIds = await addVisitSeries(baseData, dates);
+    if (savedIds) {
+      set({ openNewVisit: false, newVisitDefaults: null, editingVisit: null, highlightedVisitId: savedIds[0] });
+      addToast({ type: 'success', title: '✅ Serie creada', body: `Se crearon ${savedIds.length} visitas correctamente.` });
+    } else {
+      addToast({ type: 'error', title: '❌ Error al guardar', body: 'No se pudo crear la serie de visitas. Verifica tu conexión e intenta nuevamente.' });
+    }
+    return savedIds;
   },
   handleEditVisit: async (visitId, data) => {
     const { editVisit, addToast } = get();

@@ -86,6 +86,69 @@ export function useVisits(user) {
     }
   };
 
+  // ─── Crear serie de visitas periódicas (transacción atómica única) ───────────
+  // A diferencia de llamar addVisit N veces, esto asigna los N números de visita
+  // secuenciales y escribe todos los documentos + el contador en una sola
+  // transacción: o se crea toda la serie, o ninguna (sin series a medias si algo
+  // falla). baseData es la visitData común (sin scheduledDate, que viene de
+  // cada elemento de `dates`); cada visita creada comparte recurrenceGroupId.
+  const addVisitSeries = async (baseData, dates) => {
+    const { user: u, tenantId } = useAppStore.getState();
+    if (!u || !tenantId) return false;
+    if (!dates || dates.length === 0) return false;
+
+    const recurrenceGroupId = crypto.randomUUID();
+    const counterRef  = doc(db, 'tenants', tenantId, 'counters', 'visits');
+    const visitEntries = dates.map(scheduledDate => {
+      const visitId = crypto.randomUUID();
+      return { visitId, scheduledDate, ref: doc(db, 'tenants', tenantId, 'visits', visitId) };
+    });
+
+    try {
+      const transactionPromise = runTransaction(db, async (tx) => {
+        const snap = await tx.get(counterRef);
+        let next = snap.exists() ? (snap.data().last ?? 0) : 0;
+        const nowIso = new Date().toISOString();
+        visitEntries.forEach((entry, i) => {
+          next += 1;
+          tx.set(entry.ref, {
+            ...baseData,
+            id:            entry.visitId,
+            scheduledDate: entry.scheduledDate,
+            visitNumber:   `V-${String(next).padStart(4, '0')}`,
+            status:        baseData.status  || 'Programada',
+            urgency:       baseData.urgency || 'Media',
+            createdBy:     u.email,
+            createdAt:     nowIso,
+            updatedAt:     nowIso,
+            completedAt:         null,
+            completedBy:         null,
+            closingObservations: '',
+            confirmed:   false,
+            confirmedAt: null,
+            confirmedBy: null,
+            parentVisitId: baseData.parentVisitId || null,
+            recurrenceGroupId,
+            recurrenceIndex: i + 1,
+            recurrenceTotal: dates.length,
+          });
+        });
+        tx.set(counterRef, { last: next }, { merge: true });
+      });
+      // Mismo timeout defensivo que addVisit, escalado con la cantidad de
+      // visitas (una transacción más grande puede tardar algo más en confirmar).
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tiempo de espera agotado al crear la serie de visitas')), Math.max(15000, dates.length * 500))
+      );
+      await Promise.race([transactionPromise, timeoutPromise]);
+      logAudit(u, 'visit_series_created', 'visit', recurrenceGroupId, { clientName: baseData.clientName, total: dates.length });
+      return visitEntries.map(e => e.visitId);
+    } catch (err) {
+      console.error('Error al crear la serie de visitas:', err);
+      return false;
+    }
+  };
+
   // ─── Editar visita ───────────────────────────────────────────────────────────
   const editVisit = async (visitId, data) => {
     const { user: u } = useAppStore.getState();
@@ -259,7 +322,7 @@ export function useVisits(user) {
 
   useEffect(() => {
     useAppStore.setState({
-      addVisit, editVisit, deleteVisit,
+      addVisit, addVisitSeries, editVisit, deleteVisit,
       completeVisit, cancelVisit, annulVisit,
       revertVisit, confirmVisit, generateSupportVisit,
     });
@@ -268,7 +331,7 @@ export function useVisits(user) {
 
   return {
     visits, isLoadingVisits,
-    addVisit, editVisit, deleteVisit,
+    addVisit, addVisitSeries, editVisit, deleteVisit,
     completeVisit, cancelVisit, annulVisit,
     revertVisit, confirmVisit, generateSupportVisit,
   };

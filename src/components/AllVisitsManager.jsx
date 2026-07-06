@@ -525,6 +525,12 @@ export default function AllVisitsManager({ user }) {
                               🔧 Soporte
                             </span>
                           )}
+                          {visit.recurrenceTotal > 1 && (
+                            <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-semibold"
+                              title="Visita generada como parte de una serie periódica">
+                              🔁 Serie {visit.recurrenceIndex}/{visit.recurrenceTotal}
+                            </span>
+                          )}
                           <span className="font-bold text-slate-800 truncate">{visit.clientName}</span>
                           {visit.serviceOrder && (
                             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
