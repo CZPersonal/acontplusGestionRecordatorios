@@ -38,10 +38,10 @@ export const VISIT_COLUMNS = [
   { key: 'visitStatus',         label: 'Estado visita',              enabled: true  },
   { key: 'technician',          label: 'Técnico',                    enabled: true  },
   { key: 'observations',        label: 'Observaciones',              enabled: true  },
-  { key: 'closingObservations', label: 'Obs. cierre',                enabled: false },
-  { key: 'valorCobrar',         label: 'Valor a pagar',              enabled: false },
+  { key: 'completedAt',         label: 'Fecha realizada',            enabled: true  },
+  { key: 'closingObservations', label: 'Obs. cierre',                enabled: true  },
+  { key: 'valorCobrar',         label: 'Valor a pagar',              enabled: true  },
   { key: 'completedBy',         label: 'Completado por',             enabled: false },
-  { key: 'completedAt',         label: 'Fecha completado',           enabled: false },
   { key: 'taskStatus',          label: 'Estado tarea',               enabled: false },
 ];
 

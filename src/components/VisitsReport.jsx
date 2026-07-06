@@ -433,6 +433,8 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Estado</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Técnico</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Observaciones</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Fecha realizada</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Obs. de cierre</th>
                     <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Valor a pagar</th>
                   </tr>
                 </thead>
@@ -519,9 +521,6 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                           {row.confirmedAt && (
                             <p className="text-xs text-teal-600 mt-0.5">🕐 Conf: {formatDateTime(row.confirmedAt)}</p>
                           )}
-                          {row.visitStatus === 'Realizada' && row.completedAt && (
-                            <p className="text-xs text-green-600 mt-0.5">✅ Real: {formatDateTime(row.completedAt)}</p>
-                          )}
                         </td>
 
                         {/* Técnico */}
@@ -541,11 +540,22 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                               {row.observations}
                             </p>
                           ) : <span className="text-slate-300 text-xs">—</span>}
-                          {row.visitStatus === 'Realizada' && row.closingObservations && (
-                            <p className="text-xs text-green-600 italic truncate mt-0.5" title={row.closingObservations}>
-                              ✅ {row.closingObservations}
+                        </td>
+
+                        {/* Fecha realizada — fecha y hora reales del cierre, solo si Realizada */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {row.visitStatus === 'Realizada' && row.completedAt
+                            ? <span className="text-xs font-semibold text-green-700">{formatDateTime(row.completedAt)}</span>
+                            : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
+
+                        {/* Obs. de cierre — observación registrada al presionar "Realizada" */}
+                        <td className="px-4 py-3 max-w-xs">
+                          {row.visitStatus === 'Realizada' && row.closingObservations ? (
+                            <p className="text-xs text-green-600 italic truncate" title={row.closingObservations}>
+                              {row.closingObservations}
                             </p>
-                          )}
+                          ) : <span className="text-slate-300 text-xs">—</span>}
                         </td>
 
                         {/* Valor a pagar — solo si la visita ya está realizada */}
