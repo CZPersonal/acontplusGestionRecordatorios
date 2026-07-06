@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, X, User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, ChevronDown, Pencil, CheckCircle2, Loader2, AlertCircle,
-  Search, Ban, Wrench, UserPlus, Lock, Navigation, Building2, WifiOff,
+  Search, Ban, Wrench, UserPlus, Lock, Navigation, Building2, WifiOff, Repeat,
 } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
@@ -28,7 +28,19 @@ const EMPTY_FORM = {
   scheduledDate:   localToday(),
   scheduledTime:   '',
   motivo:          '',
+  isPeriodica:          false,
+  periodicidad:         'mensual',
+  periodicidadCantidad: '',
 };
+
+// Opciones de periodicidad — solo informativo: el administrador las usa como
+// referencia para configurar la recurrencia real al convertir el borrador.
+export const PERIODICIDAD_OPTIONS = [
+  { value: 'quincenal',  label: 'Quincenal'  },
+  { value: 'mensual',    label: 'Mensual'    },
+  { value: 'trimestral', label: 'Trimestral' },
+  { value: 'semestral',  label: 'Semestral'  },
+];
 
 // ─── Modal: crear nuevo cliente desde el borrador ─────────────────────────────
 
@@ -341,6 +353,7 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     if (!form.clientName.trim()) e.clientName = 'Requerido';
     if (!form.scheduledDate)     e.scheduledDate = 'Requerido';
     if (!form.motivo.trim())     e.motivo = 'Requerido';
+    if (form.isPeriodica && !form.periodicidadCantidad) e.periodicidadCantidad = 'Requerido';
     return e;
   };
 
@@ -363,6 +376,9 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
       scheduledDate:   form.scheduledDate,
       scheduledTime:   form.scheduledTime,
       motivo:          form.motivo.trim(),
+      isPeriodica:          form.isPeriodica,
+      periodicidad:         form.isPeriodica ? form.periodicidad : null,
+      periodicidadCantidad: form.isPeriodica ? (Number(form.periodicidadCantidad) || null) : null,
     });
     if (ok) onClose();
   };
@@ -815,6 +831,45 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
             {errors.motivo && <p className="text-xs text-red-600 mt-1">⚠️ {errors.motivo}</p>}
           </div>
 
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-3 space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={form.isPeriodica}
+                onChange={e => set('isPeriodica', e.target.checked)}
+                className="w-4 h-4 accent-pink-500" />
+              <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                <Repeat size={14} className="text-pink-500" />Es una visita periódica
+              </span>
+            </label>
+            {form.isPeriodica && (
+              <div className="pl-6 space-y-3">
+                <p className="text-xs text-slate-400">
+                  Solo informativo — el administrador usará estos datos para configurar la serie de visitas al convertir este borrador.
+                </p>
+                <div>
+                  <label className={lbl}>Periodicidad</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PERIODICIDAD_OPTIONS.map(({ value, label }) => (
+                      <button key={value} type="button"
+                        onClick={() => set('periodicidad', value)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          form.periodicidad === value ? 'bg-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className={lbl}>Cantidad de visitas</label>
+                  <input type="number" min="1" value={form.periodicidadCantidad}
+                    onChange={e => set('periodicidadCantidad', e.target.value)}
+                    placeholder="Ej: 12" className={inp(errors.periodicidadCantidad)} />
+                  {errors.periodicidadCantidad && <p className="text-xs text-red-600 mt-1">⚠️ {errors.periodicidadCantidad}</p>}
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Botones */}
@@ -904,6 +959,12 @@ function BorradorCard({ b, onEdit, onAnular }) {
         </div>
         {b.motivo && (
           <p className="text-xs text-slate-500 italic mt-1 line-clamp-2">📝 {b.motivo}</p>
+        )}
+        {b.isPeriodica && (
+          <p className="text-xs font-semibold text-pink-600 mt-1 flex items-center gap-1">
+            <Repeat size={11} className="flex-shrink-0" />
+            Periódica: {PERIODICIDAD_OPTIONS.find(o => o.value === b.periodicidad)?.label || b.periodicidad} × {b.periodicidadCantidad}
+          </p>
         )}
         {b.status === 'Convertido' && b.convertedAt && (
           <p className="text-xs text-green-600 mt-1.5">
@@ -1145,6 +1206,9 @@ export default function BorradorSheet({ user, showList = false }) {
                 scheduledDate:   editing.scheduledDate   || localToday(),
                 scheduledTime:   editing.scheduledTime   || '',
                 motivo:          editing.motivo          || '',
+                isPeriodica:          editing.isPeriodica          || false,
+                periodicidad:         editing.periodicidad         || 'mensual',
+                periodicidadCantidad: editing.periodicidadCantidad || '',
               } : null}
               onSave={handleSave}
               onClose={closeSheet}

@@ -2,12 +2,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   User, Hash, MapPin, Phone, Mail, Calendar, Clock,
   FileText, CheckCircle2, Search, X, AlertCircle, Loader2,
-  ArrowRight, Eye, Ban, Trash2, Navigation, Building2,
+  ArrowRight, Eye, Ban, Trash2, Navigation, Building2, Repeat,
 } from 'lucide-react';
 import { useBorradores } from '../hooks/useBorradores';
 import { useTecnicos } from '../hooks/useTecnicos';
 import { useAppStore } from '../lib/store';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
+import { PERIODICIDAD_OPTIONS } from './BorradorSheet.jsx';
+
+const periodicidadLabel = (value) => PERIODICIDAD_OPTIONS.find(o => o.value === value)?.label || value;
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
@@ -82,6 +85,8 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
             b.scheduledDate ? formatDateOnly(b.scheduledDate) : null)}
           {row(<Clock size={14} className="text-slate-400" />,      'Hora',               b.scheduledTime)}
           {row(<FileText size={14} className="text-slate-400" />,   'Motivo',             b.motivo)}
+          {row(<Repeat size={14} className="text-pink-500" />,      'Periodicidad',
+            b.isPeriodica ? `${periodicidadLabel(b.periodicidad)} × ${b.periodicidadCantidad} visitas` : null)}
 
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2">Técnico</p>
           {row(<User size={14} className="text-slate-400" />,       'Nombre',             b.technicianName)}
@@ -140,6 +145,15 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
             </div>
           ) : (
             <div className="flex flex-col gap-2">
+              {isPendiente && b.isPeriodica && (
+                <div className="flex items-start gap-2 text-xs font-semibold text-pink-700 bg-pink-50 border border-pink-200 rounded-xl px-3 py-2.5">
+                  <Repeat size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>
+                    Visita periódica: {periodicidadLabel(b.periodicidad)} × {b.periodicidadCantidad} visitas.
+                    Recuerda configurar la serie con "Repetir esta visita" al crear la visita.
+                  </span>
+                </div>
+              )}
               <div className="flex gap-2">
                 {isPendiente && (
                   <button onClick={() => onConvert(b)} disabled={converting}
@@ -217,6 +231,11 @@ function BorradorRow({ b, onDetail }) {
           {b.technicianName && (
             <span className="text-xs text-slate-400 flex items-center gap-1">
               <User size={10} />{b.technicianName}
+            </span>
+          )}
+          {b.isPeriodica && (
+            <span className="text-xs font-bold text-pink-600 flex items-center gap-1">
+              <Repeat size={10} />{periodicidadLabel(b.periodicidad)} × {b.periodicidadCantidad}
             </span>
           )}
         </div>
