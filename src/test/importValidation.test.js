@@ -1,88 +1,108 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { validateRow } from '../utils/importValidation.js';
+import { describe, it, expect } from 'vitest';
+import { normalizeRow, groupRowsByClient, validateGroup } from '../utils/importValidation.js';
 
-const VALID_ROW = {
-  foreignRaw:     'NO',
-  foreign:        false,
-  identification: '1712345678',
-  name:           'Juan Pérez',
-  address:        'Calle Principal 123',
-  phone:          '0991234567',
-  email:          '',
-};
-
-describe('validateRow', () => {
-  let existingIds;
-  let seenInFile;
-
-  beforeEach(() => {
-    existingIds = new Set();
-    seenInFile  = new Map();
+describe('normalizeRow', () => {
+  it('mapea columnas en español a la estructura canónica', () => {
+    const row = normalizeRow({
+      RUC: '1712345678', NOMBRE: 'Juan Pérez', UBICACION: 'Casa', CIUDAD: 'Quito',
+      EMAIL: 'juan@email.com', DIRECCION: 'Av. Principal 123', TELEFONO: '0991234567',
+      EQUIPO: '', OBSERVACION: 'OZONO',
+    });
+    expect(row).toMatchObject({
+      identification: '1712345678', name: 'Juan Pérez', ubicacion: 'Casa', ciudad: 'Quito',
+      email: 'juan@email.com', address: 'Av. Principal 123', phone: '0991234567',
+    });
   });
 
-  it('fila válida nacional no produce errores', () => {
-    expect(validateRow(VALID_ROW, existingIds, seenInFile, 1)).toEqual([]);
+  it('usa Observación como respaldo de tipo de servicio cuando Equipo está vacío', () => {
+    const row = normalizeRow({ RUC: '1', NOMBRE: 'X', EQUIPO: '', OBSERVACION: 'OZONO' });
+    expect(row.serviceType).toBe('OZONO');
   });
 
-  it('RUC de 13 dígitos es válido', () => {
-    const row = { ...VALID_ROW, identification: '1790123456001' };
-    expect(validateRow(row, existingIds, seenInFile, 1)).toEqual([]);
+  it('prioriza Equipo sobre Observación cuando ambos vienen llenos', () => {
+    const row = normalizeRow({ RUC: '1', NOMBRE: 'X', EQUIPO: 'Ozonizador', OBSERVACION: 'Nota libre' });
+    expect(row.serviceType).toBe('Ozonizador');
   });
 
-  it('cliente extranjero con letras en ID es válido', () => {
-    const row = { ...VALID_ROW, foreignRaw: 'SI', foreign: true, identification: 'A1234567' };
-    expect(validateRow(row, existingIds, seenInFile, 1)).toEqual([]);
+  it('acepta un RUC placeholder (cliente sin cédula real)', () => {
+    const row = normalizeRow({ RUC: 'RUC00015', NOMBRE: 'Tatiana Malla' });
+    expect(row.identification).toBe('RUC00015');
   });
 
-  it('foreignRaw vacío genera error', () => {
-    const errors = validateRow({ ...VALID_ROW, foreignRaw: '' }, existingIds, seenInFile, 1);
-    expect(errors).toContain('Campo Extranjero vacío (debe ser SI o NO)');
+  it('detecta cliente extranjero cuando la columna Extranjero está presente', () => {
+    const row = normalizeRow({ Extranjero: 'SI', RUC: 'A1234567', NOMBRE: 'John Smith' });
+    expect(row.foreign).toBe(true);
   });
 
-  it('identificación vacía genera error', () => {
-    const errors = validateRow({ ...VALID_ROW, identification: '' }, existingIds, seenInFile, 1);
-    expect(errors).toContain('Cédula/RUC vacía');
+  it('sin columna Extranjero, foreign queda en false', () => {
+    const row = normalizeRow({ RUC: '1712345678', NOMBRE: 'Juan Pérez' });
+    expect(row.foreign).toBe(false);
+    expect(row.foreignRaw).toBe('');
+  });
+});
+
+describe('groupRowsByClient', () => {
+  it('agrupa varias filas con el mismo RUC en un solo cliente', () => {
+    const rows = [
+      normalizeRow({ RUC: '2100329800001', NOMBRE: 'Robin Espinoza', UBICACION: 'Casa' }),
+      normalizeRow({ RUC: '2100329800001', NOMBRE: 'Robin Espinoza', UBICACION: 'Casa Papá' }),
+      normalizeRow({ RUC: 'RUC00047', NOMBRE: 'Nestor Andy', UBICACION: 'Casa 1' }),
+    ];
+    const groups = groupRowsByClient(rows);
+    expect(groups).toHaveLength(2);
+    const robin = groups.find(g => g.identification === '2100329800001');
+    expect(robin.rows).toHaveLength(2);
+    expect(robin.rows.map(r => r.ubicacion)).toEqual(['Casa', 'Casa Papá']);
   });
 
-  it('identificación con letras para nacional genera error', () => {
-    const errors = validateRow({ ...VALID_ROW, identification: 'ABC1234567' }, existingIds, seenInFile, 1);
-    expect(errors).toContain('Contiene letras — solo números para clientes nacionales');
+  it('una sola fila produce un grupo con una ubicación', () => {
+    const rows = [normalizeRow({ RUC: '111', NOMBRE: 'Alguien' })];
+    const groups = groupRowsByClient(rows);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rows).toHaveLength(1);
   });
 
-  it('identificación de longitud inválida genera error', () => {
-    const errors = validateRow({ ...VALID_ROW, identification: '12345' }, existingIds, seenInFile, 1);
-    expect(errors.some(e => e.includes('Longitud inválida'))).toBe(true);
+  it('limpia espacios del RUC al agrupar', () => {
+    const rows = [
+      normalizeRow({ RUC: ' 111 ', NOMBRE: 'A' }),
+      normalizeRow({ RUC: '111', NOMBRE: 'A' }),
+    ];
+    expect(groupRowsByClient(rows)).toHaveLength(1);
+  });
+});
+
+describe('validateGroup', () => {
+  const existingIds = new Set();
+
+  it('grupo válido con RUC y nombre no produce errores', () => {
+    const group = { identification: '1712345678', name: 'Juan Pérez', rows: [] };
+    const result = validateGroup(group, existingIds);
+    expect(result).toEqual({ errors: [], existing: false, valid: true });
   });
 
-  it('cédula duplicada dentro del mismo archivo genera error', () => {
-    seenInFile.set('1712345678', 1);
-    const errors = validateRow(VALID_ROW, existingIds, seenInFile, 2);
-    expect(errors.some(e => e.includes('repetida en el archivo'))).toBe(true);
+  it('RUC placeholder (sin formato estándar) es válido', () => {
+    const group = { identification: 'RUC00015', name: 'Tatiana Malla', rows: [] };
+    expect(validateGroup(group, existingIds).valid).toBe(true);
   });
 
-  it('identificación ya existente en BD genera error', () => {
+  it('RUC vacío genera error bloqueante', () => {
+    const group = { identification: '', name: 'Juan Pérez', rows: [] };
+    const result = validateGroup(group, existingIds);
+    expect(result.errors).toContain('Cédula/RUC vacía');
+    expect(result.valid).toBe(false);
+  });
+
+  it('nombre vacío genera error bloqueante', () => {
+    const group = { identification: '123', name: '', rows: [] };
+    const result = validateGroup(group, existingIds);
+    expect(result.errors).toContain('Nombre vacío');
+    expect(result.valid).toBe(false);
+  });
+
+  it('cliente ya existente en el sistema no es válido pero no tiene errores', () => {
     existingIds.add('1712345678');
-    const errors = validateRow(VALID_ROW, existingIds, seenInFile, 1);
-    expect(errors).toContain('Ya existe en el sistema — no se importará');
-  });
-
-  it('nombre vacío genera error', () => {
-    expect(validateRow({ ...VALID_ROW, name: '' }, existingIds, seenInFile, 1))
-      .toContain('Nombre vacío');
-  });
-
-  it('dirección vacía genera error', () => {
-    expect(validateRow({ ...VALID_ROW, address: '' }, existingIds, seenInFile, 1))
-      .toContain('Dirección vacía');
-  });
-
-  it('teléfono vacío genera error', () => {
-    expect(validateRow({ ...VALID_ROW, phone: '' }, existingIds, seenInFile, 1))
-      .toContain('Teléfono vacío');
-  });
-
-  it('múltiples campos vacíos acumulan todos los errores', () => {
-    const errors = validateRow({ ...VALID_ROW, name: '', address: '', phone: '' }, existingIds, seenInFile, 1);
-    expect(errors.length).toBeGreaterThanOrEqual(3);
+    const group = { identification: '1712345678', name: 'Juan Pérez', rows: [] };
+    const result = validateGroup(group, existingIds);
+    expect(result).toEqual({ errors: [], existing: true, valid: false });
   });
 });

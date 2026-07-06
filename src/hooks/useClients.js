@@ -255,72 +255,70 @@ export function useClients(user) {
   };
 
   // ─── importClients: lote desde Excel/CSV ──────────────────────────────────
-  const importClients = async (rows, onProgress) => {
-    if (!user) return { ok: 0, errors: [] };
+  // `groups` viene de importValidation.js: uno por cliente (RUC), cada uno con
+  // `rows` = sus ubicaciones (1 o más). Los clientes que ya existen en Firestore
+  // se omiten por completo — no se tocan sus contacts[] para no sobreescribir
+  // ubicaciones e instalaciones ingresadas manualmente.
+  const importClients = async (groups, onProgress) => {
+    if (!user) return { ok: 0, skipped: 0, errors: [] };
 
     const BATCH_SIZE = 100;
     let ok = 0;
+    let skipped = 0;
     const errors = [];
-    const total = rows.length;
+    const total = groups.length;
 
-    // IDs de clientes que ya existen en Firestore (cargados por onSnapshot).
-    // Para estos solo se actualizan campos básicos; contacts[] NO se toca
-    // para no sobreescribir ubicaciones e instalaciones ingresadas manualmente.
     const existingIds = new Set(clients.map(c => c.id));
 
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const chunk = rows.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < groups.length; i += BATCH_SIZE) {
+      const chunk = groups.slice(i, i + BATCH_SIZE);
       const batch = writeBatch(db);
+      const toWrite = [];
 
-      for (const row of chunk) {
-        if (!row.identification?.trim() || !row.name?.trim()) {
-          errors.push({ row, reason: 'Nombre o cédula vacíos' });
+      for (const group of chunk) {
+        if (!group.identification?.trim() || !group.name?.trim()) {
+          errors.push({ row: group, reason: 'Nombre o cédula vacíos' });
           continue;
         }
-        const clientId = row.identification.replace(/\s/g, '');
-        const ref      = doc(getCollectionRef('clients'), clientId);
+        const clientId = group.identification.replace(/\s/g, '');
 
         if (existingIds.has(clientId)) {
-          // Cliente existente — solo actualizar campos básicos, preservar contacts[]
-          batch.set(ref, {
-            name:           row.name.trim(),
-            identification: row.identification.trim(),
-            foreign:        row.foreign ?? false,
-            active:         true,
-            updatedAt:      new Date().toISOString(),
-          }, { merge: true });
-        } else {
-          // Cliente nuevo — crear con contacts[] completo
-          batch.set(ref, {
-            id:             clientId,
-            name:           row.name.trim(),
-            identification: row.identification.trim(),
-            foreign:        row.foreign ?? false,
-            contacts: [emptyContact({
-              phone:     row.phone,
-              address:   row.address,
-              email:     row.email,
-              ciudad:    row.ciudad,
-              ubicacion: row.ubicacion,
-            })],
-            active:    true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
+          skipped++;
+          continue;
         }
+
+        const ref = doc(getCollectionRef('clients'), clientId);
+        batch.set(ref, {
+          id:             clientId,
+          name:           group.name.trim(),
+          identification: group.identification.trim(),
+          foreign:        group.foreign ?? false,
+          contacts: group.rows.map(r => emptyContact({
+            phone:         r.phone,
+            address:       r.address,
+            email:         r.email,
+            ciudad:        r.ciudad,
+            ubicacion:     r.ubicacion,
+            installations: r.serviceType ? [emptyInstallation({ serviceType: r.serviceType })] : [],
+          })),
+          active:    true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        toWrite.push(group);
       }
 
       try {
         await batch.commit();
-        ok += chunk.filter(r => r.identification?.trim() && r.name?.trim()).length;
+        ok += toWrite.length;
       } catch (err) {
-        chunk.forEach(row => errors.push({ row, reason: err.message }));
+        toWrite.forEach(group => errors.push({ row: group, reason: err.message }));
       }
 
       if (onProgress) onProgress(Math.min(i + BATCH_SIZE, total), total);
     }
 
-    return { ok, errors };
+    return { ok, skipped, errors };
   };
 
   useEffect(() => { useAppStore.setState({ clients }); }, [clients]);

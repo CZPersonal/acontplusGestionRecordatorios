@@ -1,5 +1,9 @@
 // Lógica pura de normalización y validación para importación masiva de clientes.
 // Extraída de ClientImportModal.jsx para permitir tests unitarios.
+//
+// Un mismo cliente (RUC/cédula) puede aparecer en varias filas del archivo — cada fila
+// es una ubicación distinta (ej. la hoja "DUPLICADOS" del formato real de la empresa).
+// Por eso la validación no ocurre fila por fila, sino agrupando primero por RUC.
 
 // ─── Normalizar fila cruda (Excel/CSV) a estructura canónica ──────────────────
 export function normalizeRow(raw) {
@@ -17,6 +21,8 @@ export function normalizeRow(raw) {
   const foreignUpper = foreignRaw.toUpperCase();
   const foreign      = ['SI', 'S', 'YES', '1', 'TRUE', 'SÍ'].includes(foreignUpper);
 
+  const observacion = get('observacion', 'observaciones', 'notas', 'notes', 'observation');
+
   return {
     foreignRaw,
     foreign,
@@ -27,51 +33,48 @@ export function normalizeRow(raw) {
     email:          get('email', 'correo', 'mail'),
     ciudad:         get('ciudad', 'city', 'canton'),
     ubicacion:      get('ubicacion', 'sector', 'barrio', 'location', 'referencia'),
-    observacion:    get('observacion', 'observaciones', 'notas', 'notes', 'observation'),
+    observacion,
+    // La columna "Equipo" casi nunca viene llena en los archivos reales de la empresa —
+    // el tipo de equipo/servicio (OZONO, OSMOSIS, etc.) termina escrito en Observación,
+    // así que se usa como respaldo cuando Equipo está vacío.
+    serviceType: get('equipo', 'servicetype', 'tipoequipo') || observacion,
   };
 }
 
-// ─── Validar fila normalizada — 9 reglas, todas bloqueantes ──────────────────
-export function validateRow(row, existingIds, seenInFile, rowIndex) {
+// ─── Agrupar filas normalizadas por cliente (RUC/cédula) ──────────────────────
+// Cada grupo representa UN cliente; `rows` son sus ubicaciones (1 o más).
+export function groupRowsByClient(normalizedRows) {
+  const groups = new Map();
+  normalizedRows.forEach((row, idx) => {
+    const id = row.identification.replace(/\s/g, '');
+    if (!groups.has(id)) {
+      groups.set(id, {
+        identification: id,
+        name:           row.name,
+        foreign:        row.foreign,
+        rows:           [],
+      });
+    }
+    groups.get(id).rows.push({ ...row, rowIndex: idx + 1 });
+  });
+  return [...groups.values()];
+}
+
+// ─── Validar un grupo (cliente) — reglas mínimas, no bloquean por ubicación ──
+// Solo el RUC/cédula y el nombre son obligatorios. No se exige formato de RUC
+// (los clientes sin cédula real usan placeholders tipo "RUC00015"), ni dirección,
+// teléfono o email por ubicación — son datos de campo frecuentemente incompletos.
+export function validateGroup(group, existingIds) {
   const errors = [];
 
-  // 1. Extranjero vacío
-  if (!row.foreignRaw?.trim())
-    errors.push('Campo Extranjero vacío (debe ser SI o NO)');
+  if (!group.identification.trim()) errors.push('Cédula/RUC vacía');
+  if (!group.name?.trim())          errors.push('Nombre vacío');
 
-  // 2. Cédula/RUC vacía
-  if (!row.identification?.trim()) {
-    errors.push('Cédula/RUC vacía');
-  } else {
-    const clean = row.identification.replace(/\s/g, '');
+  const existing = errors.length === 0 && existingIds.has(group.identification);
 
-    if (!row.foreign) {
-      // 6. Solo números para nacionales
-      if (!/^\d+$/.test(clean))
-        errors.push('Contiene letras — solo números para clientes nacionales');
-      // 7. Longitud 10 o 13
-      else if (clean.length !== 10 && clean.length !== 13)
-        errors.push('Longitud inválida: ' + clean.length + ' dígito' + (clean.length !== 1 ? 's' : '') + ' (debe ser 10 o 13)');
-    }
-
-    // 8. Duplicado en el archivo
-    if (seenInFile.has(clean)) {
-      errors.push('Cédula/RUC repetida en el archivo (igual a fila ' + seenInFile.get(clean) + ')');
-    } else if (clean) {
-      seenInFile.set(clean, rowIndex);
-    }
-
-    // 9. Ya existe en base de datos — bloqueante
-    if (existingIds.has(clean))
-      errors.push('Ya existe en el sistema — no se importará');
-  }
-
-  // 3. Nombre vacío
-  if (!row.name?.trim())     errors.push('Nombre vacío');
-  // 4. Dirección vacía
-  if (!row.address?.trim())  errors.push('Dirección vacía');
-  // 5. Teléfono vacío
-  if (!row.phone?.trim())    errors.push('Teléfono vacío');
-
-  return errors;
+  return {
+    errors,
+    existing,
+    valid: errors.length === 0 && !existing,
+  };
 }

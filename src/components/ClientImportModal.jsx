@@ -2,23 +2,24 @@ import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
   X, Upload, Download, CheckCircle, AlertCircle,
-  Loader2, FileText, Trash2, Users
+  Loader2, FileText, Trash2, Users, MapPin
 } from 'lucide-react';
-import { normalizeRow, validateRow } from '../utils/importValidation.js';
+import { normalizeRow, groupRowsByClient, validateGroup } from '../utils/importValidation.js';
 
-// ─── Paso 1: Plantilla CSV ─────────────────────────────────────────────────────
-// Orden: Extranjero | Cedula_RUC | Nombre | Direccion | Telefono | Email | Ciudad | Ubicacion | Observacion
+// ─── Paso 1: Plantilla Excel ───────────────────────────────────────────────────
+// Orden: RUC | NOMBRE | UBICACION | CIUDAD | EMAIL | DIRECCION | TELEFONO | EQUIPO | OBSERVACION
+// Un mismo RUC en varias filas = varias ubicaciones del mismo cliente.
 function downloadTemplate() {
-  const headers = ['Extranjero', 'Cedula_RUC', 'Nombre', 'Direccion', 'Telefono', 'Email', 'Ciudad', 'Ubicacion', 'Observacion'];
+  const headers = ['RUC', 'NOMBRE', 'UBICACION', 'CIUDAD', 'EMAIL', 'DIRECCION', 'TELEFONO', 'EQUIPO', 'OBSERVACION'];
   const example = [
-    ['NO', '1712345678',    'Juan Pérez',        'Av. Principal 123',       '0991234567', 'juan@email.com', 'Quito',     'Norte - La Carolina', ''],
-    ['NO', '1790123456001', 'Empresa ABC S.A.',   'Calle 5 de Junio 456',   '022345678',  '',               'Guayaquil', 'Centro histórico',    'Cliente preferencial'],
-    ['SI', 'A1234567',      'John Smith',          'Edificio Centro Piso 3', '0998765432', 'john@email.com', '',          '',                    ''],
+    ['1712345678',    'Juan Pérez',       'Casa',          'Quito',      'juan@email.com', 'Av. Principal 123',     '0991234567', '', 'Ozono'],
+    ['1790123456001', 'Empresa ABC S.A.', 'Oficina matriz','Guayaquil',  '',               'Calle 5 de Junio 456',  '022345678',  '', 'Osmosis'],
+    ['1790123456001', 'Empresa ABC S.A.', 'Bodega norte',  'Guayaquil',  '',               'Av. Norte km 5',        '022345678',  '', 'Lechos filtrantes'],
   ];
   const csv = [headers, ...example]
     .map(r => r.map(c => `"${c}"`).join(','))
     .join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
@@ -27,7 +28,7 @@ function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
-// ─── Parsear Excel/CSV usando SheetJS ─────────────────────────────────────────
+// ─── Parsear Excel/CSV usando SheetJS — lee TODAS las hojas del libro ────────
 function parseFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -35,8 +36,9 @@ function parseFile(file) {
       try {
         const data = new Uint8Array(e.target.result);
         const wb   = XLSX.read(data, { type: 'array' });
-        const ws   = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+        const rows = wb.SheetNames.flatMap(name =>
+          XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '', raw: false })
+        );
         resolve(rows);
       } catch (err) {
         reject(err);
@@ -61,30 +63,11 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
 
   const existingIds = new Set(existingClients.map(c => c.identification?.replace(/\s/g, '')));
 
-  const seenInFile = new Map();
-  const validated  = rows.map((row, idx) => {
-    const errors = validateRow(row, existingIds, seenInFile, idx + 1);
-    return { ...row, errors, valid: errors.length === 0 };
-  });
-
-  const validCount   = validated.filter(r => r.valid).length;
-  const invalidCount = validated.length - validCount;
-
-  // ─── Paso 4: agrupar errores ───────────────────────────────────────────────
-  const makeGroup = (pred) =>
-    validated.map((r, i) => r.errors.some(pred) ? i + 1 : null).filter(Boolean);
-
-  const eg = {
-    extranjerVacio:   makeGroup(e => e.includes('Extranjero vacío')),
-    cedulaVacia:      makeGroup(e => e.includes('Cédula/RUC vacía')),
-    nombreVacio:      makeGroup(e => e.includes('Nombre vacío')),
-    direccionVacia:   makeGroup(e => e.includes('Dirección vacía')),
-    telefonoVacio:    makeGroup(e => e.includes('Teléfono vacío')),
-    soloNumeros:      makeGroup(e => e.includes('Contiene letras')),
-    longitud:         makeGroup(e => e.includes('Longitud inválida')),
-    duplicadoArchivo: makeGroup(e => e.includes('repetida en el archivo')),
-    duplicadoSistema: makeGroup(e => e.includes('Ya existe en el sistema')),
-  };
+  const groups = groupRowsByClient(rows).map(g => ({ ...g, ...validateGroup(g, existingIds) }));
+  const validGroups   = groups.filter(g => g.valid);
+  const existingCount = groups.filter(g => g.existing).length;
+  const errorCount    = groups.filter(g => !g.valid && !g.existing).length;
+  const totalUbicaciones = validGroups.reduce((s, g) => s + g.rows.length, 0);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -92,7 +75,7 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
     setParseError('');
     try {
       const raw        = await parseFile(file);
-      const normalized = raw.map(normalizeRow).filter(r => r.name || r.identification || r.foreignRaw);
+      const normalized = raw.map(normalizeRow).filter(r => r.name || r.identification);
       setRows(normalized);
       setStep('preview');
     } catch {
@@ -109,28 +92,18 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
     if (file) handleFile(file);
   };
 
-  const handleRemoveRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx));
+  // Elimina una fila (ubicación) individual del archivo — opera antes de agrupar
+  const handleRemoveRow = (rowIndex) => setRows(prev => prev.filter((_, i) => i + 1 !== rowIndex));
 
   const handleConfirmImport = async () => {
-    const toImport = validated.filter(r => r.valid);
-    setProgress({ done: 0, total: toImport.length });
+    setProgress({ done: 0, total: validGroups.length });
     setIsImporting(true);
-    const res = await onImport(toImport, (done, total) => {
+    const res = await onImport(validGroups, (done, total) => {
       setProgress({ done, total });
     });
     setResult(res);
     setStep('result');
     setIsImporting(false);
-  };
-
-  const AlertRow = ({ label, rows: af }) => {
-    if (!af.length) return null;
-    return (
-      <p className="text-xs text-red-700">
-        <span className="font-bold">{label}</span>
-        <span className="text-red-500"> → fila{af.length > 1 ? 's' : ''} {af.join(', ')}</span>
-      </p>
-    );
   };
 
   return (
@@ -145,7 +118,7 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
             <h3 className="font-bold text-base">Importar clientes desde Excel</h3>
             <p className="text-xs opacity-80 mt-0.5">
               {step === 'upload'  && 'Sube tu archivo .xlsx o .csv'}
-              {step === 'preview' && `${validated.length} registros · ${validCount} válidos · ${invalidCount} con errores`}
+              {step === 'preview' && `${rows.length} filas · ${groups.length} clientes · ${validGroups.length} nuevos`}
               {step === 'result'  && 'Importación completada'}
             </p>
           </div>
@@ -167,17 +140,16 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                   <p className="text-sm font-semibold text-blue-800">Paso 1 — Descarga la plantilla</p>
                   <p className="text-xs text-blue-600 mt-0.5">
                     Columnas obligatorias:
-                    <span className="font-bold ml-1">Extranjero · Cedula_RUC · Nombre · Direccion · Telefono</span>
+                    <span className="font-bold ml-1">RUC · Nombre</span>
                   </p>
                   <p className="text-xs text-blue-600 mt-0.5">
                     Columnas opcionales:
-                    <span className="font-bold ml-1">Email · Ciudad · Ubicacion · Observacion</span>
+                    <span className="font-bold ml-1">Ubicacion · Ciudad · Email · Direccion · Telefono · Equipo · Observacion</span>
                   </p>
                   <p className="text-xs text-blue-500 mt-1">
-                    • <strong>Extranjero</strong>: <strong>SI</strong> o <strong>NO</strong> (obligatorio)<br/>
-                    • <strong>Nacionales</strong>: solo números, 10 dígitos (cédula) o 13 (RUC)<br/>
-                    • <strong>Extranjeros</strong>: cualquier valor alfanumérico<br/>
-                    • <strong>Ciudad / Ubicacion / Observacion</strong>: opcionales, texto libre
+                    • Si un cliente tiene <strong>varias ubicaciones</strong>, repite su RUC en una fila por cada una — se agrupan automáticamente en un solo cliente.<br/>
+                    • El archivo puede tener <strong>varias hojas</strong>; se leen todas.<br/>
+                    • <strong>RUC</strong>: acepta cédula/RUC real o un código propio si el cliente no tiene uno registrado.
                   </p>
                 </div>
                 <button onClick={downloadTemplate}
@@ -227,133 +199,135 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
             <div className="space-y-3">
 
               {/* KPIs */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-slate-400 uppercase font-semibold mb-0.5">Total</p>
-                  <p className="text-xl font-bold text-slate-700">{validated.length}</p>
-                </div>
-                <div className="bg-green-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-green-600 uppercase font-semibold mb-0.5">Válidos</p>
-                  <p className="text-xl font-bold text-green-700">{validCount}</p>
-                </div>
-                <div className="bg-red-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-red-500 uppercase font-semibold mb-0.5">Con errores</p>
-                  <p className="text-xl font-bold text-red-600">{invalidCount}</p>
-                </div>
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { label: 'Filas',      value: rows.length,       color: 'text-slate-700',  bg: 'bg-slate-50'  },
+                  { label: 'Clientes',   value: groups.length,     color: 'text-slate-700',  bg: 'bg-slate-50'  },
+                  { label: 'Nuevos',     value: validGroups.length,color: 'text-green-700',  bg: 'bg-green-50'  },
+                  { label: 'Ya existen', value: existingCount,     color: 'text-blue-700',   bg: 'bg-blue-50'   },
+                  { label: 'Con errores', value: errorCount,       color: 'text-red-600',    bg: 'bg-red-50'    },
+                ].map(k => (
+                  <div key={k.label} className={`${k.bg} rounded-xl p-3 text-center`}>
+                    <p className="text-xs uppercase font-semibold mb-0.5 text-slate-400">{k.label}</p>
+                    <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Panel alertas */}
-              {invalidCount > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-1.5">
-                  <p className="text-xs font-bold text-red-700 uppercase tracking-wide flex items-center gap-1.5 mb-2">
-                    <AlertCircle size={13} />
-                    {invalidCount} fila{invalidCount !== 1 ? 's' : ''} con errores — no se importarán
+              {existingCount > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                  <CheckCircle size={15} className="text-blue-500 flex-shrink-0" />
+                  <p className="text-xs text-blue-700 font-medium">
+                    {existingCount} cliente{existingCount !== 1 ? 's' : ''} ya existen en el sistema — no se modificarán ni se tocarán sus ubicaciones.
                   </p>
-                  <AlertRow label="Campo Extranjero vacío (debe ser SI o NO)" rows={eg.extranjerVacio} />
-                  <AlertRow label="Cédula/RUC vacía"                          rows={eg.cedulaVacia} />
-                  <AlertRow label="Nombre vacío"                              rows={eg.nombreVacio} />
-                  <AlertRow label="Dirección vacía"                           rows={eg.direccionVacia} />
-                  <AlertRow label="Teléfono vacío"                            rows={eg.telefonoVacio} />
-                  <AlertRow label="Contiene letras (cliente nacional)"        rows={eg.soloNumeros} />
-                  <AlertRow label="Longitud inválida (debe ser 10 o 13 dígitos)" rows={eg.longitud} />
-                  <AlertRow label="Cédula/RUC repetida dentro del archivo"   rows={eg.duplicadoArchivo} />
-                  <AlertRow label="Ya existe en el sistema — no se importará" rows={eg.duplicadoSistema} />
                 </div>
               )}
 
-              {/* Tabla */}
+              {errorCount > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <AlertCircle size={15} className="text-red-500 flex-shrink-0" />
+                  <p className="text-xs text-red-700 font-medium">
+                    {errorCount} cliente{errorCount !== 1 ? 's' : ''} con RUC o nombre vacío — no se importarán.
+                  </p>
+                </div>
+              )}
+
+              {/* Tabla — una fila por ubicación */}
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="overflow-x-auto max-h-96">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                       <tr>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">#</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Estado / Errores</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Extranjero</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Cédula / RUC</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">RUC</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Nombre</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Dirección</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Teléfono</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Email</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Ciudad</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Ubicación</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Observación</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Ciudad</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Dirección</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Teléfono</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Email</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Equipo / Observación</th>
                         <th className="px-3 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {validated.map((row, idx) => (
-                        <tr key={idx} className={row.valid ? 'bg-white hover:bg-slate-50' : 'bg-red-50'}>
-                          <td className="px-3 py-2 text-slate-400 font-mono font-bold">{idx + 1}</td>
+                      {groups.map(group => group.rows.map((row, locIdx) => (
+                        <tr key={row.rowIndex} className={
+                          group.valid ? 'bg-white hover:bg-slate-50'
+                          : group.existing ? 'bg-blue-50'
+                          : 'bg-red-50'
+                        }>
+                          <td className="px-3 py-2 text-slate-400 font-mono font-bold">{row.rowIndex}</td>
 
-                          <td className="px-3 py-2 min-w-[180px]">
-                            {row.valid
-                              ? <CheckCircle size={14} className="text-green-500" />
-                              : <div className="flex flex-col gap-0.5">
-                                  <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
-                                  {row.errors.map((e, i) => (
-                                    <span key={i} className="text-red-600 leading-tight font-medium">{e}</span>
-                                  ))}
-                                </div>
-                            }
-                          </td>
-
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {row.foreign
-                              ? <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">🌐 SI</span>
-                              : row.foreignRaw
-                                ? <span className="text-slate-500">NO</span>
-                                : <span className="text-red-400 italic">vacío</span>
-                            }
+                          <td className="px-3 py-2 min-w-[150px]">
+                            {group.valid ? (
+                              <span className="flex items-center gap-1 text-green-600 font-semibold">
+                                <CheckCircle size={13} />
+                                {group.rows.length > 1 ? 'Ubicación adicional' : 'Nuevo cliente'}
+                              </span>
+                            ) : group.existing ? (
+                              <span className="text-blue-700 font-semibold">Ya existe — se omite</span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                                {group.errors.map((e, i) => (
+                                  <span key={i} className="text-red-600 leading-tight font-medium">{e}</span>
+                                ))}
+                              </div>
+                            )}
                           </td>
 
                           <td className="px-3 py-2 font-mono">
-                            {row.identification || <span className="text-red-400 italic">vacío</span>}
+                            {group.identification || <span className="text-red-400 italic">vacío</span>}
                           </td>
 
                           <td className="px-3 py-2 font-medium text-slate-800">
-                            {row.name || <span className="text-red-400 italic">vacío</span>}
+                            {group.name || <span className="text-red-400 italic">vacío</span>}
                           </td>
 
-                          <td className="px-3 py-2 max-w-[120px] truncate text-slate-500">
-                            {row.address || <span className="text-red-400 italic">vacío</span>}
+                          <td className="px-3 py-2 max-w-[140px] truncate" title={row.ubicacion}>
+                            <span className="text-slate-600">{row.ubicacion || '—'}</span>
+                            {group.rows.length > 1 && (
+                              <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 whitespace-nowrap">
+                                {locIdx + 1}/{group.rows.length}
+                              </span>
+                            )}
                           </td>
-
-                          <td className="px-3 py-2 whitespace-nowrap text-slate-500">
-                            {row.phone || <span className="text-red-400 italic">vacío</span>}
-                          </td>
-
-                          <td className="px-3 py-2 text-slate-400">{row.email || '—'}</td>
 
                           <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.ciudad || '—'}</td>
 
-                          <td className="px-3 py-2 max-w-[120px] truncate text-slate-500" title={row.ubicacion}>
-                            {row.ubicacion || '—'}
+                          <td className="px-3 py-2 max-w-[120px] truncate text-slate-500" title={row.address}>
+                            {row.address || '—'}
                           </td>
 
-                          <td className="px-3 py-2 max-w-[150px] truncate text-slate-400 italic" title={row.observacion}>
-                            {row.observacion || '—'}
+                          <td className="px-3 py-2 whitespace-nowrap text-slate-500">{row.phone || '—'}</td>
+
+                          <td className="px-3 py-2 text-slate-400">{row.email || '—'}</td>
+
+                          <td className="px-3 py-2 max-w-[150px] truncate text-slate-500" title={row.serviceType}>
+                            {row.serviceType || '—'}
                           </td>
 
                           <td className="px-3 py-2">
-                            <button onClick={() => handleRemoveRow(idx)}
+                            <button onClick={() => handleRemoveRow(row.rowIndex)}
                               className="text-slate-300 hover:text-red-500 transition-colors"
                               title="Eliminar fila">
                               <Trash2 size={13} />
                             </button>
                           </td>
                         </tr>
-                      ))}
+                      )))}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {validCount === 0 && (
+              {validGroups.length === 0 && (
                 <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                   <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
                   <p className="text-xs text-amber-700 font-medium">
-                    No hay registros válidos. Corrige los errores en el archivo y vuelve a subirlo.
+                    No hay clientes nuevos para importar. Corrige los errores o revisa el archivo.
                   </p>
                 </div>
               )}
@@ -367,9 +341,13 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
               <div>
                 <h4 className="text-lg font-bold text-slate-800">¡Importación completada!</h4>
                 <p className="text-sm text-slate-500 mt-1">
-                  <span className="font-bold text-green-600">{result.ok}</span> cliente{result.ok !== 1 ? 's' : ''} importado{result.ok !== 1 ? 's' : ''} correctamente.
+                  <span className="font-bold text-green-600">{result.ok}</span> cliente{result.ok !== 1 ? 's' : ''} importado{result.ok !== 1 ? 's' : ''} correctamente
+                  {' '}(<span className="font-bold text-green-600">{totalUbicaciones}</span> ubicaciones).
+                  {result.skipped > 0 && (
+                    <span className="block mt-1 text-blue-600 font-medium">{result.skipped} ya existían y no se modificaron.</span>
+                  )}
                   {result.errors.length > 0 && (
-                    <span className="ml-1 text-red-500 font-medium">{result.errors.length} con errores al guardar.</span>
+                    <span className="block mt-1 text-red-500 font-medium">{result.errors.length} con errores al guardar.</span>
                   )}
                 </p>
               </div>
@@ -429,11 +407,16 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                   /* Botón importar normal */
                   <button
                     onClick={handleConfirmImport}
-                    disabled={validCount === 0}
+                    disabled={validGroups.length === 0}
                     className="w-full flex items-center justify-center gap-2 py-2.5 text-white font-bold rounded-xl text-sm disabled:opacity-50"
                     style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
                     <Users size={14} />
-                    Importar {validCount} cliente{validCount !== 1 ? 's' : ''}
+                    Importar {validGroups.length} cliente{validGroups.length !== 1 ? 's' : ''}
+                    {totalUbicaciones !== validGroups.length && (
+                      <span className="flex items-center gap-1 opacity-80">
+                        <MapPin size={12} />({totalUbicaciones} ubicaciones)
+                      </span>
+                    )}
                   </button>
                 )}
               </div>
