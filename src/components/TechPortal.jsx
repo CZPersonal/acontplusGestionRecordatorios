@@ -213,6 +213,11 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
       </div>
       <div className="px-4 py-3 space-y-1.5">
         <div className="flex items-center gap-5 flex-wrap">
+          {visit.scheduledDate && (
+            <span className={`flex items-center gap-1.5 text-sm font-bold ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
+              <Calendar size={14} className={isOverdue ? 'text-red-400' : 'text-slate-400'} />{formatDateOnly(visit.scheduledDate)}
+            </span>
+          )}
           {visit.scheduledTime && (
             <span className={`flex items-center gap-1.5 text-sm font-bold ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
               <Clock size={14} className={isOverdue ? 'text-red-400' : 'text-slate-400'} />{visit.scheduledTime}
