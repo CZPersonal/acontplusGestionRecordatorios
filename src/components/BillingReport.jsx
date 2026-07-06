@@ -292,6 +292,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                     <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Abonado</th>
                     <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Saldo</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Estado cobro</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Cuotas</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -350,15 +351,25 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                           {isOverdue && (
                             <p className="text-xs text-red-500 mt-0.5">⚠️ Compromiso vencido</p>
                           )}
+                        </td>
+
+                        <td className="px-4 py-3">
                           {(() => {
                             const va = abonosByVisit[visit.id] || [];
-                            if (va.length === 0) return null;
-                            const total    = va.reduce((s, a) => s + (a.valor || 0), 0);
-                            const pagadas  = computeCuotasPagadas(va, summary.abonado).filter(a => a.pagado).length;
+                            if (va.length === 0) return <span className="text-slate-300 text-xs">—</span>;
+                            const cuotas = computeCuotasPagadas(va, summary.abonado); // ya ordenadas por fecha
                             return (
-                              <p className="text-xs text-blue-600 mt-0.5 font-medium">
-                                📅 {pagadas}/{va.length} cuota{va.length !== 1 ? 's' : ''} · ${fmtMoney(total)}
-                              </p>
+                              <div className="space-y-1 min-w-[130px]">
+                                {cuotas.map(c => (
+                                  <div key={c.id} className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                                    <span>{c.pagado ? '✅' : '🕓'}</span>
+                                    <span className="text-slate-500">{formatDateOnly(c.fecha)}</span>
+                                    <span className={`font-semibold ${c.pagado ? 'text-green-600' : 'text-amber-700'}`}>
+                                      ${fmtMoney(c.valor)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             );
                           })()}
                         </td>
