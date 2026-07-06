@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   localDateStr, formatDateOnly,
-  addMonthsClamped, generateMonthlySeries, dedupeSortDates, MAX_RECURRENCE_VISITS,
+  addMonthsClamped, nearestBusinessDay, generatePeriodicSeries, dedupeSortDates, MAX_RECURRENCE_VISITS,
 } from '../utils/dates.js';
 
 describe('localDateStr', () => {
@@ -56,26 +56,51 @@ describe('addMonthsClamped', () => {
   });
 });
 
-describe('generateMonthlySeries', () => {
-  it('genera 12 fechas mensuales incluyendo la fecha base', () => {
-    const result = generateMonthlySeries('2026-01-15', '2026-12-31');
+describe('nearestBusinessDay', () => {
+  it('corre el sábado al viernes anterior', () => {
+    expect(nearestBusinessDay('2026-01-03')).toBe('2026-01-02'); // sábado -> viernes
+  });
+
+  it('corre el domingo al lunes siguiente', () => {
+    expect(nearestBusinessDay('2026-01-04')).toBe('2026-01-05'); // domingo -> lunes
+  });
+
+  it('deja igual un día entre semana', () => {
+    expect(nearestBusinessDay('2026-01-05')).toBe('2026-01-05'); // lunes
+  });
+});
+
+describe('generatePeriodicSeries', () => {
+  it('genera N fechas mensuales incluyendo la fecha base', () => {
+    const result = generatePeriodicSeries('2026-01-15', { stepMonths: 1, count: 12 });
     expect(result).toHaveLength(12);
     expect(result[0]).toBe('2026-01-15');
     expect(result[11]).toBe('2026-12-15');
   });
 
-  it('devuelve array vacío si la fecha fin es anterior a la fecha base', () => {
-    expect(generateMonthlySeries('2026-06-01', '2026-01-01')).toEqual([]);
+  it('genera fechas semestrales (cada 6 meses)', () => {
+    const result = generatePeriodicSeries('2026-01-15', { stepMonths: 6, count: 4 });
+    expect(result).toEqual(['2026-01-15', '2026-07-15', '2027-01-15', '2027-07-15']);
   });
 
-  it('respeta el tope máximo aunque la fecha fin permita más', () => {
-    const result = generateMonthlySeries('2026-01-01', '2099-12-31', 5);
+  it('respeta el tope máximo aunque la cantidad pedida sea mayor', () => {
+    const result = generatePeriodicSeries('2026-01-01', { stepMonths: 1, count: 100, max: 5 });
     expect(result).toHaveLength(5);
   });
 
   it('usa MAX_RECURRENCE_VISITS (36) como tope por defecto', () => {
-    const result = generateMonthlySeries('2026-01-01', '2099-12-31');
+    const result = generatePeriodicSeries('2026-01-01', { stepMonths: 1, count: 100 });
     expect(result).toHaveLength(MAX_RECURRENCE_VISITS);
+  });
+
+  it('sin count devuelve array vacío', () => {
+    expect(generatePeriodicSeries('2026-01-01', { stepMonths: 1 })).toEqual([]);
+  });
+
+  it('con businessDaysOnly corre las fechas de fin de semana al día hábil más cercano', () => {
+    // 2026-01-03 es sábado; +1 mes cae en 2026-02-03 (martes, no se ajusta)
+    const result = generatePeriodicSeries('2026-01-03', { stepMonths: 1, count: 2, businessDaysOnly: true });
+    expect(result).toEqual(['2026-01-02', '2026-02-03']);
   });
 });
 

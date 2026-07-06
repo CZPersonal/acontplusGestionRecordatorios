@@ -6,7 +6,7 @@ import { useTiposVisita } from '../hooks/useTiposVisita';
 import { useBorradores } from '../hooks/useBorradores';
 import { ClientForm } from './ClientsManager.jsx';
 import {
-  MAX_RECURRENCE_VISITS, generateMonthlySeries, dedupeSortDates, formatDateOnly,
+  MAX_RECURRENCE_VISITS, generatePeriodicSeries, dedupeSortDates,
 } from '../utils/dates.js';
 import {
   X, Search, User, Phone, MapPin, CreditCard, Plus, Wrench, Calendar, Building2, Clock, Edit2,
@@ -208,7 +208,8 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
   // ─── Recurrencia (solo al crear, no al editar) ────────────────────────────
   const [recurrence, setRecurrence] = useState({
-    enabled: false, mode: 'mensual', endDate: '', manualDates: [],
+    enabled: false, mode: 'periodica', period: 'mensual', count: '',
+    businessDaysOnly: false, manualDates: [],
   });
 
   const setF = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
@@ -216,17 +217,21 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
   // Serie completa de fechas (incluye la fecha base del formulario)
   const seriesDates = useMemo(() => {
     if (!recurrence.enabled) return [form.scheduledDate];
-    if (recurrence.mode === 'mensual') {
-      if (!recurrence.endDate) return [form.scheduledDate];
-      return generateMonthlySeries(form.scheduledDate, recurrence.endDate);
+    if (recurrence.mode === 'periodica') {
+      const count = parseInt(recurrence.count, 10);
+      if (!count || count < 1) return [form.scheduledDate];
+      return generatePeriodicSeries(form.scheduledDate, {
+        stepMonths:       recurrence.period === 'semestral' ? 6 : 1,
+        count,
+        businessDaysOnly: recurrence.businessDaysOnly,
+      });
     }
     return dedupeSortDates([form.scheduledDate, ...recurrence.manualDates.filter(Boolean)]);
   }, [recurrence, form.scheduledDate]);
 
-  // Para el modo mensual: ¿el rango sin tope generaría más de MAX_RECURRENCE_VISITS?
-  const monthlyExceedsMax = recurrence.enabled && recurrence.mode === 'mensual'
-    && !!recurrence.endDate
-    && generateMonthlySeries(form.scheduledDate, recurrence.endDate, MAX_RECURRENCE_VISITS + 1).length > MAX_RECURRENCE_VISITS;
+  // Para el modo periódico: ¿la cantidad pedida supera el tope permitido?
+  const countExceedsMax = recurrence.enabled && recurrence.mode === 'periodica'
+    && Number(recurrence.count) > MAX_RECURRENCE_VISITS;
 
   const addManualDate    = () => setRecurrence(p => ({ ...p, manualDates: [...p.manualDates, ''] }));
   const removeManualDate = (idx) => setRecurrence(p => ({ ...p, manualDates: p.manualDates.filter((_, i) => i !== idx) }));
@@ -656,7 +661,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                   {recurrence.enabled && (
                     <div className="space-y-3 pl-6">
                       <div className="flex gap-2">
-                        {[['mensual', 'Mensual'], ['manual', 'Fechas manuales']].map(([m, label]) => (
+                        {[['periodica', 'Periódica'], ['manual', 'Fechas manuales']].map(([m, label]) => (
                           <button key={m} type="button"
                             onClick={() => setRecurrence(p => ({ ...p, mode: m }))}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
@@ -667,12 +672,53 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                         ))}
                       </div>
 
-                      {recurrence.mode === 'mensual' ? (
-                        <div>
-                          <label className={lbl}>Repetir hasta</label>
-                          <input type="date" value={recurrence.endDate} min={form.scheduledDate}
-                            onChange={e => setRecurrence(p => ({ ...p, endDate: e.target.value }))}
-                            className={inp} />
+                      {recurrence.mode === 'periodica' ? (
+                        <div className="space-y-3">
+                          <div className="flex gap-2">
+                            {[['mensual', 'Mensual'], ['semestral', 'Semestral']].map(([p, label]) => (
+                              <button key={p} type="button"
+                                onClick={() => setRecurrence(prev => ({ ...prev, period: p }))}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                                  recurrence.period === p ? 'bg-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+                                }`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div>
+                            <label className={lbl}>Cantidad de visitas</label>
+                            <input type="number" min="1" max={MAX_RECURRENCE_VISITS} value={recurrence.count}
+                              onChange={e => setRecurrence(p => ({ ...p, count: e.target.value }))}
+                              placeholder="Ej: 12" className={inp} />
+                          </div>
+
+                          <div>
+                            <label className={lbl}>Días de visita</label>
+                            <div className="flex gap-2">
+                              {[[true, 'Lunes a viernes'], [false, 'Lunes a domingo']].map(([val, label]) => (
+                                <button key={String(val)} type="button"
+                                  onClick={() => setRecurrence(p => ({ ...p, businessDaysOnly: val }))}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                                    recurrence.businessDaysOnly === val ? 'bg-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'
+                                  }`}>
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {countExceedsMax ? (
+                            <p className="text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                              Máximo {MAX_RECURRENCE_VISITS} visitas por serie. Reduce la cantidad.
+                            </p>
+                          ) : recurrence.count ? (
+                            <p className="text-xs text-slate-500">
+                              Se crearán <span className="font-bold text-slate-700">{seriesDates.length}</span> visitas,
+                              {' '}una cada {recurrence.period === 'semestral' ? '6 meses' : 'mes'}
+                              {recurrence.businessDaysOnly ? ' (ajustadas a días hábiles si caen en fin de semana)' : ''}.
+                            </p>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -693,22 +739,11 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                             className="flex items-center gap-1.5 text-xs font-bold text-pink-600 hover:text-pink-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             <Plus size={13} /> Agregar fecha
                           </button>
+                          <p className="text-xs text-slate-500">
+                            Se crearán <span className="font-bold text-slate-700">{seriesDates.length}</span> visitas en total.
+                          </p>
                         </div>
                       )}
-
-                      {recurrence.mode === 'mensual' && monthlyExceedsMax ? (
-                        <p className="text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                          Este rango genera más de {MAX_RECURRENCE_VISITS} visitas. Elige una fecha fin más cercana.
-                        </p>
-                      ) : recurrence.mode === 'mensual' && recurrence.endDate ? (
-                        <p className="text-xs text-slate-500">
-                          Se crearán <span className="font-bold text-slate-700">{seriesDates.length}</span> visitas, una cada mes hasta {formatDateOnly(recurrence.endDate)}.
-                        </p>
-                      ) : recurrence.mode === 'manual' ? (
-                        <p className="text-xs text-slate-500">
-                          Se crearán <span className="font-bold text-slate-700">{seriesDates.length}</span> visitas en total.
-                        </p>
-                      ) : null}
                     </div>
                   )}
                 </div>
@@ -776,7 +811,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSaving || !client || monthlyExceedsMax}
+            disabled={isSaving || !client || countExceedsMax}
             className="flex-1 py-3 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50"
             style={{ background: isSaving ? '#94a3b8' : '#D61672' }}>
             {isSaving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear visita'}

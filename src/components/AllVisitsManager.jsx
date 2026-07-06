@@ -260,6 +260,11 @@ export default function AllVisitsManager({ user }) {
         );
       }
       return true;
+    }).sort((a, b) => {
+      // Más recientes primero, según fecha y hora programada de la visita
+      // (no la fecha de creación del registro).
+      if (b.scheduledDate !== a.scheduledDate) return (b.scheduledDate || '').localeCompare(a.scheduledDate || '');
+      return (b.scheduledTime || '').localeCompare(a.scheduledTime || '');
     });
   }, [visits, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst, today, nowTime]);
 

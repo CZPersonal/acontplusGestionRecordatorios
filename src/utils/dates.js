@@ -34,14 +34,27 @@ export const addMonthsClamped = (dateStr, n) => {
   return localDateStr(new Date(targetYear, targetMonth, Math.min(d, lastDay)));
 };
 
-// Genera la serie mensual [startDate, +1mes, +2meses, ...] (incluye startDate),
-// deteniéndose al superar endDate o al llegar a max fechas, lo que ocurra primero.
-// Si endDate es anterior a startDate devuelve un array vacío (rango inválido).
-export const generateMonthlySeries = (startDate, endDate, max = MAX_RECURRENCE_VISITS) => {
+// Si la fecha cae en fin de semana, la corre al día hábil más cercano
+// (sábado → viernes, domingo → lunes). Cualquier otro día queda igual.
+export const nearestBusinessDay = (dateStr) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const dow  = date.getDay(); // 0 = domingo, 6 = sábado
+  if (dow === 6) date.setDate(date.getDate() - 1);
+  else if (dow === 0) date.setDate(date.getDate() + 1);
+  return localDateStr(date);
+};
+
+// Genera una serie periódica [startDate, +stepMonths, +2*stepMonths, ...]
+// (incluye startDate) con exactamente `count` fechas, topado por `max`. Si
+// businessDaysOnly, cada fecha que caiga en fin de semana se corre al día
+// hábil más cercano.
+export const generatePeriodicSeries = (startDate, { stepMonths = 1, count, businessDaysOnly = false, max = MAX_RECURRENCE_VISITS } = {}) => {
+  const total = Math.min(count || 0, max);
   const dates = [];
-  for (let i = 0; i < max; i++) {
-    const next = addMonthsClamped(startDate, i);
-    if (next > endDate) break;
+  for (let i = 0; i < total; i++) {
+    let next = addMonthsClamped(startDate, i * stepMonths);
+    if (businessDaysOnly) next = nearestBusinessDay(next);
     dates.push(next);
   }
   return dates;
