@@ -4,7 +4,6 @@ import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
 import NavItem from './NavItem.jsx';
 import Dashboard from './Dashboard.jsx';
-import VisitsReport from './VisitsReport.jsx';
 import BillingReport from './BillingReport.jsx';
 import ExportConfigManager from './ExportConfigManager.jsx';
 import ClientsManager from './ClientsManager.jsx';
@@ -15,7 +14,7 @@ import AllVisitsManager from './AllVisitsManager.jsx';
 import BorradoresAdmin from './BorradoresAdmin.jsx';
 import VisitFormUnified from './VisitFormUnified.jsx';
 import {
-  Home, FileText, Bell, BellOff,
+  Home, Bell, BellOff,
   Cloud, CloudOff, LogOut, CalendarDays, ClipboardList, Wallet, Users, Settings, BookOpen,
 } from 'lucide-react';
 
@@ -85,7 +84,6 @@ export default function AppRouter() {
           <NavItem icon={<Home />}         label="Panel"          isActive={activeTab === 'dashboard'}  onClick={() => setActiveTab('dashboard')} />
           <NavItem icon={<Users />}        label="Clientes"       isActive={activeTab === 'clients'}    onClick={() => setActiveTab('clients')} />
           <NavItem icon={<CalendarDays />} label="Calendario"     isActive={activeTab === 'calendar'}   onClick={() => setActiveTab('calendar')} />
-          <NavItem icon={<FileText />}     label="Reportes"       isActive={activeTab === 'reports'}    onClick={() => setActiveTab('reports')} />
           <NavItem icon={<ClipboardList />}label="Gestión de visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
           <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}      onClick={() => setActiveTab('billing')} />
           <NavItem icon={<BookOpen />}     label="Borradores"     isActive={activeTab === 'borradores'}  onClick={() => setActiveTab('borradores')} />
@@ -182,13 +180,6 @@ export default function AppRouter() {
               setPendingClientHistorial(clientId);
               setActiveTab('clients');
             }}
-          />
-        )}
-        {activeTab === 'reports' && (
-          <VisitsReport
-            tasks={tasks}
-            exportConfig={getActiveColumns('visits')}
-            onOpenConfig={() => setShowExportConfig(true)}
           />
         )}
         {activeTab === 'all-visits' && (

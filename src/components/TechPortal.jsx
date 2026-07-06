@@ -152,9 +152,123 @@ function CompleteModal({ visit, task, onSave, onClose, isNewVisit = false }) {
   );
 }
 
+// ─── Modal: reprogramar visita ─────────────────────────────────────────────────
+
+function RescheduleModal({ visit, task, onSave, onClose }) {
+  const [newDate, setNewDate] = useState(visit.scheduledDate || '');
+  const [newTime, setNewTime] = useState(visit.scheduledTime || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!newDate) return;
+    setLoading(true);
+    try {
+      await onSave(newDate, newTime);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-800">Reprogramar visita</h3>
+            <p className="text-xs text-slate-400 mt-0.5">{task.clientName}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+          Si la visita ya estaba confirmada, la confirmación se quitará — el cliente deberá confirmar la nueva fecha/hora.
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Nueva fecha</label>
+          <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+            Nueva hora <span className="font-normal text-slate-400">(opcional)</span>
+          </label>
+          <input type="time" value={newTime} onChange={e => setNewTime(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} disabled={loading}
+            className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={loading || !newDate}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-colors"
+            style={{ background: loading ? '#94a3b8' : '#D61672' }}>
+            {loading ? 'Guardando…' : 'Reprogramar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal: agregar link de mapa (se guarda en el cliente) ────────────────────
+
+function AddMapsLinkModal({ onSave, onClose }) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!url.trim()) return;
+    setLoading(true);
+    try {
+      await onSave(url.trim());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-800">Agregar mapa</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          Pega el link de Google Maps de esta ubicación. Quedará guardado en el cliente y
+          disponible en esta y futuras visitas a esa dirección.
+        </p>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Link de Google Maps</label>
+          <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+            placeholder="https://maps.app.goo.gl/..."
+            className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} disabled={loading}
+            className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={loading || !url.trim()}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-50 transition-colors"
+            style={{ background: loading ? '#94a3b8' : '#D61672' }}>
+            {loading ? 'Guardando…' : 'Guardar mapa'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tarjeta de visita ────────────────────────────────────────────────────────
 
-function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false, emailToName = {}, mapsLink = '' }) {
+function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial, isNewVisit = false, emailToName = {}, mapsLink = '', onReschedule, onUnconfirm, onOpenMapsLink }) {
+  const [confirmUnconfirm, setConfirmUnconfirm] = useState(false);
   const today       = localToday();
   const nowTime     = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -235,11 +349,16 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             <span>{task.clientAddress}</span>
           </p>
         )}
-        {mapsLink && (
+        {mapsLink ? (
           <a href={mapsLink} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
             <Navigation size={13} />Abrir mapa
           </a>
+        ) : (isNewVisit && visit.contactId && onOpenMapsLink) && (
+          <button onClick={() => onOpenMapsLink(visit)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200">
+            <Navigation size={13} />Agregar mapa
+          </button>
         )}
         {(task.clientPhone || task.clientEmail) && (
           <div className="flex gap-2 pt-1">
@@ -271,6 +390,17 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
             {visit.confirmedAt && <span className="block font-normal opacity-70">{formatDateTime(visit.confirmedAt)}</span>}
           </div>
         )}
+        {(() => {
+          const lastReschedule = [...(visit.history || [])].reverse().find(h => h.type === 'reprogramada');
+          if (!lastReschedule) return null;
+          return (
+            <p className="text-xs text-indigo-600">
+              🔄 Reprogramada por {emailToName[lastReschedule.by] || lastReschedule.by?.split('@')[0]}
+              {' '}el {formatDateTime(lastReschedule.at)} — antes: {formatDateOnly(lastReschedule.previousDate)}
+              {lastReschedule.previousTime && ` ${lastReschedule.previousTime}`}
+            </p>
+          );
+        })()}
       </div>
       {visit.status === 'Realizada' ? (
         <div className="px-4 pb-4 space-y-1.5 bg-emerald-50 border-t border-emerald-100 pt-3">
@@ -314,6 +444,32 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
               {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
             </button>
           )}
+          {isNewVisit && visit.status === 'Programada' && (onReschedule || onUnconfirm) && (
+            confirmUnconfirm ? (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                <span className="flex-1 text-xs font-semibold text-amber-700">¿Deshacer la confirmación?</span>
+                <button onClick={() => { setConfirmUnconfirm(false); onUnconfirm(visit.id); }}
+                  className="text-xs font-bold text-amber-700 hover:text-amber-900">Sí</button>
+                <button onClick={() => setConfirmUnconfirm(false)}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700">No</button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                {onReschedule && (
+                  <button onClick={() => onReschedule(visit, task)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100">
+                    <Calendar size={12} />Reprogramar
+                  </button>
+                )}
+                {isConfirmed && onUnconfirm && (
+                  <button onClick={() => setConfirmUnconfirm(true)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-100">
+                    Deshacer confirmación
+                  </button>
+                )}
+              </div>
+            )
+          )}
           {onHistorial && (
             <button onClick={() => onHistorial(task)}
               className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors border border-purple-100">
@@ -328,7 +484,7 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
 
 // ─── Vista de lista (secciones) ───────────────────────────────────────────────
 
-function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
+function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onComplete, onHistorial, emailToName = {}, onReschedule, onUnconfirm, onOpenMapsLink }) {
   if (visits.length === 0) return null;
   return (
     <div className="space-y-3">
@@ -342,7 +498,8 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
         {visits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
           <VisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit}
             onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
-            emailToName={emailToName} mapsLink={mapsLink || ''} />
+            emailToName={emailToName} mapsLink={mapsLink || ''}
+            onReschedule={onReschedule} onUnconfirm={onUnconfirm} onOpenMapsLink={onOpenMapsLink} />
         ))}
       </div>
     </div>
@@ -351,7 +508,8 @@ function Section({ title, icon: Icon, color, visits, onConfirm, confirming, onCo
 
 // ─── Tarjeta compacta para vista día ─────────────────────────────────────────
 
-function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
+function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfirm, confirming, onComplete, onHistorial, emailToName = {}, onReschedule, onUnconfirm, onOpenMapsLink }) {
+  const [confirmUnconfirm, setConfirmUnconfirm] = useState(false);
   const today     = localToday();
   const nowTime   = localNowTime();
   const isConfirmed = visit.confirmed || visit.technicianConfirmed || visit.status === 'Confirmada';
@@ -438,11 +596,16 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
         {visit.observations && (
           <p className="text-xs text-slate-400 italic leading-tight">📝 {visit.observations}</p>
         )}
-        {mapsLink && (
+        {mapsLink ? (
           <a href={mapsLink} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
             <Navigation size={11} />Abrir mapa
           </a>
+        ) : (isNewVisit && visit.contactId && onOpenMapsLink) && (
+          <button onClick={() => onOpenMapsLink(visit)}
+            className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200">
+            <Navigation size={11} />Agregar mapa
+          </button>
         )}
         {isConfirmed && visit.confirmedBy && (
           <div className={`text-[10px] font-semibold ${isLate ? 'text-orange-600' : 'text-teal-600'}`}>
@@ -450,6 +613,16 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
             <span className="font-normal ml-1 opacity-60">{visit.confirmedBy}</span>
           </div>
         )}
+        {(() => {
+          const lastReschedule = [...(visit.history || [])].reverse().find(h => h.type === 'reprogramada');
+          if (!lastReschedule) return null;
+          return (
+            <p className="text-[10px] text-indigo-600">
+              🔄 Reprogramada — antes: {formatDateOnly(lastReschedule.previousDate)}
+              {lastReschedule.previousTime && ` ${lastReschedule.previousTime}`}
+            </p>
+          );
+        })()}
       </div>
 
       {/* Acciones */}
@@ -490,6 +663,32 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
             {confirming === visit.id ? 'Confirmando...' : '✓ Confirmar asistencia'}
           </button>
         )}
+        {isNewVisit && visit.status === 'Programada' && (onReschedule || onUnconfirm) && (
+          confirmUnconfirm ? (
+            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+              <span className="flex-1 text-[10px] font-semibold text-amber-700">¿Deshacer confirmación?</span>
+              <button onClick={() => { setConfirmUnconfirm(false); onUnconfirm(visit.id); }}
+                className="text-[10px] font-bold text-amber-700 hover:text-amber-900">Sí</button>
+              <button onClick={() => setConfirmUnconfirm(false)}
+                className="text-[10px] font-semibold text-slate-500 hover:text-slate-700">No</button>
+            </div>
+          ) : (
+            <div className="flex gap-1.5">
+              {onReschedule && (
+                <button onClick={() => onReschedule(visit, task)}
+                  className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100">
+                  <Calendar size={10} />Reprogramar
+                </button>
+              )}
+              {isConfirmed && onUnconfirm && (
+                <button onClick={() => setConfirmUnconfirm(true)}
+                  className="flex-1 py-1.5 rounded-lg text-[10px] font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors border border-amber-100">
+                  Deshacer confirmación
+                </button>
+              )}
+            </div>
+          )
+        )}
       </div>
     </div>
   );
@@ -497,7 +696,7 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
 
 // ─── Vista día ────────────────────────────────────────────────────────────────
 
-function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial, emailToName = {} }) {
+function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confirming, onComplete, onHistorial, emailToName = {}, onReschedule, onUnconfirm, onOpenMapsLink }) {
   const dayName = new Date(calDate + 'T12:00:00')
     .toLocaleDateString('es-EC', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Guayaquil' });
 
@@ -567,7 +766,8 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
                     {hVisits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
                       <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit} mapsLink={mapsLink || ''}
                         onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
-                        emailToName={emailToName} />
+                        emailToName={emailToName}
+                        onReschedule={onReschedule} onUnconfirm={onUnconfirm} onOpenMapsLink={onOpenMapsLink} />
                     ))}
                   </div>
                 ) : (
@@ -585,7 +785,9 @@ function DayView({ allVisitsByDate, calDate, setCalDate, today, onConfirm, confi
             <div className="space-y-3">
               {noTimeVisits.map(({ visit, task: t, isNewVisit, mapsLink }) => (
                 <DayVisitCard key={visit.id} visit={visit} task={t} isNewVisit={isNewVisit} mapsLink={mapsLink || ''}
-                  onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial} />
+                  onConfirm={onConfirm} confirming={confirming} onComplete={onComplete} onHistorial={onHistorial}
+                  emailToName={emailToName}
+                  onReschedule={onReschedule} onUnconfirm={onUnconfirm} onOpenMapsLink={onOpenMapsLink} />
               ))}
             </div>
           </div>
@@ -696,6 +898,9 @@ export default function TechPortal({ user }) {
   const refreshKey     = useAppStore(s => s.refreshKey);
   const confirmVisit   = useAppStore(s => s.confirmVisit);
   const completeVisit  = useAppStore(s => s.completeVisit);
+  const unconfirmVisit  = useAppStore(s => s.unconfirmVisit);
+  const rescheduleVisit = useAppStore(s => s.rescheduleVisit);
+  const updateClient    = useAppStore(s => s.updateClient);
 
   const today = useMemo(() => localToday(), []);
 
@@ -735,6 +940,8 @@ export default function TechPortal({ user }) {
   const [completingVisit, setCompletingVisit] = useState(null);
   const [refreshing,      setRefreshing]      = useState(false);
   const [historialClient, setHistorialClient] = useState(null);
+  const [reschedulingVisit, setReschedulingVisit] = useState(null); // { visit, task }
+  const [mapsLinkTarget,    setMapsLinkTarget]    = useState(null); // { clientId, contactId }
 
   const findClient = (task) =>
     clients.find(c => c.identification === task.identification) ||
@@ -771,6 +978,45 @@ export default function TechPortal({ user }) {
     }
     // Fallback: primer contacto que tenga link guardado
     return contacts.find(c => c.mapsLink)?.mapsLink || '';
+  };
+
+  const handleUnconfirm = async (visitId) => {
+    const ok = await unconfirmVisit(visitId);
+    addToast(ok
+      ? { type: 'success', title: '✅ Confirmación deshecha', body: 'La visita volvió a estado sin confirmar.' }
+      : { type: 'error', title: '❌ Error', body: 'No se pudo deshacer la confirmación.' });
+  };
+
+  const handleReschedule = async (newDate, newTime) => {
+    if (!reschedulingVisit) return;
+    const { visit } = reschedulingVisit;
+    const ok = await rescheduleVisit(visit.id, {
+      previousDate: visit.scheduledDate, previousTime: visit.scheduledTime || '',
+      newDate, newTime,
+    });
+    if (ok) {
+      addToast({ type: 'success', title: '✅ Visita reprogramada', body: 'Se actualizó la fecha/hora y quedó pendiente de reconfirmar.' });
+      setReschedulingVisit(null);
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo reprogramar la visita.' });
+    }
+  };
+
+  const handleSaveMapsLink = async (url) => {
+    if (!mapsLinkTarget) return;
+    const { clientId, contactId } = mapsLinkTarget;
+    const client = clientsById[clientId];
+    if (!client) return;
+    const contacts = getClientContacts(client).map(c => c.id === contactId ? { ...c, mapsLink: url } : c);
+    const ok = await updateClient(client.id, {
+      name: client.name, foreign: client.foreign, contacts, identification: client.identification,
+    });
+    if (ok) {
+      addToast({ type: 'success', title: '✅ Mapa guardado', body: 'El link quedó disponible en esta y futuras visitas de esa ubicación.' });
+      setMapsLinkTarget(null);
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo guardar el link del mapa.' });
+    }
   };
 
   // Visitas del técnico — legacy (tasks) + nuevas (visits store), por fecha, con filtro
@@ -902,6 +1148,9 @@ export default function TechPortal({ user }) {
     onComplete: (visit, task, isNewVisit) => setCompletingVisit({ visit, task, isNewVisit }),
     onHistorial: handleHistorial,
     emailToName,
+    onReschedule: (visit, task) => setReschedulingVisit({ visit, task }),
+    onUnconfirm: handleUnconfirm,
+    onOpenMapsLink: (visit) => setMapsLinkTarget({ clientId: visit.clientId, contactId: visit.contactId }),
   };
 
   return (
@@ -1079,6 +1328,22 @@ export default function TechPortal({ user }) {
         <ClientHistorialModal
           client={historialClient}
           onClose={() => setHistorialClient(null)}
+        />
+      )}
+
+      {reschedulingVisit && (
+        <RescheduleModal
+          visit={reschedulingVisit.visit}
+          task={reschedulingVisit.task}
+          onSave={handleReschedule}
+          onClose={() => setReschedulingVisit(null)}
+        />
+      )}
+
+      {mapsLinkTarget && (
+        <AddMapsLinkModal
+          onSave={handleSaveMapsLink}
+          onClose={() => setMapsLinkTarget(null)}
         />
       )}
     </div>

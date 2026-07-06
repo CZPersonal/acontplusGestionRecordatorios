@@ -64,6 +64,8 @@ export const useAppStore = create((set, get) => ({
   annulVisit:          async () => false,
   revertVisit:         async () => false,
   confirmVisit:        async () => false,
+  unconfirmVisit:      async () => false,
+  rescheduleVisit:     async () => false,
   generateSupportVisit: async () => false,
 
   // ─── Clients (poblado por useClients) ─────────────────────────────────────

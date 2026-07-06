@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit, runTransaction, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getVisitsFlatRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
@@ -278,6 +278,56 @@ export function useVisits(user) {
     }
   };
 
+  // ─── Deshacer confirmación (portal técnico) ───────────────────────────────────
+  const unconfirmVisit = async (visitId) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    try {
+      const nowIso = new Date().toISOString();
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        confirmed:   false,
+        confirmedAt: null,
+        confirmedBy: null,
+        updatedAt:   nowIso,
+        history:     arrayUnion({ type: 'confirmacion_deshecha', by: u.email, at: nowIso }),
+      });
+      logAudit(u, 'visit_confirmation_undone', 'visit', visitId, {});
+      return true;
+    } catch (err) {
+      console.error('Error al deshacer confirmación:', err);
+      return false;
+    }
+  };
+
+  // ─── Reprogramar visita (portal técnico) ──────────────────────────────────────
+  // Quita la confirmación anterior — era para la fecha/hora vieja. Guarda un
+  // historial completo (no solo el último cambio) para trazabilidad.
+  const rescheduleVisit = async (visitId, { previousDate, previousTime, newDate, newTime }) => {
+    const { user: u } = useAppStore.getState();
+    if (!u) return false;
+    try {
+      const nowIso = new Date().toISOString();
+      await updateDoc(doc(getVisitsFlatRef(), visitId), {
+        scheduledDate: newDate,
+        scheduledTime: newTime || '',
+        confirmed:     false,
+        confirmedAt:   null,
+        confirmedBy:   null,
+        updatedAt:     nowIso,
+        history: arrayUnion({
+          type: 'reprogramada', by: u.email, at: nowIso,
+          previousDate, previousTime: previousTime || '',
+          newDate,      newTime:      newTime      || '',
+        }),
+      });
+      logAudit(u, 'visit_rescheduled', 'visit', visitId, { previousDate, newDate });
+      return true;
+    } catch (err) {
+      console.error('Error al reprogramar visita:', err);
+      return false;
+    }
+  };
+
   // ─── Generar visita de soporte ────────────────────────────────────────────────
   // Crea una nueva visita pre-llenada con los datos de la original
   const generateSupportVisit = async (parentVisit) => {
@@ -324,7 +374,7 @@ export function useVisits(user) {
     useAppStore.setState({
       addVisit, addVisitSeries, editVisit, deleteVisit,
       completeVisit, cancelVisit, annulVisit,
-      revertVisit, confirmVisit, generateSupportVisit,
+      revertVisit, confirmVisit, unconfirmVisit, rescheduleVisit, generateSupportVisit,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -333,6 +383,6 @@ export function useVisits(user) {
     visits, isLoadingVisits,
     addVisit, addVisitSeries, editVisit, deleteVisit,
     completeVisit, cancelVisit, annulVisit,
-    revertVisit, confirmVisit, generateSupportVisit,
+    revertVisit, confirmVisit, unconfirmVisit, rescheduleVisit, generateSupportVisit,
   };
 }
