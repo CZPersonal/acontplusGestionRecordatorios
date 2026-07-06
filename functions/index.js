@@ -8,7 +8,10 @@ const { defineSecret } = require('firebase-functions/params');
 const { Resend }       = require('resend');
 const QRCode           = require('qrcode');
 
-initializeApp();
+// projectId explícito evita que el SDK intente auto-detectarlo por red (puede
+// tardar ~25s fuera de infraestructura GCP, lo que hace fallar la introspección
+// local del CLI de deploy — tiene un límite de 10s para cargar el código).
+initializeApp({ projectId: 'gestorrecordatorios' });
 
 const resendApiKey   = defineSecret('RESEND_API_KEY');
 const FROM_ADDRESS   = process.env.FROM_ADDRESS || 'noreply@notificaciones.resuelveyaa.com';
