@@ -29,17 +29,16 @@ const EMPTY_FORM = {
   scheduledTime:   '',
   motivo:          '',
   isPeriodica:          false,
-  periodicidad:         'mensual',
+  periodicidad:         'cuatrimestral',
   periodicidadCantidad: '',
 };
 
 // Opciones de periodicidad — solo informativo: el administrador las usa como
 // referencia para configurar la recurrencia real al convertir el borrador.
 export const PERIODICIDAD_OPTIONS = [
-  { value: 'quincenal',  label: 'Quincenal'  },
-  { value: 'mensual',    label: 'Mensual'    },
-  { value: 'trimestral', label: 'Trimestral' },
-  { value: 'semestral',  label: 'Semestral'  },
+  { value: 'cuatrimestral', label: 'Cuatrimestral' },
+  { value: 'semestral',     label: 'Semestral'     },
+  { value: 'anual',         label: 'Anual'         },
 ];
 
 // ─── Modal: crear nuevo cliente desde el borrador ─────────────────────────────
@@ -1207,7 +1206,7 @@ export default function BorradorSheet({ user, showList = false }) {
                 scheduledTime:   editing.scheduledTime   || '',
                 motivo:          editing.motivo          || '',
                 isPeriodica:          editing.isPeriodica          || false,
-                periodicidad:         editing.periodicidad         || 'mensual',
+                periodicidad:         editing.periodicidad         || 'cuatrimestral',
                 periodicidadCantidad: editing.periodicidadCantidad || '',
               } : null}
               onSave={handleSave}

@@ -13,6 +13,9 @@ import {
   Repeat, Trash2,
 } from 'lucide-react';
 
+// Períodos disponibles para la recurrencia "Periódica" — paso en meses
+const PERIOD_STEP_MONTHS = { cuatrimestral: 4, semestral: 6, anual: 12 };
+
 // ─── Selector de tipo con botón "+" para crearlo inline ──────────────────────
 function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd, className = '' }) {
   const [adding,  setAdding]  = useState(false);
@@ -208,7 +211,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
 
   // ─── Recurrencia (solo al crear, no al editar) ────────────────────────────
   const [recurrence, setRecurrence] = useState({
-    enabled: false, mode: 'periodica', period: 'mensual', count: '',
+    enabled: false, mode: 'periodica', period: 'cuatrimestral', count: '',
     businessDaysOnly: false, manualDates: [],
   });
 
@@ -221,7 +224,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       const count = parseInt(recurrence.count, 10);
       if (!count || count < 1) return [form.scheduledDate];
       return generatePeriodicSeries(form.scheduledDate, {
-        stepMonths:       recurrence.period === 'semestral' ? 6 : 1,
+        stepMonths:       PERIOD_STEP_MONTHS[recurrence.period] || 4,
         count,
         businessDaysOnly: recurrence.businessDaysOnly,
       });
@@ -675,7 +678,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                       {recurrence.mode === 'periodica' ? (
                         <div className="space-y-3">
                           <div className="flex gap-2">
-                            {[['mensual', 'Mensual'], ['semestral', 'Semestral']].map(([p, label]) => (
+                            {[['cuatrimestral', 'Cuatrimestral'], ['semestral', 'Semestral'], ['anual', 'Anual']].map(([p, label]) => (
                               <button key={p} type="button"
                                 onClick={() => setRecurrence(prev => ({ ...prev, period: p }))}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
@@ -715,7 +718,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
                           ) : recurrence.count ? (
                             <p className="text-xs text-slate-500">
                               Se crearán <span className="font-bold text-slate-700">{seriesDates.length}</span> visitas,
-                              {' '}una cada {recurrence.period === 'semestral' ? '6 meses' : 'mes'}
+                              {' '}una cada {PERIOD_STEP_MONTHS[recurrence.period] || 4} meses
                               {recurrence.businessDaysOnly ? ' (ajustadas a días hábiles si caen en fin de semana)' : ''}.
                             </p>
                           ) : null}
