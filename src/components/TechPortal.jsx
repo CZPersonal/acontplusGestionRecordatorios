@@ -12,6 +12,7 @@ import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, Mail, MapPin, Navigation, Phone, Wrench, X,
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History, WifiOff,
+  Clipboard, ExternalLink, Pencil,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
@@ -215,9 +216,10 @@ function RescheduleModal({ visit, task, onSave, onClose }) {
 
 // ─── Modal: agregar link de mapa (se guarda en el cliente) ────────────────────
 
-function AddMapsLinkModal({ onSave, onClose }) {
-  const [url, setUrl] = useState('');
+function AddMapsLinkModal({ currentUrl = '', onSave, onClose }) {
+  const [url, setUrl] = useState(currentUrl);
   const [loading, setLoading] = useState(false);
+  const isEdit = !!currentUrl;
 
   const handleSave = async () => {
     if (!url.trim()) return;
@@ -229,25 +231,63 @@ function AddMapsLinkModal({ onSave, onClose }) {
     }
   };
 
+  const handleOpenMaps = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => window.open(`https://www.google.com/maps/@${pos.coords.latitude},${pos.coords.longitude},17z`, '_blank'),
+        () => window.open('https://www.google.com/maps', '_blank')
+      );
+    } else {
+      window.open('https://www.google.com/maps', '_blank');
+    }
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setUrl(text.trim());
+    } catch {
+      // Permiso denegado o sin soporte — no hacer nada
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-800">Agregar mapa</h3>
+          <h3 className="font-bold text-slate-800">{isEdit ? 'Editar mapa' : 'Agregar mapa'}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={20} />
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          Pega el link de Google Maps de esta ubicación. Quedará guardado en el cliente y
-          disponible en esta y futuras visitas a esa dirección.
+          Busca la ubicación en Google Maps y pega el link aquí. Quedará guardado en el
+          cliente y disponible en esta y futuras visitas a esa dirección.
         </p>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1.5">Link de Google Maps</label>
           <input type="url" value={url} onChange={e => setUrl(e.target.value)}
             placeholder="https://maps.app.goo.gl/..."
             className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-pink-400" />
+          <div className="flex gap-2 mt-2">
+            <button type="button" onClick={handleOpenMaps}
+              title="Abrir Google Maps con mi ubicación actual"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors text-xs font-bold">
+              <Navigation size={13} />Abrir Maps
+            </button>
+            <button type="button" onClick={handlePaste}
+              title="Pegar link del portapapeles"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold">
+              <Clipboard size={13} />Pegar
+            </button>
+            {url && (
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors text-xs font-bold">
+                <ExternalLink size={13} />Ver
+              </a>
+            )}
+          </div>
         </div>
         <div className="flex gap-3 pt-1">
           <button onClick={onClose} disabled={loading}
@@ -350,10 +390,18 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
           </p>
         )}
         {mapsLink ? (
-          <a href={mapsLink} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
-            <Navigation size={13} />Abrir mapa
-          </a>
+          <div className="flex gap-2">
+            <a href={mapsLink} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition-colors border border-blue-200">
+              <Navigation size={13} />Abrir mapa
+            </a>
+            {isNewVisit && visit.contactId && onOpenMapsLink && (
+              <button onClick={() => onOpenMapsLink(visit, mapsLink)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200">
+                <Pencil size={12} />Editar
+              </button>
+            )}
+          </div>
         ) : (isNewVisit && visit.contactId && onOpenMapsLink) && (
           <button onClick={() => onOpenMapsLink(visit)}
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200">
@@ -597,10 +645,18 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
           <p className="text-xs text-slate-400 italic leading-tight">📝 {visit.observations}</p>
         )}
         {mapsLink ? (
-          <a href={mapsLink} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
-            <Navigation size={11} />Abrir mapa
-          </a>
+          <div className="flex gap-1.5">
+            <a href={mapsLink} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200">
+              <Navigation size={11} />Abrir mapa
+            </a>
+            {isNewVisit && visit.contactId && onOpenMapsLink && (
+              <button onClick={() => onOpenMapsLink(visit, mapsLink)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200">
+                <Pencil size={10} />Editar
+              </button>
+            )}
+          </div>
         ) : (isNewVisit && visit.contactId && onOpenMapsLink) && (
           <button onClick={() => onOpenMapsLink(visit)}
             className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200">
@@ -1150,7 +1206,7 @@ export default function TechPortal({ user }) {
     emailToName,
     onReschedule: (visit, task) => setReschedulingVisit({ visit, task }),
     onUnconfirm: handleUnconfirm,
-    onOpenMapsLink: (visit) => setMapsLinkTarget({ clientId: visit.clientId, contactId: visit.contactId }),
+    onOpenMapsLink: (visit, currentUrl = '') => setMapsLinkTarget({ clientId: visit.clientId, contactId: visit.contactId, currentUrl }),
   };
 
   return (
@@ -1342,6 +1398,7 @@ export default function TechPortal({ user }) {
 
       {mapsLinkTarget && (
         <AddMapsLinkModal
+          currentUrl={mapsLinkTarget.currentUrl}
           onSave={handleSaveMapsLink}
           onClose={() => setMapsLinkTarget(null)}
         />

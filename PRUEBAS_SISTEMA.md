@@ -180,10 +180,11 @@ aplica para las pruebas.
 10. ⬜ En una visita **Programada y confirmada** (modelo nuevo): botón "Deshacer confirmación" → aparece confirmación inline ("¿Deshacer confirmación? Sí/No"), al aceptar la visita vuelve a sin confirmar.
 11. ⬜ Botón "Reprogramar" en una visita Programada → abre modal con fecha/hora actuales precargadas; guardar una fecha nueva → la visita se actualiza y, si estaba confirmada, pierde la confirmación.
 12. ⬜ Después de reprogramar, la tarjeta muestra la nota "🔄 Reprogramada — antes: DD/MM HH:MM".
-13. ⬜ En una visita sin mapa guardado: botón "Agregar mapa" → pegar un link de Google Maps → se guarda y aparece "Abrir mapa" en esa visita.
+13. ⬜ En una visita sin mapa guardado: botón "Agregar mapa" → dentro del modal, botón "Abrir Maps" abre Google Maps (con tu ubicación si el navegador lo permite), botón "Pegar" toma el link del portapapeles → guardar → aparece "Abrir mapa" en esa visita.
 14. ⬜ Verificar que ese mismo link de mapa aparece también en OTRA visita futura del mismo cliente/ubicación (se guardó en el cliente, no solo en esa visita).
-15. ⬜ Confirmar que estos 3 botones (Reprogramar/Deshacer confirmación/Agregar mapa) NO aparecen en visitas del modelo legado ni en visitas Realizada/Cancelada/Anulada.
-16. ⬜ Probar los mismos 3 puntos anteriores (10-15) también en la vista "Día" (`DayVisitCard`), no solo en "Lista".
+15. ⬜ En una visita que YA tiene mapa: aparece "Abrir mapa" + botón "Editar" lado a lado → "Editar" abre el modal precargado con el link actual (título "Editar mapa"), se puede cambiar y guardar.
+16. ⬜ Confirmar que estos botones (Reprogramar/Deshacer confirmación/Agregar mapa/Editar mapa) NO aparecen en visitas del modelo legado ni en visitas Realizada/Cancelada/Anulada.
+17. ⬜ Probar los mismos puntos anteriores (10-16) también en la vista "Día" (`DayVisitCard`), no solo en "Lista".
 
 ---
 
