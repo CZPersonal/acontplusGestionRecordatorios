@@ -18,6 +18,34 @@ export function generateReceiptNo(visitId) {
   return `REC-${part}-${ts}`;
 }
 
+// Convierte una visita de la colección plana en un objeto "task"-like para
+// reutilizar las filas/columnas de BillingReport (clientName, serviceOrder,
+// serviceType, etc.) sin necesitar un documento de tarea legado.
+export function visitToDisplayTask(visit) {
+  return {
+    id:             visit.id,
+    clientName:     visit.clientName   || '',
+    clientPhone:    visit.phone        || '',
+    clientAddress:  `${visit.ubicacion || ''} ${visit.address || ''}`.trim(),
+    serviceType:    visit.serviceType  || '',
+    serviceOrder:   visit.serviceOrder || '',
+    identification: '',
+  };
+}
+
+// Determina qué cuotas programadas (abonos) ya quedan cubiertas por el total
+// realmente abonado, asignando en orden de fecha (más antigua primero) — no
+// depende de un campo `estado` persistido, así siempre queda consistente
+// aunque se agreguen/eliminen abonos reales o cuotas después.
+export function computeCuotasPagadas(abonos, totalAbonado) {
+  const ordenados = [...abonos].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  let acumulado = 0;
+  return ordenados.map(a => {
+    acumulado += (parseFloat(a.valor) || 0);
+    return { ...a, pagado: acumulado <= totalAbonado + 0.001 };
+  });
+}
+
 // Escribe todos los documentos de visita en la subcollección (migra datos embebidos legacy)
 async function saveVisitsToSubcollection(taskId, visits) {
   const batch = writeBatch(db);

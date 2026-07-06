@@ -2,13 +2,19 @@ import { useState, useMemo, useEffect } from 'react';
 import { X, Plus, Trash2, CalendarDays, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
-import { calcPaymentSummary } from '../services/visitBilling.js';
+import { calcPaymentSummary, computeCuotasPagadas } from '../services/visitBilling.js';
 import { localDateStr } from '../utils/dates.js';
 
 export default function AbonosModal({ task, visit, visitAbonos = [], user, onClose, onAdd, onDelete }) {
   const summary         = calcPaymentSummary(visit);
   const totalProgramado = useMemo(() => visitAbonos.reduce((s, a) => s + (a.valor || 0), 0), [visitAbonos]);
   const disponible      = Math.max(0, summary.total - totalProgramado);
+  // Cuotas cubiertas por el total realmente abonado, en orden de fecha —
+  // no depende de un campo `estado` persistido (nunca se actualizaba solo).
+  const abonosConEstado = useMemo(
+    () => computeCuotasPagadas(visitAbonos, summary.abonado),
+    [visitAbonos, summary.abonado]
+  );
 
   const [fecha,   setFecha]   = useState(localDateStr());
   const [valor,   setValor]   = useState('');
@@ -46,7 +52,6 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
         fecha,
         valor:        v,
         nota:         nota.trim(),
-        estado:       'pendiente',
         createdBy:    user?.email || '',
       });
       setFecha(localDateStr()); setValor(''); setNota('');
@@ -107,14 +112,14 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
 
         {/* Lista de abonos programados */}
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
-          {visitAbonos.length === 0 ? (
+          {abonosConEstado.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <CalendarDays size={32} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm font-medium">Sin abonos programados</p>
               <p className="text-xs mt-0.5">Agrega el primer compromiso de pago</p>
             </div>
           ) : (
-            visitAbonos.map(a => (
+            abonosConEstado.map(a => (
               <div key={a.id} className="flex items-center gap-3 bg-white border-2 border-slate-100 rounded-xl px-3 py-2.5 hover:border-slate-200 transition-colors">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
                   <CalendarDays size={14} className="text-blue-600" />
@@ -123,7 +128,7 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-bold text-slate-700">{formatDateOnly(a.fecha)}</p>
                     <span className="text-sm font-bold text-blue-700">${fmtMoney(a.valor)}</span>
-                    {a.estado === 'pagado' && (
+                    {a.pagado && (
                       <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">✅ Pagado</span>
                     )}
                   </div>

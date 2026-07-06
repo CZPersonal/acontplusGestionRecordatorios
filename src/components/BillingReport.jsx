@@ -8,24 +8,33 @@ import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import AbonosModal from './AbonosModal.jsx';
-import { calcPaymentSummary } from '../services/visitBilling.js';
+import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
 import { useAbonos } from '../hooks/useAbonos.js';
+import { useAppStore } from '../lib/store';
 
-// ─── Aplanar todas las visitas ─────────────────────────────────────────────────
+// ─── Aplanar todas las visitas (modelo legado: tareas con visitas embebidas) ──
 function flattenVisits(tasks) {
   const rows = [];
   tasks.forEach(task => {
     (task.visits || []).forEach(visit => {
       const summary = calcPaymentSummary(visit);
-      rows.push({ task, visit, summary });
+      rows.push({ task, visit, summary, isNew: false });
     });
   });
-  return rows.sort((a, b) =>
-    (b.visit.scheduledDate || '').localeCompare(a.visit.scheduledDate || '')
-  );
+  return rows;
+}
+
+// ─── Aplanar visitas de la colección plana (Gestión de visitas) ──────────────
+function flattenNewVisits(visits) {
+  return visits.map(visit => ({
+    task:    visitToDisplayTask(visit),
+    visit,
+    summary: calcPaymentSummary(visit),
+    isNew:   true,
+  }));
 }
 
 // ─── Estado de cobro ──────────────────────────────────────────────────────────
@@ -54,17 +63,23 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const [filters,        setFilters]        = useState(INITIAL_FILTERS);
   const [showFilters,    setShowFilters]    = useState(true);
   const [showExport,     setShowExport]     = useState(false);
-  const [billingTarget,  setBillingTarget]  = useState(null); // { task, visit }
+  const [billingTarget,  setBillingTarget]  = useState(null); // { task, visit, isNew, allVisits? }
   const [abonosTarget,   setAbonosTarget]   = useState(null); // { task, visit }
 
   const { abonosByVisit, addAbono, deleteAbono } = useAbonos();
+  const newVisits = useAppStore(s => s.visits);
 
-  const allRows = useMemo(() => flattenVisits(tasks), [tasks]);
+  // Une el modelo legado (tareas con visitas embebidas) y el nuevo (colección
+  // plana de "Gestión de visitas") en una sola lista de cobros.
+  const allRows = useMemo(() => {
+    const rows = [...flattenVisits(tasks), ...flattenNewVisits(newVisits)];
+    return rows.sort((a, b) => (b.visit.scheduledDate || '').localeCompare(a.visit.scheduledDate || ''));
+  }, [tasks, newVisits]);
 
   const uniqueServiceTypes = useMemo(() => {
-    const t = tasks.map(t => t.serviceType).filter(Boolean);
+    const t = [...tasks.map(t => t.serviceType), ...newVisits.map(v => v.serviceType)].filter(Boolean);
     return [...new Set(t)].sort();
-  }, [tasks]);
+  }, [tasks, newVisits]);
 
   const handleFilter = (key, val) => setFilters(p => ({ ...p, [key]: val }));
   const clearFilters = () => setFilters(INITIAL_FILTERS);
@@ -108,14 +123,19 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const lbl = "block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1";
   const inp = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-pink-400 transition-colors bg-white";
 
-  // Al actualizar visitas desde el BillingModal, localizar la tarea y pedir re-render
-  const handleBillingUpdate = (updatedVisits) => {
-    if (onTasksUpdate) onTasksUpdate(billingTarget.task.id, updatedVisits);
-    // Actualizar billingTarget con las visitas frescas para que el modal las vea
+  // Al actualizar desde el BillingModal: en flatMode llega la visita fresca
+  // (el listener en tiempo real de la colección plana ya refresca el store);
+  // en el modelo legado llega el array completo de visitas de la tarea.
+  const handleBillingUpdate = (updated) => {
+    if (billingTarget.isNew) {
+      setBillingTarget(prev => ({ ...prev, visit: updated }));
+      return;
+    }
+    if (onTasksUpdate) onTasksUpdate(billingTarget.task.id, updated);
     setBillingTarget(prev => ({
       ...prev,
-      visit: updatedVisits.find(v => v.id === prev.visit.id) || prev.visit,
-      allVisits: updatedVisits,
+      visit: updated.find(v => v.id === prev.visit.id) || prev.visit,
+      allVisits: updated,
     }));
   };
 
@@ -276,12 +296,12 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagination.paginatedItems.map(({ task, visit, summary }) => {
+                  {pagination.paginatedItems.map(({ task, visit, summary, isNew }) => {
                     const today     = localDateStr();
                     const isOverdue = visit.commitmentDate && visit.commitmentDate < today && !summary.pagado;
 
                     return (
-                      <tr key={`${task.id}-${visit.id}`}
+                      <tr key={`${isNew ? 'new' : task.id}-${visit.id}`}
                         className={`hover:bg-slate-50 transition-colors ${isOverdue ? 'border-l-4 border-red-400' : ''}`}>
 
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -333,10 +353,11 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                           {(() => {
                             const va = abonosByVisit[visit.id] || [];
                             if (va.length === 0) return null;
-                            const total = va.reduce((s, a) => s + (a.valor || 0), 0);
+                            const total    = va.reduce((s, a) => s + (a.valor || 0), 0);
+                            const pagadas  = computeCuotasPagadas(va, summary.abonado).filter(a => a.pagado).length;
                             return (
                               <p className="text-xs text-blue-600 mt-0.5 font-medium">
-                                📅 {va.length} abono{va.length !== 1 ? 's' : ''} · ${fmtMoney(total)}
+                                📅 {pagadas}/{va.length} cuota{va.length !== 1 ? 's' : ''} · ${fmtMoney(total)}
                               </p>
                             );
                           })()}
@@ -345,7 +366,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-1.5">
                             <button
-                              onClick={() => setBillingTarget({ task, visit, allVisits: task.visits || [] })}
+                              onClick={() => setBillingTarget({ task, visit, isNew, allVisits: isNew ? undefined : (task.visits || []) })}
                               className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-white whitespace-nowrap"
                               style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
                               <DollarSign size={11} />Cobrar
@@ -354,7 +375,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                               <button
                                 onClick={() => setAbonosTarget({ task, visit })}
                                 className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 whitespace-nowrap transition-colors">
-                                <CalendarDays size={11} />Abonos
+                                <CalendarDays size={11} />Cuotas
                               </button>
                             )}
                           </div>
@@ -383,6 +404,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
       {/* Modal de cobro */}
       {billingTarget && (
         <BillingModal
+          flatMode={billingTarget.isNew}
           task={billingTarget.task}
           visit={billingTarget.visit}
           allVisits={billingTarget.allVisits}
