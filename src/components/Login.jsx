@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState('login'); // 'login' | 'reset'
@@ -122,16 +124,27 @@ export default function Login() {
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none transition-colors"
-                  onFocus={e => e.target.style.borderColor = '#D61672'}
-                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-                  placeholder="••••••••"
-                  onKeyDown={e => e.key === 'Enter' && handleSubmit(e)}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none transition-colors"
+                    onFocus={e => e.target.style.borderColor = '#D61672'}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    placeholder="••••••••"
+                    onKeyDown={e => e.key === 'Enter' && handleSubmit(e)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    className="absolute right-0 top-0 h-full px-3 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </div>
 
               {error && (

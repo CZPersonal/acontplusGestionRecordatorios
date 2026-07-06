@@ -57,6 +57,7 @@ export const BILLING_COLUMNS = [
   { key: 'totalSaldo',     label: 'Saldo pendiente',            enabled: true  },
   { key: 'payStatus',      label: 'Estado cobro',               enabled: true  },
   { key: 'commitmentDate', label: 'Fecha compromiso',           enabled: true  },
+  { key: 'cuotas',         label: 'Cuotas',                     enabled: true  },
   { key: 'paymentMethods', label: 'Formas de pago',             enabled: false },
 ];
 

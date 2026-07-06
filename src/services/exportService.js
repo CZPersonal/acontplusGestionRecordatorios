@@ -65,8 +65,8 @@ function visitValue(key, { task, visit }) {
   }
 }
 
-// Cobros (row = { task, visit, summary })
-function billingValue(key, { task, visit, summary }) {
+// Cobros (row = { task, visit, summary, cuotas })
+function billingValue(key, { task, visit, summary, cuotas }) {
   switch (key) {
     case 'scheduledDate':   return fmtDate(visit.scheduledDate);
     case 'clientName':      return task.clientName   || '';
@@ -85,6 +85,7 @@ function billingValue(key, { task, visit, summary }) {
       return 'Pendiente';
     case 'commitmentDate':  return fmtDate(visit.commitmentDate);
     case 'paymentMethods':  return (visit.payments || []).map(p => `${p.method}:$${p.amount}`).join(' | ');
+    case 'cuotas':          return (cuotas || []).map(c => `${fmtDate(c.fecha)}: $${fmtMoneyRaw(c.valor)} (${c.pagado ? 'Pagada' : 'Pendiente'})`).join(' | ');
     default: return '';
   }
 }

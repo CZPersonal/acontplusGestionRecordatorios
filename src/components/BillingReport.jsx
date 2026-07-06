@@ -72,9 +72,12 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   // Une el modelo legado (tareas con visitas embebidas) y el nuevo (colección
   // plana de "Gestión de visitas") en una sola lista de cobros.
   const allRows = useMemo(() => {
-    const rows = [...flattenVisits(tasks), ...flattenNewVisits(newVisits)];
+    const rows = [...flattenVisits(tasks), ...flattenNewVisits(newVisits)].map(row => ({
+      ...row,
+      cuotas: computeCuotasPagadas(abonosByVisit[row.visit.id] || [], row.summary.abonado),
+    }));
     return rows.sort((a, b) => (b.visit.scheduledDate || '').localeCompare(a.visit.scheduledDate || ''));
-  }, [tasks, newVisits]);
+  }, [tasks, newVisits, abonosByVisit]);
 
   const uniqueServiceTypes = useMemo(() => {
     const t = [...tasks.map(t => t.serviceType), ...newVisits.map(v => v.serviceType)].filter(Boolean);
@@ -297,7 +300,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagination.paginatedItems.map(({ task, visit, summary, isNew }) => {
+                  {pagination.paginatedItems.map(({ task, visit, summary, isNew, cuotas }) => {
                     const today     = localDateStr();
                     const isOverdue = visit.commitmentDate && visit.commitmentDate < today && !summary.pagado;
 
@@ -354,24 +357,21 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                         </td>
 
                         <td className="px-4 py-3">
-                          {(() => {
-                            const va = abonosByVisit[visit.id] || [];
-                            if (va.length === 0) return <span className="text-slate-300 text-xs">—</span>;
-                            const cuotas = computeCuotasPagadas(va, summary.abonado); // ya ordenadas por fecha
-                            return (
-                              <div className="space-y-1 min-w-[130px]">
-                                {cuotas.map(c => (
-                                  <div key={c.id} className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-                                    <span>{c.pagado ? '✅' : '🕓'}</span>
-                                    <span className="text-slate-500">{formatDateOnly(c.fecha)}</span>
-                                    <span className={`font-semibold ${c.pagado ? 'text-green-600' : 'text-amber-700'}`}>
-                                      ${fmtMoney(c.valor)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                          {cuotas.length === 0 ? (
+                            <span className="text-slate-300 text-xs">—</span>
+                          ) : (
+                            <div className="space-y-1 min-w-[130px]">
+                              {cuotas.map(c => (
+                                <div key={c.id} className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                                  <span>{c.pagado ? '✅' : '🕓'}</span>
+                                  <span className="text-slate-500">{formatDateOnly(c.fecha)}</span>
+                                  <span className={`font-semibold ${c.pagado ? 'text-green-600' : 'text-amber-700'}`}>
+                                    ${fmtMoney(c.valor)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
 
                         <td className="px-4 py-3">
