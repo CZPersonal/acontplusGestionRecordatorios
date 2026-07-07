@@ -14,7 +14,7 @@ const periodicidadLabel = (value) => PERIODICIDAD_OPTIONS.find(o => o.value === 
 
 // ─── Modal de detalle / convertir ────────────────────────────────────────────
 
-function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, converting }) {
+function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, converting, emailToName = {} }) {
   const isPendiente = b.status === 'Pendiente';
   const isAnulado   = b.status === 'Anulado';
   const [confirmAnular, setConfirmAnular] = useState(false);
@@ -29,6 +29,27 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
         <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
         <p className="text-sm text-slate-800 font-medium mt-0.5 break-words">{value}</p>
         {extra}
+      </div>
+    </div>
+  ) : null;
+
+  // Evento de cronología: ícono + fecha/hora + nombre y correo de quien lo hizo
+  const timelineEvent = (icon, color, label, at, name, email) => at ? (
+    <div className="flex gap-3 py-2.5 border-b border-slate-100 last:border-0">
+      <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{ background: color + '20', color }}>
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-slate-800">{label}</p>
+        <p className="text-xs text-slate-500">{formatDateTime(at)}</p>
+        {(name || email) && (
+          <p className="text-xs text-slate-400 mt-0.5 break-words">
+            {name && <span className="font-semibold text-slate-500">{name}</span>}
+            {name && email && ' · '}
+            {email}
+          </p>
+        )}
       </div>
     </div>
   ) : null;
@@ -91,25 +112,15 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2">Técnico</p>
           {row(<User size={14} className="text-slate-400" />,       'Nombre',             b.technicianName)}
           {row(<Mail size={14} className="text-slate-400" />,       'Email',              b.technicianEmail)}
-          {row(<Clock size={14} className="text-slate-400" />,      'Creado',             b.createdAt ? formatDateTime(b.createdAt) : null)}
-          {b.updatedAt && b.updatedAt !== b.createdAt &&
-            row(<Clock size={14} className="text-slate-400" />,     'Modificado',         formatDateTime(b.updatedAt))}
 
-          {b.status === 'Convertido' && (
-            <>
-              <p className="text-xs font-bold text-green-600 uppercase tracking-widest mt-4 mb-2">Conversión</p>
-              {row(<CheckCircle2 size={14} className="text-green-600" />, 'Convertido el', b.convertedAt ? formatDateTime(b.convertedAt) : null)}
-              {row(<User size={14} className="text-green-600" />,         'Convertido por', b.convertedBy)}
-            </>
-          )}
-          {isAnulado && (
-            <>
-              <p className="text-xs font-bold text-red-600 uppercase tracking-widest mt-4 mb-2">Anulación</p>
-              {row(<Ban size={14} className="text-red-600" />,  'Anulado el',  b.anuladoAt ? formatDateTime(b.anuladoAt) : null)}
-              {row(<User size={14} className="text-red-600" />, 'Anulado por', b.anuladoPor)}
-              {row(<Mail size={14} className="text-red-600" />, 'Email',       b.anuladoPorEmail)}
-            </>
-          )}
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-4 mb-2">Cronología</p>
+          {timelineEvent(<FileText size={13} />, '#2563eb', 'Creado', b.createdAt, b.technicianName, b.technicianEmail)}
+          {b.updatedAt && b.updatedAt !== b.createdAt &&
+            timelineEvent(<Clock size={13} />, '#64748b', 'Modificado', b.updatedAt, null, null)}
+          {b.status === 'Convertido' &&
+            timelineEvent(<CheckCircle2 size={13} />, '#16a34a', 'Convertido', b.convertedAt, emailToName[b.convertedBy], b.convertedBy)}
+          {isAnulado &&
+            timelineEvent(<Ban size={13} />, '#dc2626', 'Anulado', b.anuladoAt, b.anuladoPor, b.anuladoPorEmail)}
         </div>
 
         {/* Footer */}
@@ -262,6 +273,11 @@ export default function BorradoresAdmin({ user }) {
   const adminName = useMemo(
     () => tecnicos.find(t => t.email === user.email)?.nombre || user.displayName || user.email,
     [tecnicos, user.email, user.displayName]
+  );
+
+  const emailToName = useMemo(
+    () => Object.fromEntries(tecnicos.filter(t => t.email).map(t => [t.email, t.nombre])),
+    [tecnicos]
   );
 
   const [filter,     setFilter]     = useState('pendientes');
@@ -468,6 +484,7 @@ export default function BorradoresAdmin({ user }) {
           onAnular={handleAnular}
           onDelete={handleDelete}
           converting={false}
+          emailToName={emailToName}
         />
       )}
     </div>

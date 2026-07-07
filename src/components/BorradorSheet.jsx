@@ -910,11 +910,21 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
 
 // ─── Tarjeta de borrador (lista del técnico) ──────────────────────────────────
 
-function BorradorCard({ b, onEdit, onAnular }) {
+function BorradorCard({ b, onEdit, onAnular, emailToName = {} }) {
   const isPendiente  = b.status === 'Pendiente';
   const isAnulado    = b.status === 'Anulado';
   const isOffline    = b._pending === true;
   const [confirmAnular, setConfirmAnular] = useState(false);
+
+  // Evento de cronología: fecha/hora + nombre y correo de quien lo hizo
+  const timelineEvent = (color, label, at, name, email) => at ? (
+    <p className={`text-xs mt-1 ${color}`}>
+      {label} {formatDateTime(at)}
+      {(name || email) && (
+        <span className="opacity-80"> — {name}{name && email && ' · '}{email}</span>
+      )}
+    </p>
+  ) : null;
 
   return (
     <div className={`rounded-2xl border shadow-sm overflow-hidden ${
@@ -965,16 +975,13 @@ function BorradorCard({ b, onEdit, onAnular }) {
             Periódica: {PERIODICIDAD_OPTIONS.find(o => o.value === b.periodicidad)?.label || b.periodicidad} × {b.periodicidadCantidad}
           </p>
         )}
-        {b.status === 'Convertido' && b.convertedAt && (
-          <p className="text-xs text-green-600 mt-1.5">
-            Convertido el {formatDateTime(b.convertedAt)} por {b.convertedBy}
-          </p>
-        )}
-        {isAnulado && b.anuladoAt && (
-          <p className="text-xs text-red-600 mt-1.5">
-            Anulado el {formatDateTime(b.anuladoAt)} por {b.anuladoPor}
-          </p>
-        )}
+        <div className="mt-1.5 pt-1.5 border-t border-slate-100">
+          {timelineEvent('text-slate-400', '📝 Creado', b.createdAt, b.technicianName, b.technicianEmail)}
+          {b.status === 'Convertido' &&
+            timelineEvent('text-green-600', '✅ Convertido', b.convertedAt, emailToName[b.convertedBy], b.convertedBy)}
+          {isAnulado &&
+            timelineEvent('text-red-600', '🚫 Anulado', b.anuladoAt, b.anuladoPor, b.anuladoPorEmail)}
+        </div>
       </div>
       {isPendiente && (
         <div className="px-4 pb-3">
@@ -1024,6 +1031,10 @@ function BorradorCard({ b, onEdit, onAnular }) {
 export default function BorradorSheet({ user, showList = false }) {
   const { borradores, isLoading, addBorrador, updateBorrador, anuladoBorrador } = useBorradores(user, { onlyMine: true });
   const { tecnicos }  = useTecnicos(user);
+  const emailToName = useMemo(
+    () => Object.fromEntries(tecnicos.filter(t => t.email).map(t => [t.email, t.nombre])),
+    [tecnicos]
+  );
   const saveClient    = useAppStore(s => s.saveClient);
   const addToast      = useAppStore(s => s.addToast);
 
@@ -1153,7 +1164,7 @@ export default function BorradorSheet({ user, showList = false }) {
           ) : (
             <div className="space-y-3">
               {filtered.map(b => (
-                <BorradorCard key={b.id} b={b} onEdit={openEdit} onAnular={handleAnular} />
+                <BorradorCard key={b.id} b={b} onEdit={openEdit} onAnular={handleAnular} emailToName={emailToName} />
               ))}
             </div>
           )}
