@@ -112,7 +112,7 @@ function CompleteVisitModal({ visit, onClose }) {
   );
 }
 
-// ─── Historial de visitas (incluye datos del sistema anterior) ───────────────
+// ─── Historial de visitas ─────────────────────────────────────────────────────
 function HistorialView({ user }) {
   const tasks = useAppStore(s => s.tasks);
   const getActiveColumns  = useAppStore(s => s.getActiveColumns);
@@ -120,10 +120,6 @@ function HistorialView({ user }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p className="font-semibold mb-1">📋 Historial completo de visitas</p>
-        <p className="text-xs">Incluye datos del sistema anterior (tareas). Solo lectura.</p>
-      </div>
       <VisitsReport
         tasks={tasks}
         exportConfig={getActiveColumns('visits')}
