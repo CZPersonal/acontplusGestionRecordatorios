@@ -965,6 +965,7 @@ export default function TechPortal({ user }) {
   const userRole                = useAppStore(s => s.userRole);
   const tenantName     = useAppStore(s => s.tenantName);
   const tenantRuc      = useAppStore(s => s.tenantRuc);
+  const empresaConfig  = useAppStore(s => s.empresaConfig);
   const refreshKey     = useAppStore(s => s.refreshKey);
   const confirmVisit   = useAppStore(s => s.confirmVisit);
   const completeVisit  = useAppStore(s => s.completeVisit);
@@ -1248,11 +1249,11 @@ export default function TechPortal({ user }) {
         <div className="max-w-lg mx-auto px-4 py-3 flex items-start justify-between gap-3">
           {/* Izquierda: logo + info empresa */}
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/logo.png" alt="Acontplus" className="w-9 h-9 object-contain flex-shrink-0" />
+            <img src={empresaConfig.logoUrl || '/logo.png'} alt={empresaConfig.empresaNombre || 'Acontplus'} className="w-9 h-9 object-contain flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800 leading-tight truncate">{tenantName || 'Portal Técnico'}</p>
-              {tenantRuc && (
-                <p className="text-xs text-slate-400 leading-tight">RUC: {tenantRuc}</p>
+              <p className="text-sm font-bold text-slate-800 leading-tight truncate">{empresaConfig.empresaNombre || tenantName || 'Portal Técnico'}</p>
+              {(empresaConfig.ruc || tenantRuc) && (
+                <p className="text-xs text-slate-400 leading-tight">RUC: {empresaConfig.ruc || tenantRuc}</p>
               )}
               {techName && (
                 <p className="text-xs font-bold leading-tight truncate" style={{ color: '#D61672' }}>
