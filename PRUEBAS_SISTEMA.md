@@ -137,7 +137,7 @@ aplica para las pruebas.
 ### 8.2 Panel del administrador
 6. ⬜ Ver el detalle de un borrador con periodicidad marcada → aparece el dato de periodicidad y el banner recordatorio antes de "Convertir en visita".
 7. ⬜ Convertir un borrador en visita real → se crea la visita y el borrador pasa a "Convertido".
-8. ⬜ Al convertir uno marcado como periódico, configurar manualmente "Repetir esta visita" con los mismos datos (período/cantidad) del borrador → funciona como una creación normal de serie.
+8. ⬜ Al convertir un borrador marcado como periódico, el formulario abre con "Repetir esta visita" **ya activado** y el período/cantidad **precargados** del borrador (ya no hay que configurarlo a mano) → confirmar y guardar crea la serie completa.
 9. ⬜ Eliminar un borrador permanentemente → pide confirmación y lo borra.
 10. ⬜ Buscar/filtrar borradores por estado (Pendiente/Convertido/Anulado) y por texto.
 

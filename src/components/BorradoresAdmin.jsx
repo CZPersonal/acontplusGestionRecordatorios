@@ -354,6 +354,9 @@ export default function BorradoresAdmin({ user }) {
       urgency:         'Media',
       serviceOrder:    '',
       type:            '',
+      isPeriodica:          b.isPeriodica          || false,
+      periodicidad:         b.periodicidad         || '',
+      periodicidadCantidad: b.periodicidadCantidad || '',
     });
   };
 

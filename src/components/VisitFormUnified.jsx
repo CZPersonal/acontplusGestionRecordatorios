@@ -266,6 +266,17 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       technicianPhone: defaults.technicianPhone || '',
       serviceOrder:    defaults.serviceOrder    || '',
     });
+
+    // Borrador marcado como "visita periódica" → precargar la recurrencia
+    if (defaults.isPeriodica && defaults.periodicidad) {
+      setRecurrence(prev => ({
+        ...prev,
+        enabled: true,
+        mode:    'periodica',
+        period:  defaults.periodicidad,
+        count:   String(defaults.periodicidadCantidad || ''),
+      }));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
