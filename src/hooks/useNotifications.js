@@ -99,7 +99,25 @@ async function registerFcmToken(uid) {
   if (!messaging)                                return { ok: false, reason: 'Este navegador no soporta notificaciones push.' };
   if (!import.meta.env.VITE_FIREBASE_VAPID_KEY)  return { ok: false, reason: 'Falta configuración del servidor (VAPID key).' };
   try {
-    const sw    = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    // Limpieza defensiva: versiones anteriores registraban este SW sin scope
+    // propio (caía en el scope "/", el mismo del kill-switch /sw.js), lo que
+    // rompía el chequeo de nueva versión en UpdatePrompt.jsx. Si un dispositivo
+    // quedó con ese registro viejo, se desregistra antes de re-registrar con
+    // el scope correcto.
+    const existing = await navigator.serviceWorker.getRegistrations();
+    for (const reg of existing) {
+      const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
+      if (url.includes('firebase-messaging-sw.js') && !reg.scope.endsWith('/firebase-cloud-messaging-push-scope')) {
+        await reg.unregister();
+      }
+    }
+
+    // Scope propio y separado del kill-switch (/sw.js, scope "/"): si compartieran
+    // scope, uno reemplaza al otro como controlador de la página y rompe lo que
+    // dependa de él (p. ej. el chequeo de nueva versión en UpdatePrompt.jsx).
+    const sw    = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/firebase-cloud-messaging-push-scope',
+    });
     const token = await getToken(messaging, {
       vapidKey:                  import.meta.env.VITE_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: sw,
