@@ -50,6 +50,8 @@ export function generateReceipt({ task, visit, payment }) {
     .header p  { font-size:10px; color:#FFA901; font-weight:bold; }
     .header .meta { font-size:9px; color:#94a3b8; margin-top:4px; }
     .receipt-no { text-align:center; margin-bottom:12px; }
+    .receipt-no .rn-label { font-size:9px; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em;
+      font-weight:bold; margin-bottom:3px; }
     .receipt-no span { font-family:monospace; font-size:15px; font-weight:bold; color:#D61672;
       background:#fdf2f8; px:8px; padding:4px 12px; border-radius:6px; border:1px solid #fce7f3; }
     .section { margin-bottom:10px; }
@@ -86,6 +88,7 @@ export function generateReceipt({ task, visit, payment }) {
   </div>
 
   <div class="receipt-no">
+    <div class="rn-label">N° Comprobante</div>
     <span>${payment.receiptNo}</span>
   </div>
 
