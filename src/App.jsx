@@ -10,6 +10,7 @@ import { useClients } from './hooks/useClients';
 import { useServiceTypes } from './hooks/useServiceTypes';
 import { useExportConfig } from './hooks/useExportConfig.js';
 import { useEstablecimientos } from './hooks/useEstablecimientos';
+import { useConfiguracion } from './hooks/useConfiguracion';
 import Login from './components/Login.jsx';
 import TenantSetup from './components/TenantSetup.jsx';
 import CompanySelector from './components/CompanySelector.jsx';
@@ -194,6 +195,7 @@ export default function App() {
   useServiceTypes(effectiveUser);
   useExportConfig(effectiveUser);
   useEstablecimientos(effectiveUser);
+  useConfiguracion(effectiveUser);
 
   // ─── Notificaciones ────────────────────────────────────────────────────────
   const {
