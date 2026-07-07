@@ -205,10 +205,14 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
     return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
   }, [establecimientos, memberEstablecimientos, userRole]);
 
-  // Autoseleccionar el establecimiento por defecto del usuario al crear (no al editar)
+  // Autoseleccionar establecimiento al crear (no al editar): el default del usuario si
+  // tiene uno asignado, o el único disponible si solo hay uno.
   useEffect(() => {
-    if (isEdit || form.establecimientoId || !memberEstablecimientoDefault) return;
-    const def = visibleEstablecimientos.find(e => e.id === memberEstablecimientoDefault);
+    if (isEdit || form.establecimientoId) return;
+    let def = memberEstablecimientoDefault
+      ? visibleEstablecimientos.find(e => e.id === memberEstablecimientoDefault)
+      : null;
+    if (!def && visibleEstablecimientos.length === 1) def = visibleEstablecimientos[0];
     if (def) setForm(prev => ({ ...prev, establecimientoId: def.id, establecimientoNombre: def.nombre }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberEstablecimientoDefault, visibleEstablecimientos.length]);
@@ -440,6 +444,27 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
 
         {/* Campos scrollable */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* ── Establecimiento ── */}
+          {visibleEstablecimientos.length > 0 && (
+            <div>
+              <label className={lbl}>Establecimiento</label>
+              <div className="relative">
+                <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <select value={form.establecimientoId}
+                  onChange={e => {
+                    const est = visibleEstablecimientos.find(x => x.id === e.target.value);
+                    setForm(prev => ({ ...prev, establecimientoId: est?.id || '', establecimientoNombre: est?.nombre || '' }));
+                  }}
+                  className={`${inp(false)} pl-9`}>
+                  <option value="">— Sin especificar —</option>
+                  {visibleEstablecimientos.map(e => (
+                    <option key={e.id} value={e.id}>{e.nombre}{e.codigo ? ` (${e.codigo})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* ── Sección cliente ── */}
           <div className="flex items-center justify-between">
@@ -766,26 +791,6 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
 
           {/* ── Sección visita ── */}
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
-
-          {visibleEstablecimientos.length > 0 && (
-            <div>
-              <label className={lbl}>Establecimiento</label>
-              <div className="relative">
-                <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <select value={form.establecimientoId}
-                  onChange={e => {
-                    const est = visibleEstablecimientos.find(x => x.id === e.target.value);
-                    setForm(prev => ({ ...prev, establecimientoId: est?.id || '', establecimientoNombre: est?.nombre || '' }));
-                  }}
-                  className={`${inp(false)} pl-9`}>
-                  <option value="">— Sin especificar —</option>
-                  {visibleEstablecimientos.map(e => (
-                    <option key={e.id} value={e.id}>{e.nombre}{e.codigo ? ` (${e.codigo})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
 
           <div>
             <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
