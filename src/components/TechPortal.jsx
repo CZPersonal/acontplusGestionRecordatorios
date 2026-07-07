@@ -337,6 +337,11 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
       <div className="px-4 py-3 flex items-center justify-between gap-2 flex-wrap"
         style={{ background: urgBg }}>
         <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          {visit.visitNumber && (
+            <span className="flex-shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-700">
+              {visit.visitNumber}
+            </span>
+          )}
           {task.serviceOrder && (
             <span className="flex-shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-white/70 text-slate-600 border border-slate-200">
               OS: {task.serviceOrder}
@@ -582,6 +587,11 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
       {/* Cabecera: cliente + badges */}
       <div className="px-3 pt-2.5 pb-1.5 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
+          {visit.visitNumber && (
+            <span className="inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 mb-0.5 mr-1">
+              {visit.visitNumber}
+            </span>
+          )}
           {task.serviceOrder && (
             <span className="inline-block text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 mb-0.5 mr-1">
               OS: {task.serviceOrder}
