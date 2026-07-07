@@ -161,7 +161,7 @@ export function visitToDisplayTask(visit) {
     clientAddress:  `${visit.ubicacion || ''} ${visit.address || ''}`.trim(),
     serviceType:    visit.serviceType  || '',
     serviceOrder:   visit.serviceOrder || '',
-    identification: '',
+    identification: visit.clientId     || '',
   };
 }
 

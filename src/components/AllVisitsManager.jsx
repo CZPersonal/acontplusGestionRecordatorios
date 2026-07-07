@@ -343,7 +343,7 @@ export default function AllVisitsManager({ user }) {
   const makeTaskForPDF = (visit) => ({
     serviceOrder:  visit.serviceOrder  || '',
     clientName:    visit.clientName    || '',
-    identification: '',
+    identification: visit.clientId     || '',
     clientPhone:   visit.phone         || '',
     clientAddress: `${visit.ubicacion || ''} ${visit.address || ''}`.trim(),
     serviceType:   visit.serviceType   || '',
