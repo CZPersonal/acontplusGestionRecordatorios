@@ -17,6 +17,7 @@ import {
 import BorradorSheet from './BorradorSheet.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
+import Toast from './Toast.jsx';
 
 const WORK_HOURS = Array.from({ length: 16 }, (_, i) => i + 7); // 07:00 – 22:00
 
@@ -972,6 +973,8 @@ export default function TechPortal({ user }) {
   const updateClient    = useAppStore(s => s.updateClient);
   const notificationPermission = useAppStore(s => s.notificationPermission);
   const requestNotifications   = useAppStore(s => s.requestNotifications);
+  const toasts       = useAppStore(s => s.toasts);
+  const removeToast  = useAppStore(s => s.removeToast);
 
   const [showIosHint, setShowIosHint] = useState(false);
   const isIos = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent), []);
@@ -1471,6 +1474,9 @@ export default function TechPortal({ user }) {
           onClose={() => setMapsLinkTarget(null)}
         />
       )}
+
+      {/* Toasts */}
+      <Toast toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

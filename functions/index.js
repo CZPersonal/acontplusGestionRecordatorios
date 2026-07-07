@@ -562,19 +562,31 @@ exports.notifyTechnicianPushNew = onDocumentCreated(
   },
   async (event) => {
     const visit = event.data.data();
-    if (visit.status !== 'Programada') return;
-    if (!visit.technicianEmail) return;
+    if (visit.status !== 'Programada') {
+      console.log(`notifyTechnicianPushNew: omitida, status=${visit.status} — visita ${event.params.visitId}`);
+      return;
+    }
+    if (!visit.technicianEmail) {
+      console.log(`notifyTechnicianPushNew: sin technicianEmail — visita ${event.params.visitId}`);
+      return;
+    }
 
     const db = getFirestore();
     const usersSnap = await db.collection('users')
       .where('email', '==', visit.technicianEmail)
       .limit(1)
       .get();
-    if (usersSnap.empty) return;
+    if (usersSnap.empty) {
+      console.log(`notifyTechnicianPushNew: sin usuario para email=${visit.technicianEmail} — visita ${event.params.visitId}`);
+      return;
+    }
 
     const userDoc  = usersSnap.docs[0];
     const fcmToken = userDoc.data().fcmToken;
-    if (!fcmToken) return;
+    if (!fcmToken) {
+      console.log(`notifyTechnicianPushNew: usuario ${visit.technicianEmail} sin fcmToken — visita ${event.params.visitId}`);
+      return;
+    }
 
     const title = '🗓️ Nueva visita asignada';
     const body  = `${visit.clientName || ''}${visit.scheduledDate ? ' — ' + visit.scheduledDate : ''}`;

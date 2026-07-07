@@ -92,18 +92,24 @@ function buildToast(task, visit, id) {
   };
 }
 
-// Registra el FCM token del dispositivo en users/{uid} para recibir push remotos
+// Registra el FCM token del dispositivo en users/{uid} para recibir push remotos.
+// Devuelve { ok, reason } en vez de fallar en silencio, para poder mostrarle al
+// usuario (vía toast) si quedó activo o por qué no.
 async function registerFcmToken(uid) {
-  if (!messaging || !import.meta.env.VITE_FIREBASE_VAPID_KEY) return;
+  if (!messaging)                                return { ok: false, reason: 'Este navegador no soporta notificaciones push.' };
+  if (!import.meta.env.VITE_FIREBASE_VAPID_KEY)  return { ok: false, reason: 'Falta configuración del servidor (VAPID key).' };
   try {
-    const sw  = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    const sw    = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
     const token = await getToken(messaging, {
       vapidKey:                  import.meta.env.VITE_FIREBASE_VAPID_KEY,
       serviceWorkerRegistration: sw,
     });
-    if (token) await updateDoc(doc(db, 'users', uid), { fcmToken: token });
+    if (!token) return { ok: false, reason: 'No se pudo generar el token del dispositivo.' };
+    await updateDoc(doc(db, 'users', uid), { fcmToken: token });
+    return { ok: true };
   } catch (e) {
     console.warn('[FCM] Token registration failed:', e);
+    return { ok: false, reason: e.message || 'Error desconocido al registrar el dispositivo.' };
   }
 }
 
@@ -126,12 +132,24 @@ export function useNotifications(tasks) {
   }, []);
 
   const requestPermission = async () => {
-    if (!('Notification' in window)) return;
+    if (!('Notification' in window)) {
+      addToast({ type: 'error', title: '❌ No soportado', body: 'Este navegador no soporta notificaciones.' });
+      return;
+    }
     const result = await Notification.requestPermission();
     setPermission(result);
     notifiedIds.current.clear();
     hasInitialized.current = false;
-    if (result === 'granted' && user) registerFcmToken(user.uid);
+    if (result === 'granted' && user) {
+      const res = await registerFcmToken(user.uid);
+      if (res.ok) {
+        addToast({ type: 'success', title: '🔔 Notificaciones activadas', body: 'Recibirás avisos aunque la app esté cerrada.' });
+      } else {
+        addToast({ type: 'error', title: '⚠️ No se pudo activar', body: res.reason });
+      }
+    } else if (result !== 'granted') {
+      addToast({ type: 'error', title: '🔕 Permiso no concedido', body: 'Actívalo desde la configuración de notificaciones del navegador para este sitio.' });
+    }
     return result;
   };
 
