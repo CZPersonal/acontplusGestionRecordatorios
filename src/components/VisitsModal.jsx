@@ -39,6 +39,7 @@ function generateVisitPDF(task, visit) {
   const logoSrc    = cfg.logoUrl || `${window.location.origin}/logo.png`;
   const nombreEmp  = cfg.empresaNombre || 'ACONTPLUS';
   const sloganEmp  = cfg.empresaSlogan || 'Recordatorios';
+  const rucEmp     = cfg.ruc || '';
   const statusColor  = { 'Programada': '#2563eb', 'Realizada': '#16a34a', 'Cancelada': '#6b7280', 'Anulada': '#dc2626' }[visit.status] || '#6b7280';
   const urgencyColor = { 'Alta': '#dc2626', 'Media': '#d97706', 'Baja': '#16a34a' }[visit.urgency] || '#6b7280';
 
@@ -95,7 +96,11 @@ function generateVisitPDF(task, visit) {
   <div class="header">
     <div class="header-brand">
       <img src="${logoSrc}" alt="${nombreEmp}"/>
-      <div><h1>${nombreEmp}</h1><p>${sloganEmp}</p></div>
+      <div>
+        <h1>${nombreEmp}</h1><p>${sloganEmp}</p>
+        ${rucEmp ? `<small style="display:block">RUC: ${rucEmp}</small>` : ''}
+        ${visit.establecimientoNombre ? `<small style="display:block">Establecimiento: ${visit.establecimientoNombre}</small>` : ''}
+      </div>
     </div>
     <div class="header-right">
       <div class="doc-title">Ficha de Visita Técnica</div>

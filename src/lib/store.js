@@ -96,6 +96,7 @@ export const useAppStore = create((set, get) => ({
     whatsappNumero:  '',
     whatsappPrefijo: '593',
     logoUrl:         '',
+    ruc:             '',
   },
 
   // ─── Export Config (poblado por useExportConfig) ──────────────────────────

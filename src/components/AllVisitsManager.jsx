@@ -112,8 +112,8 @@ function CompleteVisitModal({ visit, onClose }) {
   );
 }
 
-// ─── Vista de tareas legacy (colección water_filter_tasks) ───────────────────
-function LegacyView({ user }) {
+// ─── Historial de visitas (incluye datos del sistema anterior) ───────────────
+function HistorialView({ user }) {
   const tasks = useAppStore(s => s.tasks);
   const getActiveColumns  = useAppStore(s => s.getActiveColumns);
   const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
@@ -121,8 +121,8 @@ function LegacyView({ user }) {
   return (
     <div className="space-y-4">
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        <p className="font-semibold mb-1">📦 Datos históricos</p>
-        <p className="text-xs">Visitas generadas con el sistema anterior (tareas). Solo lectura.</p>
+        <p className="font-semibold mb-1">📋 Historial completo de visitas</p>
+        <p className="text-xs">Incluye datos del sistema anterior (tareas). Solo lectura.</p>
       </div>
       <VisitsReport
         tasks={tasks}
@@ -399,14 +399,14 @@ export default function AllVisitsManager({ user }) {
             style={innerTab === 'gestion' ? { background: '#D61672' } : {}}>
             Gestión de visitas
           </button>
-          <button onClick={() => setInnerTab('legacy')}
-            className={innerTab === 'legacy' ? ACTIVE_TAB : IDLE_TAB}
-            style={innerTab === 'legacy' ? { background: '#D61672' } : {}}>
-            Historial legado
+          <button onClick={() => setInnerTab('historial')}
+            className={innerTab === 'historial' ? ACTIVE_TAB : IDLE_TAB}
+            style={innerTab === 'historial' ? { background: '#D61672' } : {}}>
+            Historial
           </button>
         </div>
 
-        {innerTab === 'legacy' && <LegacyView user={user} />}
+        {innerTab === 'historial' && <HistorialView user={user} />}
 
         {innerTab === 'gestion' && (
           <>

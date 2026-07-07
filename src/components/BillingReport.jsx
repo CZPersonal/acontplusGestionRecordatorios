@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import {
   Filter, X, ChevronDown, ChevronUp, Download,
   FileText, Search, Calendar, DollarSign,
-  CheckCircle, AlertCircle, Package, Banknote, Settings, CalendarDays
+  CheckCircle, AlertCircle, Package, Banknote, Settings, CalendarDays, Building2, Printer,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import AbonosModal from './AbonosModal.jsx';
-import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas } from '../services/visitBilling.js';
+import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas, printReceipt } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
@@ -52,11 +52,12 @@ function PayStatusBadge({ summary, commitmentDate }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 const INITIAL_FILTERS = {
-  search:      '',
-  dateFrom:    '',
-  dateTo:      '',
-  serviceType: 'Todos',
-  payStatus:   'Todos',
+  search:         '',
+  dateFrom:       '',
+  dateTo:         '',
+  serviceType:    'Todos',
+  payStatus:      'Todos',
+  establecimiento: '',
 };
 
 export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig, onOpenConfig }) {
@@ -68,6 +69,13 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
 
   const { abonosByVisit, addAbono, deleteAbono } = useAbonos();
   const newVisits = useAppStore(s => s.visits);
+  const establecimientos       = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
+  const userRole                = useAppStore(s => s.userRole);
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
 
   // Une el modelo legado (tareas con visitas embebidas) y el nuevo (colección
   // plana de "Gestión de visitas") en una sola lista de cobros.
@@ -108,6 +116,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
         if (st === 'Sin valor'     && summary.total !== 0)                      return false;
         if (st === 'Compromiso'    && !visit.commitmentDate)                    return false;
       }
+      if (filters.establecimiento && visit.establecimientoId !== filters.establecimiento) return false;
       return true;
     });
   }, [allRows, filters]);
@@ -271,6 +280,16 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                 <option value="Sin valor">Sin valor registrado</option>
               </select>
             </div>
+            {visibleEstablecimientos.length > 0 && (
+              <div>
+                <label className={lbl}><Building2 size={11} className="inline mr-1" />Establecimiento</label>
+                <select value={filters.establecimiento}
+                  onChange={e => handleFilter('establecimiento', e.target.value)} className={inp}>
+                  <option value="">Todos los establecimientos</option>
+                  {visibleEstablecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -296,6 +315,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                     <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Saldo</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Estado cobro</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Cuotas</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Recibos</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -369,6 +389,23 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                                     ${fmtMoney(c.valor)}
                                   </span>
                                 </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {(visit.payments || []).length === 0 ? (
+                            <span className="text-slate-300 text-xs">—</span>
+                          ) : (
+                            <div className="space-y-1 min-w-[130px]">
+                              {(visit.payments || []).map(p => (
+                                <button key={p.id} onClick={() => printReceipt(task, visit, p)}
+                                  title="Reimprimir recibo"
+                                  className="flex items-center gap-1.5 text-xs whitespace-nowrap text-slate-500 hover:text-pink-600 transition-colors">
+                                  <Printer size={11} className="flex-shrink-0" />
+                                  <span className="font-mono">{p.receiptNo}</span>
+                                </button>
                               ))}
                             </div>
                           )}

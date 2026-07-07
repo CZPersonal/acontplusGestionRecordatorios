@@ -40,6 +40,7 @@ export function useConfiguracion(user) {
               whatsappNumero:  data.whatsappNumero  || '',
               whatsappPrefijo: data.whatsappPrefijo || '593',
               logoUrl:         data.logoUrl         || '',
+              ruc:             data.ruc             || '',
             },
           });
         }

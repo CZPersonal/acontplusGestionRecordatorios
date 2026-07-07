@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Filter, X, ChevronDown, ChevronUp, Download,
-  FileText, Search, Calendar, User, Phone, Wrench, Package, Settings, DollarSign
+  FileText, Search, Calendar, User, Phone, Wrench, Package, Settings, DollarSign, Building2,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -114,6 +114,7 @@ const INITIAL_FILTERS = {
   serviceType: 'Todos',
   visitStatus: 'Todos',
   urgency:     'Todos',
+  establecimiento: '',
 };
 
 export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
@@ -121,6 +122,13 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
   const [showFilters,    setShowFilters]    = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const newVisits = useAppStore(s => s.visits);
+  const establecimientos       = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
+  const userRole                = useAppStore(s => s.userRole);
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
 
   // Aplanar y unir el modelo legado (tareas) con el nuevo (Gestión de visitas)
   const allRows = useMemo(() => {
@@ -167,6 +175,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
         } else if (row.visitStatus !== filters.visitStatus) return false;
       }
       if (filters.urgency     !== 'Todos' && row.urgency     !== filters.urgency)     return false;
+      if (filters.establecimiento && row.visit.establecimientoId !== filters.establecimiento) return false;
       return true;
     });
   }, [allRows, filters]);
@@ -361,6 +370,19 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                 ))}
               </select>
             </div>
+
+            {/* Establecimiento */}
+            {visibleEstablecimientos.length > 0 && (
+              <div>
+                <label className={lbl}><Building2 size={11} className="inline mr-1" />Establecimiento</label>
+                <select value={filters.establecimiento}
+                  onChange={e => handleFilter('establecimiento', e.target.value)}
+                  className={inp}>
+                  <option value="">Todos los establecimientos</option>
+                  {visibleEstablecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+            )}
 
           </div>
         )}

@@ -7,6 +7,7 @@ import {
   calcPaymentSummary, saveVisitBilling,
   addPayment, deletePayment, generateReceiptNo,
   saveFlatVisitBilling, addFlatVisitPayment, deleteFlatVisitPayment,
+  printReceipt,
 } from '../services/visitBilling.js';
 
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
@@ -18,121 +19,6 @@ const METHOD_ICONS = {
   'Cheque':         <CreditCard   size={13} className="text-purple-600" />,
   'Otro':           <DollarSign   size={13} className="text-slate-500"  />,
 };
-
-// ─── Generador de comprobante HTML ────────────────────────────────────────────
-
-function generateReceipt({ task, visit, payment }) {
-  const { total, abonado, saldo } = calcPaymentSummary({
-    ...visit,
-    payments: visit.payments || [],
-  });
-
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Comprobante ${payment.receiptNo}</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:Arial,sans-serif; font-size:12px; color:#1e293b; }
-    .page { max-width:400px; margin:0 auto; padding:24px; border:2px solid #e2e8f0; }
-    .header { text-align:center; border-bottom:3px solid #D61672; padding-bottom:12px; margin-bottom:14px; }
-    .header h1 { font-size:18px; font-weight:bold; color:#D61672; letter-spacing:.05em; }
-    .header p  { font-size:10px; color:#FFA901; font-weight:bold; }
-    .receipt-no { text-align:center; margin-bottom:12px; }
-    .receipt-no span { font-family:monospace; font-size:15px; font-weight:bold; color:#D61672;
-      background:#fdf2f8; px:8px; padding:4px 12px; border-radius:6px; border:1px solid #fce7f3; }
-    .section { margin-bottom:10px; }
-    .section-title { font-size:9px; font-weight:bold; text-transform:uppercase; letter-spacing:.08em;
-      color:#D61672; border-bottom:1px solid #fce7f3; padding-bottom:3px; margin-bottom:6px; }
-    .row { display:flex; justify-content:space-between; padding:3px 0; font-size:11px; }
-    .row .label { color:#64748b; }
-    .row .value { font-weight:bold; }
-    .amount-box { background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:8px; padding:10px;
-      text-align:center; margin:10px 0; }
-    .amount-box .am-label { font-size:9px; color:#166534; text-transform:uppercase; font-weight:bold; }
-    .amount-box .am-value { font-size:22px; font-weight:bold; color:#166534; }
-    .saldo-box { background:#fff7ed; border:1.5px solid #fed7aa; border-radius:8px; padding:8px;
-      display:flex; justify-content:space-between; align-items:center; }
-    .saldo-box .s-label { font-size:10px; color:#9a3412; font-weight:bold; }
-    .saldo-box .s-value { font-size:14px; font-weight:bold; color:#9a3412; }
-    .paid-box { background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:8px; padding:8px;
-      text-align:center; color:#166534; font-weight:bold; font-size:12px; }
-    .footer { margin-top:16px; padding-top:10px; border-top:2px solid #D61672;
-      display:flex; justify-content:space-between; align-items:center; font-size:9px; color:#94a3b8; }
-    .signature { margin-top:36px; border-top:1px solid #D61672; padding-top:4px;
-      text-align:center; font-size:9px; color:#64748b; }
-    @media print { .page { border:none; } }
-  </style>
-</head>
-<body>
-<div class="page">
-  <div class="header">
-    <h1>ACONTPLUS</h1>
-    <p>Recordatorios · Comprobante de cobro</p>
-  </div>
-
-  <div class="receipt-no">
-    <span>${payment.receiptNo}</span>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Cliente</div>
-    <div class="row"><span class="label">Nombre</span><span class="value">${task.clientName || '—'}</span></div>
-    ${task.clientPhone ? `<div class="row"><span class="label">Teléfono</span><span class="value">${task.clientPhone}</span></div>` : ''}
-    ${task.serviceOrder ? `<div class="row"><span class="label">Orden servicio</span><span class="value">${task.serviceOrder}</span></div>` : ''}
-    ${task.serviceType  ? `<div class="row"><span class="label">Tipo servicio</span><span class="value">${task.serviceType}</span></div>` : ''}
-  </div>
-
-  <div class="section">
-    <div class="section-title">Visita</div>
-    <div class="row"><span class="label">Fecha visita</span><span class="value">${formatDateOnly(visit.scheduledDate)}</span></div>
-    ${visit.type ? `<div class="row"><span class="label">Tipo</span><span class="value">${visit.type}</span></div>` : ''}
-    ${visit.technician ? `<div class="row"><span class="label">Técnico</span><span class="value">${visit.technician}</span></div>` : ''}
-  </div>
-
-  <div class="section">
-    <div class="section-title">Abono registrado</div>
-    <div class="row"><span class="label">Fecha cobro</span><span class="value">${formatDateOnly(payment.date)}</span></div>
-    <div class="row"><span class="label">Forma de pago</span><span class="value">${payment.method}</span></div>
-    ${payment.note ? `<div class="row"><span class="label">Referencia</span><span class="value">${payment.note}</span></div>` : ''}
-    <div class="row"><span class="label">Registrado por</span><span class="value">${payment.registeredBy}</span></div>
-    <div class="row"><span class="label">Fecha registro</span><span class="value">${new Date(payment.registeredAt).toLocaleString('es-EC')}</span></div>
-  </div>
-
-  <div class="amount-box">
-    <div class="am-label">Valor abonado</div>
-    <div class="am-value">$ ${fmtMoney(payment.amount)}</div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Resumen de cuenta</div>
-    <div class="row"><span class="label">Valor total</span><span class="value">$ ${fmtMoney(total)}</span></div>
-    <div class="row"><span class="label">Total abonado</span><span class="value">$ ${fmtMoney(abonado)}</span></div>
-  </div>
-
-  ${saldo === 0
-    ? `<div class="paid-box">✅ CUENTA CANCELADA EN SU TOTALIDAD</div>`
-    : `<div class="saldo-box"><span class="s-label">Saldo pendiente</span><span class="s-value">$ ${fmtMoney(saldo)}</span></div>`
-  }
-
-  <div class="signature">Firma del cliente / Recibí conforme</div>
-
-  <div class="footer">
-    <span>ACONTPLUS Recordatorios</span>
-    <span>Generado: ${new Date().toLocaleString('es-EC')}</span>
-  </div>
-</div>
-</body></html>`;
-  return html;
-}
-
-function printReceipt(task, visit, payment) {
-  const win = window.open('', '_blank', 'width=500,height=700');
-  win.document.write(generateReceipt({ task, visit, payment }));
-  win.document.close();
-  win.focus();
-}
 
 // ─── Formulario nuevo abono ────────────────────────────────────────────────────
 

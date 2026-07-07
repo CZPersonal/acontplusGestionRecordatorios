@@ -102,6 +102,10 @@ de rediseño antes de seguir probando esta pantalla — mismo patrón encontrado
 ### 5.5 Visita de soporte
 19. ⬜ Generar una "visita de soporte" desde una visita existente → se crea una nueva visita con el badge "🔧 Soporte" y los datos del cliente precargados.
 
+### 5.6 PDF de visita e Historial
+20. ⬜ Generar el PDF de una visita → el encabezado muestra logo, nombre y slogan de la empresa (configurados en Configuración → Entidad), además del RUC y, si la visita tiene establecimiento asignado, su nombre.
+21. ⬜ La pestaña antes llamada "Historial legado" ahora dice "Historial" y su filtro incluye establecimiento (junto a los demás filtros ya existentes).
+
 ---
 
 ## 6. Reportes — ❌ ELIMINADO
@@ -123,6 +127,9 @@ aplica para las pruebas.
 7. ⬜ Exportar el reporte de Cobros → el archivo incluye la columna "Cuotas" con el formato "DD/MM/AAAA: $X (Pagada/Pendiente)".
 8. ⬜ Eliminar un abono/pago registrado → el saldo se recalcula.
 9. ⬜ Filtrar por estado de cobro (Pendiente, Abono parcial, Pagado, Sin valor) → cada filtro funciona.
+10. ⬜ Filtro por establecimiento → filtra correctamente la tabla de cobros.
+11. ⬜ Registrar un pago nuevo → el recibo generado en PDF muestra logo, nombre, slogan y RUC de la empresa (configurados en Configuración → Entidad) y el establecimiento de la visita (si tiene).
+12. ⬜ Columna "Recibos": lista cada pago registrado con su número de recibo y un botón de imprimir; al hacer clic, reabre el mismo comprobante PDF sin necesidad de abrir "Cobrar".
 
 ---
 
@@ -154,6 +161,7 @@ aplica para las pruebas.
 ### 9.1 Entidad
 1. ⬜ Editar el nombre, slogan, WhatsApp de la empresa → se guarda y se refleja en los correos enviados.
 2. ⬜ Subir un logo nuevo → se sube a Firebase Storage y se ve la vista previa.
+2b. ⬜ Guardar un RUC → se guarda y ahora sí llega correctamente al PDF de visita y al recibo de cobro (antes se guardaba pero nunca se propagaba fuera de esta pantalla).
 
 ### 9.2 Catálogos
 3. ⬜ Técnicos: agregar, editar, eliminar un técnico.
