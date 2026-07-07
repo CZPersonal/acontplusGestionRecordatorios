@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { useAppStore } from './lib/store';
@@ -161,6 +161,30 @@ export default function App() {
       })
       .catch(() => {});
   }, [user?.uid, tenantId]);
+
+  // ─── Cierre de sesión forzado del técnico al cruzar la medianoche ──────────
+  // El técnico debe volver a iniciar sesión cada nuevo día — se compara la
+  // fecha (hora Ecuador) de su último inicio de sesión real contra la fecha
+  // actual; si cambió el día, se cierra la sesión. Se revisa al cargar y luego
+  // cada 5 minutos, para detectar el cruce aunque la app quede abierta toda la
+  // noche. No aplica a admins ni a la sesión restaurada offline desde
+  // localStorage (esa no tiene `metadata.lastSignInTime`, es un objeto plano).
+  useEffect(() => {
+    if (!user || userRole !== 'tecnico') return;
+    const lastSignIn = user.metadata?.lastSignInTime;
+    if (!lastSignIn) return;
+
+    const ecuadorDateStr = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+    const signInDateStr  = ecuadorDateStr(new Date(lastSignIn));
+
+    const checkAndSignOut = () => {
+      if (ecuadorDateStr(new Date()) !== signInDateStr) signOut(auth);
+    };
+
+    checkAndSignOut();
+    const interval = setInterval(checkAndSignOut, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user, userRole]);
 
   // ─── Network ───────────────────────────────────────────────────────────────
   useEffect(() => {

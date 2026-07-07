@@ -27,6 +27,7 @@ Claude Code actualiza el estado de cada prueba en este archivo.
 7. ✅ Desconectar internet y tratar de iniciar sesión → muestra aviso "Sin conexión".
 8. ⏭️ Primera vez con una cuenta nueva (sin tenant) → aparece "Configura tu empresa" (Crear empresa / Unirme).
    - **Omitida:** no se puede probar porque ya existen tenants con datos reales; requeriría una cuenta nueva.
+9. ⬜ Iniciar sesión como técnico un día, dejar la app abierta (o cerrarla y volver a abrirla) al día siguiente → la sesión se cierra automáticamente y pide iniciar sesión de nuevo (no aplica a admins).
 
 ---
 
