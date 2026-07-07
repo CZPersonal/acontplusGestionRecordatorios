@@ -413,6 +413,7 @@ export default function VisitFormUnified({ initialVisit, onClose }) {
       return;
     } else {
       const { scheduledDate: _omit, ...baseData } = visitData;
+      if (recurrence.mode === 'periodica') baseData.periodicidad = recurrence.period;
       ok = await handleAddVisitSeries(baseData, seriesDates);
     }
 

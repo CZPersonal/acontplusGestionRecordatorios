@@ -4,6 +4,7 @@ import { useTecnicos } from '../hooks/useTecnicos';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 import { getClientContacts } from '../hooks/useClients.js';
 import { printVisitPDF, shareVisitWhatsApp } from './VisitsModal.jsx';
+import { PERIODICIDAD_OPTIONS } from './BorradorSheet.jsx';
 import VisitsReport from './VisitsReport.jsx';
 import BillingModal from './BillingModal.jsx';
 import { calcPaymentSummary } from '../services/visitBilling.js';
@@ -314,6 +315,11 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
                     <Layers size={16} className="text-pink-500 flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-800 truncate">{first.clientName || '—'}</p>
+                      {first.periodicidad && (
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {PERIODICIDAD_OPTIONS.find(o => o.value === first.periodicidad)?.label || first.periodicidad}
+                        </p>
+                      )}
                       <p className="text-xs text-slate-400 mt-0.5">
                         Primera visita: {formatDateOnly(first.scheduledDate)} · {group.visits.length} visitas
                         {first.technician && ` · ${first.technician}`}
