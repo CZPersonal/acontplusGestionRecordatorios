@@ -177,8 +177,9 @@ aplica para las pruebas.
 7. ⬜ Ver historial del cliente desde una tarjeta de visita → muestra visitas anteriores del mismo cliente.
 8. ⬜ Crear un borrador desde el panel del técnico (ver sección 8.1).
 9. ⬜ Confirmar que el botón "Realizada" sigue bloqueado si la visita no está confirmada.
-10. ⬜ En una visita **Programada y confirmada** (modelo nuevo): botón "Deshacer confirmación" → aparece confirmación inline ("¿Deshacer confirmación? Sí/No"), al aceptar la visita vuelve a sin confirmar.
-11. ⬜ Botón "Reprogramar" en una visita Programada → abre modal con fecha/hora actuales precargadas; guardar una fecha nueva → la visita se actualiza y, si estaba confirmada, pierde la confirmación.
+10. ⬜ En una visita **Programada y confirmada** (modelo nuevo): botón "Deshacer confirmación" → aparece confirmación inline con botones **Sí/No grandes y fáciles de tocar**, al aceptar la visita vuelve a sin confirmar.
+11. ⬜ Botón "Reprogramar" solo aparece cuando la visita **NO** está confirmada — en una visita ya confirmada, en su lugar se ve solo "Deshacer confirmación" (hay que deshacerla primero para poder reprogramar).
+11b. ⬜ Con "Reprogramar" (visita sin confirmar): abre modal con fecha/hora actuales precargadas; guardar una fecha nueva → la visita se actualiza.
 12. ⬜ Después de reprogramar, la tarjeta muestra la nota "🔄 Reprogramada — antes: DD/MM HH:MM".
 13. ⬜ En una visita sin mapa guardado: botón "Agregar mapa" → dentro del modal, botón "Abrir Maps" abre Google Maps (con tu ubicación si el navegador lo permite), botón "Pegar" toma el link del portapapeles → guardar → aparece "Abrir mapa" en esa visita.
 14. ⬜ Verificar que ese mismo link de mapa aparece también en OTRA visita futura del mismo cliente/ubicación (se guardó en el cliente, no solo en esa visita).

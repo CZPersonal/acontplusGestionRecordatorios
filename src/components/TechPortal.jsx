@@ -494,16 +494,16 @@ function VisitCard({ visit, task, onConfirm, confirming, onComplete, onHistorial
           )}
           {isNewVisit && visit.status === 'Programada' && (onReschedule || onUnconfirm) && (
             confirmUnconfirm ? (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
                 <span className="flex-1 text-xs font-semibold text-amber-700">¿Deshacer la confirmación?</span>
                 <button onClick={() => { setConfirmUnconfirm(false); onUnconfirm(visit.id); }}
-                  className="text-xs font-bold text-amber-700 hover:text-amber-900">Sí</button>
+                  className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors">Sí</button>
                 <button onClick={() => setConfirmUnconfirm(false)}
-                  className="text-xs font-semibold text-slate-500 hover:text-slate-700">No</button>
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">No</button>
               </div>
             ) : (
               <div className="flex gap-2">
-                {onReschedule && (
+                {!isConfirmed && onReschedule && (
                   <button onClick={() => onReschedule(visit, task)}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100">
                     <Calendar size={12} />Reprogramar
@@ -721,16 +721,16 @@ function DayVisitCard({ visit, task, isNewVisit = false, mapsLink = '', onConfir
         )}
         {isNewVisit && visit.status === 'Programada' && (onReschedule || onUnconfirm) && (
           confirmUnconfirm ? (
-            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2 py-2">
               <span className="flex-1 text-[10px] font-semibold text-amber-700">¿Deshacer confirmación?</span>
               <button onClick={() => { setConfirmUnconfirm(false); onUnconfirm(visit.id); }}
-                className="text-[10px] font-bold text-amber-700 hover:text-amber-900">Sí</button>
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors">Sí</button>
               <button onClick={() => setConfirmUnconfirm(false)}
-                className="text-[10px] font-semibold text-slate-500 hover:text-slate-700">No</button>
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">No</button>
             </div>
           ) : (
             <div className="flex gap-1.5">
-              {onReschedule && (
+              {!isConfirmed && onReschedule && (
                 <button onClick={() => onReschedule(visit, task)}
                   className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100">
                   <Calendar size={10} />Reprogramar
