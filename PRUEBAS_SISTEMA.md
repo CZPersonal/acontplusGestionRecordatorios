@@ -67,6 +67,7 @@ de rediseño antes de seguir probando esta pantalla — mismo patrón encontrado
 2. ⬜ Cambiar de mes (adelante/atrás) → carga las visitas del mes correcto.
 3. ⬜ Click en un día con visitas → muestra el detalle de esas visitas.
 4. ⬜ Click en un día vacío → permite crear una visita nueva con esa fecha precargada (si aplica).
+5. ⬜ Filtro por establecimiento (junto al de técnico) → filtra correctamente en Mes, Semana y Día; las visitas del modelo legado (sin establecimiento) quedan fuera al elegir un establecimiento específico.
 
 ---
 
@@ -129,6 +130,7 @@ aplica para las pruebas.
 
 ### 8.1 Panel del técnico
 1. ⬜ Crear un borrador nuevo con datos de cliente y visita (motivo, fecha, hora).
+1b. ⬜ Elegir un establecimiento (si el técnico tiene alguno asignado) → se guarda y aparece como insignia en la tarjeta del técnico y en la fila del admin.
 2. ⬜ Marcar "Es una visita periódica", elegir período (Cuatrimestral/Semestral/Anual) y cantidad → se guarda y se ve en la tarjeta del técnico con la insignia "🔁 Periódica: X × N".
 3. ⬜ Editar un borrador pendiente → los cambios se guardan.
 4. ⬜ Anular un borrador → cambia a estado "Anulado".
@@ -142,6 +144,8 @@ aplica para las pruebas.
 9. ⬜ Eliminar un borrador permanentemente → pide confirmación y lo borra.
 9b. ⬜ En el detalle del borrador, revisar la sección "Cronología": Creado (con nombre/correo del técnico), y si aplica, Convertido/Anulado con nombre resuelto (no solo el email) y fecha/hora.
 10. ⬜ Buscar/filtrar borradores por estado (Pendiente/Convertido/Anulado) y por texto.
+11. ⬜ En la lista de "Borradores", cada fila muestra la insignia de establecimiento (si tiene) y la cronología compacta (Creado/Convertido/Anulado).
+12. ⬜ Nueva pestaña "Historial" (junto a "Borradores"): muestra solo convertidos/anulados de todo el tiempo (nunca pendientes), con sus propios filtros — estado (Todos/Convertidos/Anulados), rango de fechas (desde/hasta), búsqueda de texto y establecimiento — todos funcionando de forma independiente a los filtros de la pestaña "Borradores".
 
 ---
 
@@ -188,6 +192,7 @@ aplica para las pruebas.
 15. ⬜ En una visita que YA tiene mapa: aparece "Abrir mapa" + botón "Editar" lado a lado → "Editar" abre el modal precargado con el link actual (título "Editar mapa"), se puede cambiar y guardar.
 16. ⬜ Confirmar que estos botones (Reprogramar/Deshacer confirmación/Agregar mapa/Editar mapa) NO aparecen en visitas del modelo legado ni en visitas Realizada/Cancelada/Anulada.
 17. ⬜ Probar los mismos puntos anteriores (10-16) también en la vista "Día" (`DayVisitCard`), no solo en "Lista".
+18. ⬜ Filtro por establecimiento (junto al filtro de estado, oculto en la vista "Borradores") → filtra correctamente en Lista, Día y Semana a la vez.
 
 ---
 

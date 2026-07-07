@@ -31,6 +31,8 @@ const EMPTY_FORM = {
   isPeriodica:          false,
   periodicidad:         'cuatrimestral',
   periodicidadCantidad: '',
+  establecimientoId:     '',
+  establecimientoNombre: '',
 };
 
 // Opciones de periodicidad — solo informativo: el administrador las usa como
@@ -193,6 +195,23 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
   const [errors, setErrors] = useState({});
   const visits  = useAppStore(s => s.visits);
   const clients = useAppStore(s => s.clients);
+  const establecimientos            = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos      = useAppStore(s => s.memberEstablecimientos);
+  const memberEstablecimientoDefault = useAppStore(s => s.memberEstablecimientoDefault);
+  const userRole                    = useAppStore(s => s.userRole);
+
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
+
+  // Autoseleccionar el establecimiento por defecto del usuario al crear (no al editar)
+  useEffect(() => {
+    if (isEdit || form.establecimientoId || !memberEstablecimientoDefault) return;
+    const def = visibleEstablecimientos.find(e => e.id === memberEstablecimientoDefault);
+    if (def) setForm(prev => ({ ...prev, establecimientoId: def.id, establecimientoNombre: def.nombre }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberEstablecimientoDefault, visibleEstablecimientos.length]);
 
   // Estado de cliente seleccionado
   const [selectedClientId,   setSelectedClientId]   = useState(initial?.clientId  || null);
@@ -378,6 +397,8 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
       isPeriodica:          form.isPeriodica,
       periodicidad:         form.isPeriodica ? form.periodicidad : null,
       periodicidadCantidad: form.isPeriodica ? (Number(form.periodicidadCantidad) || null) : null,
+      establecimientoId:     form.establecimientoId     || null,
+      establecimientoNombre: form.establecimientoNombre || '',
     });
     if (ok) onClose();
   };
@@ -746,6 +767,26 @@ function BorradorForm({ initial, onSave, onClose, isEdit, isLoading, userEmail, 
           {/* ── Sección visita ── */}
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">Visita</p>
 
+          {visibleEstablecimientos.length > 0 && (
+            <div>
+              <label className={lbl}>Establecimiento</label>
+              <div className="relative">
+                <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <select value={form.establecimientoId}
+                  onChange={e => {
+                    const est = visibleEstablecimientos.find(x => x.id === e.target.value);
+                    setForm(prev => ({ ...prev, establecimientoId: est?.id || '', establecimientoNombre: est?.nombre || '' }));
+                  }}
+                  className={`${inp(false)} pl-9`}>
+                  <option value="">— Sin especificar —</option>
+                  {visibleEstablecimientos.map(e => (
+                    <option key={e.id} value={e.id}>{e.nombre}{e.codigo ? ` (${e.codigo})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className={lbl}>Fecha <span className="text-red-400">*</span></label>
             <div className="relative">
@@ -963,6 +1004,11 @@ function BorradorCard({ b, onEdit, onAnular, emailToName = {} }) {
               <Calendar size={10} className="flex-shrink-0" />
               {formatDateOnly(b.scheduledDate)}
               {b.scheduledTime && ` ${b.scheduledTime}`}
+            </span>
+          )}
+          {b.establecimientoNombre && (
+            <span className="text-xs text-slate-500 flex items-center gap-1">
+              <Building2 size={10} className="flex-shrink-0" />{b.establecimientoNombre}
             </span>
           )}
         </div>
@@ -1219,6 +1265,8 @@ export default function BorradorSheet({ user, showList = false }) {
                 isPeriodica:          editing.isPeriodica          || false,
                 periodicidad:         editing.periodicidad         || 'cuatrimestral',
                 periodicidadCantidad: editing.periodicidadCantidad || '',
+                establecimientoId:     editing.establecimientoId     || '',
+                establecimientoNombre: editing.establecimientoNombre || '',
               } : null}
               onSave={handleSave}
               onClose={closeSheet}

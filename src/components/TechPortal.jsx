@@ -959,6 +959,9 @@ export default function TechPortal({ user }) {
   const newVisits      = useAppStore(s => s.visits);
   const clients        = useAppStore(s => s.clients);
   const addToast       = useAppStore(s => s.addToast);
+  const establecimientos       = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
+  const userRole                = useAppStore(s => s.userRole);
   const tenantName     = useAppStore(s => s.tenantName);
   const tenantRuc      = useAppStore(s => s.tenantRuc);
   const refreshKey     = useAppStore(s => s.refreshKey);
@@ -1002,6 +1005,12 @@ export default function TechPortal({ user }) {
   const [calView,         setCalView]         = useState('lista'); // 'lista' | 'dia' | 'semana' | 'borradores'
   const [calDate,         setCalDate]         = useState(today);
   const [visitFilter,     setVisitFilter]     = useState('todas'); // 'todas' | 'programadas' | 'confirmadas' | 'realizadas'
+  const [filterEst,       setFilterEst]       = useState('todos');
+
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
   const [confirming,      setConfirming]      = useState(null);
   const [completingVisit, setCompletingVisit] = useState(null);
   const [refreshing,      setRefreshing]      = useState(false);
@@ -1111,6 +1120,7 @@ export default function TechPortal({ user }) {
     newVisits.forEach(v => {
       const isMyVisit = (techName && v.technician === techName) || v.technicianEmail === user.email;
       if (!isMyVisit) return;
+      if (filterEst !== 'todos' && v.establecimientoId !== filterEst) return;
       const isRealizada  = v.status === 'Realizada';
       const isConfirmada = v.status === 'Confirmada';
       const isProgramada = v.status === 'Programada';
@@ -1133,7 +1143,7 @@ export default function TechPortal({ user }) {
     });
 
     return map;
-  }, [tasks, newVisits, user.email, techName, visitFilter, clientsById]);
+  }, [tasks, newVisits, user.email, techName, visitFilter, filterEst, clientsById]);
 
   // Grupos para vista lista
   const { atrasadas, hoy, proximas, realizadas } = useMemo(() => {
@@ -1302,6 +1312,16 @@ export default function TechPortal({ user }) {
                 </button>
               ))}
             </div>
+          )}
+          {/* Filtro por establecimiento — oculto en vista borradores */}
+          {calView !== 'borradores' && visibleEstablecimientos.length > 0 && (
+            <select value={filterEst} onChange={e => setFilterEst(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium bg-white focus:outline-none focus:border-pink-400 text-slate-600">
+              <option value="todos">Todos los establecimientos</option>
+              {visibleEstablecimientos.map(e => (
+                <option key={e.id} value={e.id}>{e.nombre}</option>
+              ))}
+            </select>
           )}
         </div>
       </div>

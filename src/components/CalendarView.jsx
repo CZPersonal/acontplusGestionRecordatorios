@@ -1220,6 +1220,13 @@ export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onVie
   const { tiposParaSelect } = useTiposVisita(user);
   const { tecnicos }        = useTecnicos(user);
   const tecnicosParaSelect  = tecnicos;
+  const establecimientos       = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
+  const userRole                = useAppStore(s => s.userRole);
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
   const today = new Date();
   const [viewMode, setViewMode]       = useState('month');
   const [currentDate, setCurrentDate] = useState({
@@ -1232,6 +1239,7 @@ export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onVie
   const [dayPickerDate,   setDayPickerDate]   = useState(null);
   const [visitFilter,     setVisitFilter]     = useState('todas');
   const [filterTech,      setFilterTech]      = useState('');
+  const [filterEst,       setFilterEst]       = useState('');
 
   const legacyEvents   = useMemo(() => getCalendarEvents(tasks), [tasks]);
   const newVisitEvents = useMemo(() => getVisitEvents(visits, clientsById), [visits, clientsById]);
@@ -1257,8 +1265,11 @@ export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onVie
         return true;
       });
     }
+    if (filterEst) {
+      evts = evts.filter(e => e.visit?.establecimientoId === filterEst);
+    }
     return evts;
-  }, [allEvents, filterTech, visitFilter]);
+  }, [allEvents, filterTech, visitFilter, filterEst]);
 
   const navigate = (dir) => {
     setCurrentDate(prev => {
@@ -1358,6 +1369,14 @@ export default function CalendarView({ tasks, user, onNewTask, onNewVisit, onVie
               className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:border-pink-400 text-slate-600">
               <option value="">Todos los técnicos</option>
               {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+            </select>
+          )}
+          {/* Filtro por establecimiento */}
+          {visibleEstablecimientos.length > 0 && (
+            <select value={filterEst} onChange={e => setFilterEst(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium bg-white focus:outline-none focus:border-pink-400 text-slate-600">
+              <option value="">Todos los establecimientos</option>
+              {visibleEstablecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
           )}
           {/* Filtro visitas */}

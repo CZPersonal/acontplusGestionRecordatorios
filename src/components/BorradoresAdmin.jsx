@@ -199,9 +199,17 @@ function BorradorDetailModal({ b, onClose, onConvert, onAnular, onDelete, conver
 
 // ─── Tarjeta compacta de lista ────────────────────────────────────────────────
 
-function BorradorRow({ b, onDetail }) {
+function BorradorRow({ b, onDetail, emailToName = {} }) {
   const isPendiente = b.status === 'Pendiente';
   const isAnulado   = b.status === 'Anulado';
+
+  // Línea compacta de cronología: fecha/hora + nombre (si se conoce)
+  const chrono = (label, at, name) => at ? (
+    <p className="text-[11px] text-slate-400 mt-0.5">
+      {label} {formatDateTime(at)}{name && ` · ${name}`}
+    </p>
+  ) : null;
+
   return (
     <div
       className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer hover:shadow-md transition-shadow ${
@@ -249,14 +257,33 @@ function BorradorRow({ b, onDetail }) {
               <Repeat size={10} />{periodicidadLabel(b.periodicidad)} × {b.periodicidadCantidad}
             </span>
           )}
+          {b.establecimientoNombre && (
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <Building2 size={10} />{b.establecimientoNombre}
+            </span>
+          )}
         </div>
         {b.motivo && (
           <p className="text-xs text-slate-400 italic mt-0.5 truncate">📝 {b.motivo}</p>
         )}
+        {chrono('📝 Creado', b.createdAt, b.technicianName)}
+        {b.status === 'Convertido' && chrono('✅ Convertido', b.convertedAt, emailToName[b.convertedBy])}
+        {isAnulado && chrono('🚫 Anulado', b.anuladoAt, b.anuladoPor)}
       </div>
 
       <Eye size={14} className="text-slate-300 flex-shrink-0 mt-1" />
     </div>
+  );
+}
+
+// Coincidencia de búsqueda de texto libre — compartida entre "Borradores" e "Historial"
+function matchesSearch(b, q) {
+  return (
+    (b.clientName     || '').toLowerCase().includes(q) ||
+    (b.clientPhone    || '').toLowerCase().includes(q) ||
+    (b.clientIdNumber || '').toLowerCase().includes(q) ||
+    (b.technicianName || '').toLowerCase().includes(q) ||
+    (b.motivo         || '').toLowerCase().includes(q)
   );
 }
 
@@ -280,10 +307,27 @@ export default function BorradoresAdmin({ user }) {
     [tecnicos]
   );
 
+  const establecimientos       = useAppStore(s => s.establecimientos);
+  const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
+  const userRole                = useAppStore(s => s.userRole);
+  const visibleEstablecimientos = useMemo(() => {
+    if (userRole === 'admin' || memberEstablecimientos.length === 0) return establecimientos;
+    return establecimientos.filter(e => memberEstablecimientos.includes(e.id));
+  }, [establecimientos, memberEstablecimientos, userRole]);
+
+  const [view,       setView]       = useState('borradores'); // 'borradores' | 'historial'
   const [filter,     setFilter]     = useState('pendientes');
   const [search,     setSearch]     = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [filterEst,  setFilterEst]  = useState('');
   const [detail,     setDetail]     = useState(null);
+
+  // Filtros propios de la pestaña "Historial" (independientes de los de "Borradores")
+  const [historialFilter,   setHistorialFilter]   = useState('todos'); // 'todos' | 'convertidos' | 'anulados'
+  const [historialSearch,   setHistorialSearch]   = useState('');
+  const [historialDateFrom, setHistorialDateFrom] = useState('');
+  const [historialDateTo,   setHistorialDateTo]   = useState('');
+  const [historialFilterEst, setHistorialFilterEst] = useState('');
 
   // Borrador en proceso de conversión: guardamos ref para el useEffect
   const borradorConvertRef   = useRef(null);
@@ -316,18 +360,29 @@ export default function BorradoresAdmin({ user }) {
     if (filter === 'convertidos') list = list.filter(b => b.status === 'Convertido');
     if (filter === 'anulados')    list = list.filter(b => b.status === 'Anulado');
     if (dateFilter) list = list.filter(b => b.scheduledDate === dateFilter);
+    if (filterEst)  list = list.filter(b => b.establecimientoId === filterEst);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      list = list.filter(b =>
-        (b.clientName     || '').toLowerCase().includes(q) ||
-        (b.clientPhone    || '').toLowerCase().includes(q) ||
-        (b.clientIdNumber || '').toLowerCase().includes(q) ||
-        (b.technicianName || '').toLowerCase().includes(q) ||
-        (b.motivo         || '').toLowerCase().includes(q)
-      );
+      list = list.filter(b => matchesSearch(b, q));
     }
     return list;
-  }, [borradores, filter, dateFilter, search]);
+  }, [borradores, filter, dateFilter, filterEst, search]);
+
+  // "Historial": convertidos + anulados de todo el tiempo, con su propio rango de
+  // fechas (sobre scheduledDate), búsqueda y filtro por establecimiento.
+  const filteredHistorial = useMemo(() => {
+    let list = borradores.filter(b => b.status === 'Convertido' || b.status === 'Anulado');
+    if (historialFilter === 'convertidos') list = list.filter(b => b.status === 'Convertido');
+    if (historialFilter === 'anulados')    list = list.filter(b => b.status === 'Anulado');
+    if (historialDateFrom) list = list.filter(b => b.scheduledDate >= historialDateFrom);
+    if (historialDateTo)   list = list.filter(b => b.scheduledDate <= historialDateTo);
+    if (historialFilterEst) list = list.filter(b => b.establecimientoId === historialFilterEst);
+    if (historialSearch.trim()) {
+      const q = historialSearch.trim().toLowerCase();
+      list = list.filter(b => matchesSearch(b, q));
+    }
+    return list;
+  }, [borradores, historialFilter, historialDateFrom, historialDateTo, historialFilterEst, historialSearch]);
 
   const pendientesCount = borradores.filter(b => b.status === 'Pendiente').length;
 
@@ -391,88 +446,189 @@ export default function BorradoresAdmin({ user }) {
         </div>
       </div>
 
-      {/* Alerta de pendientes */}
-      {pendientesCount > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3">
-          <AlertCircle size={20} className="text-amber-600 flex-shrink-0" />
-          <p className="text-sm font-bold text-amber-800">
-            {pendientesCount} borrador{pendientesCount !== 1 ? 'es' : ''} esperando ser convertido{pendientesCount !== 1 ? 's' : ''} en visita formal
-          </p>
-        </div>
-      )}
-
-      {/* Filtros */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
-            {[
-              { id: 'pendientes',  label: 'Pendientes' },
-              { id: 'convertidos', label: 'Convertidos' },
-              { id: 'anulados',    label: 'Anulados' },
-              { id: 'todos',       label: 'Todos' },
-            ].map(f => (
-              <button key={f.id} onClick={() => setFilter(f.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  filter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                {f.label}
-                {f.id === 'pendientes' && pendientesCount > 0 && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
-                    {pendientesCount}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative flex-1">
-              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
-              />
-            </div>
-            {dateFilter && (
-              <button onClick={() => setDateFilter('')}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 border-2 border-slate-200 bg-white transition-colors whitespace-nowrap">
-                <X size={12} />Limpiar
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input
-            type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por cliente, técnico, motivo…"
-            className="w-full pl-9 pr-8 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X size={13} />
-            </button>
-          )}
-        </div>
+      {/* Pestañas: Borradores / Historial */}
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+        {[
+          { id: 'borradores', label: 'Borradores' },
+          { id: 'historial',  label: 'Historial' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setView(t.id)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              view === t.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Lista */}
-      {isLoading && borradores.length === 0 ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={28} className="animate-spin text-slate-300" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <FileText size={44} className="mx-auto mb-3 opacity-20" />
-          <p className="font-medium text-sm">
-            {search ? `Sin resultados para "${search}"` : 'Sin borradores'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(b => (
-            <BorradorRow key={b.id} b={b} onDetail={setDetail} />
-          ))}
-        </div>
+      {view === 'borradores' && (
+        <>
+          {/* Alerta de pendientes */}
+          {pendientesCount > 0 && (
+            <div className="flex items-center gap-3 bg-amber-50 border-2 border-amber-200 rounded-2xl px-4 py-3">
+              <AlertCircle size={20} className="text-amber-600 flex-shrink-0" />
+              <p className="text-sm font-bold text-amber-800">
+                {pendientesCount} borrador{pendientesCount !== 1 ? 'es' : ''} esperando ser convertido{pendientesCount !== 1 ? 's' : ''} en visita formal
+              </p>
+            </div>
+          )}
+
+          {/* Filtros */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+                {[
+                  { id: 'pendientes',  label: 'Pendientes' },
+                  { id: 'convertidos', label: 'Convertidos' },
+                  { id: 'anulados',    label: 'Anulados' },
+                  { id: 'todos',       label: 'Todos' },
+                ].map(f => (
+                  <button key={f.id} onClick={() => setFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      filter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    {f.label}
+                    {f.id === 'pendientes' && pendientesCount > 0 && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                        {pendientesCount}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 flex-1">
+                <div className="relative flex-1">
+                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+                  />
+                </div>
+                {dateFilter && (
+                  <button onClick={() => setDateFilter('')}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 border-2 border-slate-200 bg-white transition-colors whitespace-nowrap">
+                    <X size={12} />Limpiar
+                  </button>
+                )}
+              </div>
+              {visibleEstablecimientos.length > 0 && (
+                <select value={filterEst} onChange={e => setFilterEst(e.target.value)}
+                  className="px-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white">
+                  <option value="">Todos los establecimientos</option>
+                  {visibleEstablecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              )}
+            </div>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, técnico, motivo…"
+                className="w-full pl-9 pr-8 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista */}
+          {isLoading && borradores.length === 0 ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={28} className="animate-spin text-slate-300" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <FileText size={44} className="mx-auto mb-3 opacity-20" />
+              <p className="font-medium text-sm">
+                {search ? `Sin resultados para "${search}"` : 'Sin borradores'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(b => (
+                <BorradorRow key={b.id} b={b} onDetail={setDetail} emailToName={emailToName} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {view === 'historial' && (
+        <>
+          {/* Filtros de historial */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+                {[
+                  { id: 'todos',       label: 'Todos' },
+                  { id: 'convertidos', label: 'Convertidos' },
+                  { id: 'anulados',    label: 'Anulados' },
+                ].map(f => (
+                  <button key={f.id} onClick={() => setHistorialFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      historialFilter === f.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 flex-1">
+                <input type="date" value={historialDateFrom} onChange={e => setHistorialDateFrom(e.target.value)}
+                  title="Desde"
+                  className="flex-1 px-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white" />
+                <span className="text-xs text-slate-400">a</span>
+                <input type="date" value={historialDateTo} onChange={e => setHistorialDateTo(e.target.value)}
+                  title="Hasta"
+                  className="flex-1 px-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white" />
+                {(historialDateFrom || historialDateTo) && (
+                  <button onClick={() => { setHistorialDateFrom(''); setHistorialDateTo(''); }}
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 border-2 border-slate-200 bg-white transition-colors whitespace-nowrap">
+                    <X size={12} />Limpiar
+                  </button>
+                )}
+              </div>
+              {visibleEstablecimientos.length > 0 && (
+                <select value={historialFilterEst} onChange={e => setHistorialFilterEst(e.target.value)}
+                  className="px-3 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white">
+                  <option value="">Todos los establecimientos</option>
+                  {visibleEstablecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              )}
+            </div>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text" value={historialSearch} onChange={e => setHistorialSearch(e.target.value)}
+                placeholder="Buscar por cliente, técnico, motivo…"
+                className="w-full pl-9 pr-8 py-2 text-sm border-2 border-slate-200 rounded-xl focus:outline-none focus:border-pink-400 transition-colors bg-white"
+              />
+              {historialSearch && (
+                <button onClick={() => setHistorialSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista de historial */}
+          {filteredHistorial.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <FileText size={44} className="mx-auto mb-3 opacity-20" />
+              <p className="font-medium text-sm">
+                {historialSearch ? `Sin resultados para "${historialSearch}"` : 'Sin borradores convertidos o anulados todavía'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredHistorial.map(b => (
+                <BorradorRow key={b.id} b={b} onDetail={setDetail} emailToName={emailToName} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal detalle */}
