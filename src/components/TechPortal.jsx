@@ -1266,18 +1266,15 @@ export default function TechPortal({ user }) {
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => {
-                if (notificationPermission !== 'granted') {
-                  requestNotifications?.();
-                  if (isIos && !isStandalone) setShowIosHint(true);
-                }
+                requestNotifications?.();
+                if (isIos && !isStandalone) setShowIosHint(true);
               }}
-              disabled={notificationPermission === 'granted'}
               className={`p-2 rounded-lg border transition-colors ${
                 notificationPermission === 'granted'
                   ? 'text-pink-600 bg-pink-50 border-pink-100'
                   : 'text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50'
               }`}
-              title={notificationPermission === 'granted' ? 'Notificaciones activadas' : 'Activar notificaciones'}>
+              title={notificationPermission === 'granted' ? 'Notificaciones activadas — toca para verificar' : 'Activar notificaciones'}>
               {notificationPermission === 'granted' ? <Bell size={16} /> : <BellOff size={16} />}
             </button>
             <button onClick={handleRefresh} disabled={refreshing}
