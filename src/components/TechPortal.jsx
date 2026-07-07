@@ -12,7 +12,7 @@ import {
   AlertTriangle, Calendar, CheckCircle2, Clock,
   LogOut, Mail, MapPin, Navigation, Phone, Wrench, X,
   ChevronLeft, ChevronRight, List, RefreshCw, CheckCircle, BookOpen, History, WifiOff,
-  Clipboard, ExternalLink, Pencil,
+  Clipboard, ExternalLink, Pencil, Bell, BellOff,
 } from 'lucide-react';
 import BorradorSheet from './BorradorSheet.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
@@ -970,6 +970,14 @@ export default function TechPortal({ user }) {
   const unconfirmVisit  = useAppStore(s => s.unconfirmVisit);
   const rescheduleVisit = useAppStore(s => s.rescheduleVisit);
   const updateClient    = useAppStore(s => s.updateClient);
+  const notificationPermission = useAppStore(s => s.notificationPermission);
+  const requestNotifications   = useAppStore(s => s.requestNotifications);
+
+  const [showIosHint, setShowIosHint] = useState(false);
+  const isIos = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent), []);
+  const isStandalone = useMemo(() =>
+    window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true,
+  []);
 
   const today = useMemo(() => localToday(), []);
 
@@ -1251,8 +1259,24 @@ export default function TechPortal({ user }) {
               <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
             </div>
           </div>
-          {/* Derecha: refrescar + salir */}
+          {/* Derecha: notificaciones + refrescar + salir */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => {
+                if (notificationPermission !== 'granted') {
+                  requestNotifications?.();
+                  if (isIos && !isStandalone) setShowIosHint(true);
+                }
+              }}
+              disabled={notificationPermission === 'granted'}
+              className={`p-2 rounded-lg border transition-colors ${
+                notificationPermission === 'granted'
+                  ? 'text-pink-600 bg-pink-50 border-pink-100'
+                  : 'text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50'
+              }`}
+              title={notificationPermission === 'granted' ? 'Notificaciones activadas' : 'Activar notificaciones'}>
+              {notificationPermission === 'granted' ? <Bell size={16} /> : <BellOff size={16} />}
+            </button>
             <button onClick={handleRefresh} disabled={refreshing}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors border border-slate-200 disabled:opacity-60"
               title="Actualizar visitas">
@@ -1265,6 +1289,20 @@ export default function TechPortal({ user }) {
             </button>
           </div>
         </div>
+
+        {showIosHint && (
+          <div className="max-w-lg mx-auto px-4 pb-3">
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+              <span className="flex-1">
+                📱 En iPhone, para recibir notificaciones agrega esta app a tu pantalla de inicio
+                (Compartir → "Agregar a inicio") y ábrela desde ahí.
+              </span>
+              <button onClick={() => setShowIosHint(false)} className="text-amber-500 hover:text-amber-700 flex-shrink-0">
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Selector de vista + filtro */}
         <div className="max-w-lg mx-auto px-4 pb-2 flex items-center justify-between gap-2 flex-wrap">

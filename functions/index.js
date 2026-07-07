@@ -551,6 +551,54 @@ exports.notifyVisitCreatedNew = onDocumentCreated(
   }
 );
 
+// ─── 4b. Push al técnico asignado al crear una visita (colección plana nueva) ─
+// Busca al técnico por su email (guardado en users/{uid}.email) en vez de por
+// tenantId (ese campo nunca se escribe en users/{uid}, a diferencia de
+// notifyUrgentVisit que sí lo intenta y por eso nunca encuentra destinatarios).
+exports.notifyTechnicianPushNew = onDocumentCreated(
+  {
+    document: 'tenants/{tenantId}/visits/{visitId}',
+    region:   'us-central1',
+  },
+  async (event) => {
+    const visit = event.data.data();
+    if (visit.status !== 'Programada') return;
+    if (!visit.technicianEmail) return;
+
+    const db = getFirestore();
+    const usersSnap = await db.collection('users')
+      .where('email', '==', visit.technicianEmail)
+      .limit(1)
+      .get();
+    if (usersSnap.empty) return;
+
+    const userDoc  = usersSnap.docs[0];
+    const fcmToken = userDoc.data().fcmToken;
+    if (!fcmToken) return;
+
+    const title = '🗓️ Nueva visita asignada';
+    const body  = `${visit.clientName || ''}${visit.scheduledDate ? ' — ' + visit.scheduledDate : ''}`;
+
+    try {
+      await getMessaging().send({
+        token: fcmToken,
+        notification: { title, body },
+        webpush: {
+          notification: { title, body, icon: '/logo.png' },
+        },
+        data: { visitId: event.params.visitId },
+      });
+      console.log(`notifyTechnicianPushNew: push enviado a ${visit.technicianEmail} — visita ${event.params.visitId}`);
+    } catch (err) {
+      if (err.code === 'messaging/registration-token-not-registered') {
+        await userDoc.ref.update({ fcmToken: null });
+      } else {
+        console.error('notifyTechnicianPushNew: FCM send error:', err);
+      }
+    }
+  }
+);
+
 // ─── 5b. Confirmación de cierre de visita (colección plana nueva) ─────────────
 exports.notifyVisitCompletedNew = onDocumentUpdated(
   {
