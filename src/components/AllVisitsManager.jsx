@@ -13,6 +13,7 @@ import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
   Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar, DollarSign,
+  ChevronDown, ChevronUp, Layers, Printer,
 } from 'lucide-react';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
@@ -32,6 +33,54 @@ const URGENCY_COLORS = {
   Media: 'bg-yellow-100 text-yellow-700',
   Baja:  'bg-green-100 text-green-700',
 };
+
+// ¿La visita v cumple con este set de filtros? — compartida entre "Gestión de
+// visitas" y "Series" (una serie pasa el filtro si alguna de sus visitas lo cumple).
+function matchesVisitFilters(v, filters, isOverdue) {
+  const { search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst } = filters;
+  if (filterStatus) {
+    switch (filterStatus) {
+      case '__no_confirmadas':
+        if (v.status !== 'Programada' || v.confirmed) return false;
+        break;
+      case '__no_realizadas':
+        if (v.status !== 'Programada') return false;
+        break;
+      case '__atrasadas':
+        if (!isOverdue) return false;
+        break;
+      case '__a_tiempo':
+        if (v.status !== 'Programada' || isOverdue) return false;
+        break;
+      case 'Programada':
+        if (v.status !== 'Programada' || v.confirmed) return false;
+        break;
+      case 'Confirmada':
+        if (v.status !== 'Programada' || !v.confirmed) return false;
+        break;
+      default:
+        if (v.status !== filterStatus) return false;
+    }
+  }
+  if (filterTech && v.technician !== filterTech) return false;
+  if (filterUrgency && v.urgency !== filterUrgency) return false;
+  if (filterFrom && v.scheduledDate < filterFrom) return false;
+  if (filterTo && v.scheduledDate > filterTo) return false;
+  if (filterEst && v.establecimientoId !== filterEst) return false;
+  const q = (search || '').toLowerCase().trim();
+  if (q) {
+    return (
+      v.clientName?.toLowerCase().includes(q) ||
+      v.visitNumber?.toLowerCase().includes(q) ||
+      v.serviceOrder?.toLowerCase().includes(q) ||
+      v.technician?.toLowerCase().includes(q) ||
+      v.serviceType?.toLowerCase().includes(q) ||
+      v.ubicacion?.toLowerCase().includes(q) ||
+      v.phone?.includes(q)
+    );
+  }
+  return true;
+}
 
 // ─── Modal confirmar acción ───────────────────────────────────────────────────
 function ConfirmDialog({ title, body, onConfirm, onCancel, confirmLabel = 'Confirmar', danger = false }) {
@@ -129,6 +178,197 @@ function HistorialView({ user }) {
   );
 }
 
+// ─── Series de visitas recurrentes ────────────────────────────────────────────
+function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskForPDF, isVisitOverdue }) {
+  const [search, setSearch]             = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterTech, setFilterTech]     = useState('');
+  const [filterUrgency, setFilterU]     = useState('');
+  const [filterFrom, setFilterFrom]     = useState('');
+  const [filterTo, setFilterTo]         = useState('');
+  const [filterEst, setFilterEst]       = useState('');
+  const [expanded, setExpanded]         = useState(() => new Set());
+
+  const hasFilters = !!(search || filterStatus || filterTech || filterUrgency || filterFrom || filterTo || filterEst);
+  const clearFilters = () => {
+    setSearch(''); setFilterStatus(''); setFilterTech(''); setFilterU(''); setFilterFrom(''); setFilterTo(''); setFilterEst('');
+  };
+
+  // Agrupa las visitas por recurrenceGroupId — solo lo tienen las visitas creadas
+  // como serie ("Repetir esta visita"), nunca las sueltas o de soporte.
+  const seriesGroups = useMemo(() => {
+    const byGroup = {};
+    visits.forEach(v => {
+      if (!v.recurrenceGroupId) return;
+      (byGroup[v.recurrenceGroupId] ||= []).push(v);
+    });
+    return Object.values(byGroup).map(vs => {
+      const sorted = [...vs].sort((a, b) =>
+        (a.scheduledDate || '').localeCompare(b.scheduledDate || '') ||
+        (a.scheduledTime || '').localeCompare(b.scheduledTime || ''));
+      return { groupId: sorted[0].recurrenceGroupId, visits: sorted };
+    });
+  }, [visits]);
+
+  // Una serie pasa el filtro si cualquiera de sus visitas lo cumple.
+  const filteredGroups = useMemo(() => {
+    const filters = { search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst };
+    return seriesGroups
+      .filter(g => g.visits.some(v => matchesVisitFilters(v, filters, isVisitOverdue(v))))
+      .sort((a, b) => (b.visits[0].scheduledDate || '').localeCompare(a.visits[0].scheduledDate || ''));
+  }, [seriesGroups, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst, isVisitOverdue]);
+
+  const toggleExpand = (groupId) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId); else next.add(groupId);
+      return next;
+    });
+  };
+
+  const sel = 'border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none bg-white font-medium';
+
+  return (
+    <div className="space-y-4">
+      {/* ── Header ── */}
+      <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+        <h2 className="text-base font-bold text-slate-800">Series de visitas</h2>
+        <p className="text-xs text-slate-400 mt-0.5">
+          {filteredGroups.length} serie{filteredGroups.length !== 1 ? 's' : ''} de visitas recurrentes
+        </p>
+      </div>
+
+      {/* ── Filtros ── */}
+      <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm space-y-3">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por cliente, OS, técnico, servicio, ubicación, teléfono…"
+            className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={sel}>
+            <option value="">Estado visita</option>
+            <optgroup label="── Pendientes ──">
+              <option value="__no_confirmadas">No confirmadas</option>
+              <option value="__no_realizadas">No realizadas</option>
+              <option value="__atrasadas">Atrasadas</option>
+              <option value="__a_tiempo">A tiempo</option>
+            </optgroup>
+            <optgroup label="── Por estado ──">
+              <option value="Programada">Programada</option>
+              <option value="Confirmada">Confirmada</option>
+              <option value="Realizada">Realizada</option>
+              <option value="Cancelada">Cancelada</option>
+              <option value="Anulada">Anulada</option>
+            </optgroup>
+          </select>
+          <select value={filterUrgency} onChange={e => setFilterU(e.target.value)} className={sel}>
+            <option value="">Urgencia</option>
+            {['Alta', 'Media', 'Baja'].map(u => <option key={u}>{u}</option>)}
+          </select>
+          <select value={filterTech} onChange={e => setFilterTech(e.target.value)} className={sel}>
+            <option value="">Técnico</option>
+            {tecnicos.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+          </select>
+          {establecimientos.length > 0 && (
+            <select value={filterEst} onChange={e => setFilterEst(e.target.value)} className={sel}>
+              <option value="">Establecimiento</option>
+              {establecimientos.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          )}
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className={sel} />
+          <input type="date" value={filterTo}   onChange={e => setFilterTo(e.target.value)}   className={sel} />
+        </div>
+        {hasFilters && (
+          <div className="flex items-center justify-between">
+            <button onClick={clearFilters}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700">
+              <X size={13} /> Limpiar filtros
+            </button>
+            <span className="text-xs text-slate-400">{filteredGroups.length} resultado{filteredGroups.length !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Lista de series ── */}
+      {filteredGroups.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm text-center py-16 text-slate-400">
+          <Layers size={40} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">
+            {seriesGroups.length === 0 ? 'Aún no hay series de visitas recurrentes' : 'Sin series que coincidan con los filtros'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredGroups.map(group => {
+            const isOpen       = expanded.has(group.groupId);
+            const first        = group.visits[0];
+            const realizadas   = group.visits.filter(v => v.status === 'Realizada').length;
+            const programadas  = group.visits.filter(v => v.status === 'Programada').length;
+            return (
+              <div key={group.groupId} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <button onClick={() => toggleExpand(group.groupId)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Layers size={16} className="text-pink-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{first.clientName || '—'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Primera visita: {formatDateOnly(first.scheduledDate)} · {group.visits.length} visitas
+                        {first.technician && ` · ${first.technician}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs text-slate-400 hidden sm:inline">
+                      {realizadas} realizadas · {programadas} programadas
+                    </span>
+                    {isOpen ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-slate-100 divide-y divide-slate-100">
+                    {group.visits.map(v => (
+                      <div key={v.id} className="flex items-center justify-between gap-3 px-4 py-2.5 flex-wrap">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex-shrink-0 text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-700">
+                            {v.recurrenceIndex}/{v.recurrenceTotal}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-700">
+                              {formatDateOnly(v.scheduledDate)}{v.scheduledTime ? ` · ${v.scheduledTime}` : ''}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {v.technician || '—'}{v.urgency ? ` · ${v.urgency}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <VisitStatusBadge status={v.status} confirmed={v.confirmed} size="xs" />
+                          <button onClick={() => onEditVisit(v)}
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border-2 border-slate-200 text-slate-600 hover:bg-slate-50">
+                            <Edit2 size={11} />Ver
+                          </button>
+                          <button onClick={() => printVisitPDF(makeTaskForPDF(v), v)}
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border-2 border-slate-200 text-slate-600 hover:bg-slate-50">
+                            <Printer size={11} />PDF
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function AllVisitsManager({ user }) {
   const visits              = useAppStore(s => s.visits);
@@ -213,50 +453,8 @@ export default function AllVisitsManager({ user }) {
   };
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return visits.filter(v => {
-      if (filterStatus) {
-        switch (filterStatus) {
-          case '__no_confirmadas':
-            if (v.status !== 'Programada' || v.confirmed) return false;
-            break;
-          case '__no_realizadas':
-            if (v.status !== 'Programada') return false;
-            break;
-          case '__atrasadas':
-            if (!isVisitOverdue(v)) return false;
-            break;
-          case '__a_tiempo':
-            if (v.status !== 'Programada' || isVisitOverdue(v)) return false;
-            break;
-          case 'Programada':
-            if (v.status !== 'Programada' || v.confirmed) return false;
-            break;
-          case 'Confirmada':
-            if (v.status !== 'Programada' || !v.confirmed) return false;
-            break;
-          default:
-            if (v.status !== filterStatus) return false;
-        }
-      }
-      if (filterTech && v.technician !== filterTech) return false;
-      if (filterUrgency && v.urgency !== filterUrgency) return false;
-      if (filterFrom && v.scheduledDate < filterFrom) return false;
-      if (filterTo && v.scheduledDate > filterTo) return false;
-      if (filterEst && v.establecimientoId !== filterEst) return false;
-      if (q) {
-        return (
-          v.clientName?.toLowerCase().includes(q) ||
-          v.visitNumber?.toLowerCase().includes(q) ||
-          v.serviceOrder?.toLowerCase().includes(q) ||
-          v.technician?.toLowerCase().includes(q) ||
-          v.serviceType?.toLowerCase().includes(q) ||
-          v.ubicacion?.toLowerCase().includes(q) ||
-          v.phone?.includes(q)
-        );
-      }
-      return true;
-    }).sort((a, b) => {
+    const filters = { search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst };
+    return visits.filter(v => matchesVisitFilters(v, filters, isVisitOverdue(v))).sort((a, b) => {
       // Más recientes primero, según fecha y hora programada de la visita
       // (no la fecha de creación del registro).
       if (b.scheduledDate !== a.scheduledDate) return (b.scheduledDate || '').localeCompare(a.scheduledDate || '');
@@ -400,9 +598,25 @@ export default function AllVisitsManager({ user }) {
             style={innerTab === 'historial' ? { background: '#D61672' } : {}}>
             Historial
           </button>
+          <button onClick={() => setInnerTab('series')}
+            className={innerTab === 'series' ? ACTIVE_TAB : IDLE_TAB}
+            style={innerTab === 'series' ? { background: '#D61672' } : {}}>
+            Series
+          </button>
         </div>
 
         {innerTab === 'historial' && <HistorialView user={user} />}
+
+        {innerTab === 'series' && (
+          <SeriesView
+            visits={visits}
+            tecnicos={tecnicos}
+            establecimientos={establecimientos}
+            onEditVisit={onEditVisit}
+            makeTaskForPDF={makeTaskForPDF}
+            isVisitOverdue={isVisitOverdue}
+          />
+        )}
 
         {innerTab === 'gestion' && (
           <>

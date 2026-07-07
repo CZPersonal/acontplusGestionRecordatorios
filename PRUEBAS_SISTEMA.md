@@ -106,6 +106,14 @@ de rediseño antes de seguir probando esta pantalla — mismo patrón encontrado
 20. ⬜ Generar el PDF de una visita → el encabezado muestra logo, nombre y slogan de la empresa (configurados en Configuración → Entidad), además del RUC y, si la visita tiene establecimiento asignado, su nombre.
 21. ⬜ La pestaña antes llamada "Historial legado" ahora dice "Historial" y su filtro incluye establecimiento (junto a los demás filtros ya existentes).
 
+### 5.7 Pestaña "Series"
+22. ⬜ Crear una visita periódica (3+ fechas) → aparece en "Series" como una fila colapsada con el cliente, la fecha de la primera visita y la cantidad total.
+23. ⬜ Al hacer clic en la fila, se expande y muestra cada visita de la serie ordenada de la primera a la última, con su estado individual.
+24. ⬜ Filtrar en "Series" por técnico/urgencia/establecimiento/rango de fechas → muestra la serie completa si CUALQUIERA de sus visitas cumple el filtro (no recorta las visitas dentro de la serie).
+25. ⬜ Los filtros de "Series" son independientes de los de "Gestión de visitas" (cambiar uno no afecta al otro).
+26. ⬜ Las visitas sueltas (no recurrentes) y las visitas de soporte NO aparecen en "Series".
+27. ⬜ Desde una visita expandida, el botón "Ver" abre el formulario de edición de esa visita puntual, y "PDF" genera su ficha de visita.
+
 ---
 
 ## 6. Reportes — ❌ ELIMINADO
