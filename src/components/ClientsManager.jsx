@@ -849,7 +849,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const serviceTypes      = useAppStore(s => s.serviceTypes);
 
   const [search,         setSearch]         = useState('');
-  const [searchField,    setSearchField]    = useState('todo');
+  const [searchField,    setSearchField]    = useState('nombre');
   const [showInactive,   setShowInactive]   = useState(false);
   const [showForm,       setShowForm]       = useState(false);
   const [editing,        setEditing]        = useState(null);
@@ -888,10 +888,18 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
         switch (searchField) {
           case 'nombre':
             return c.name?.toLowerCase().includes(q);
+          case 'cedula':
+            return c.identification?.toLowerCase().includes(q);
           case 'ubicacion':
             return contacts.some(ct => ct.ubicacion?.toLowerCase().includes(q));
           case 'ciudad':
             return contacts.some(ct => ct.ciudad?.toLowerCase().includes(q));
+          case 'direccion':
+            return contacts.some(ct => ct.address?.toLowerCase().includes(q));
+          case 'telefono':
+            return contacts.some(ct => ct.phone?.toLowerCase().includes(q));
+          case 'email':
+            return contacts.some(ct => ct.email?.toLowerCase().includes(q));
           case 'equipo':
             // q viene de un desplegable con los tipos de equipo registrados —
             // comparación exacta, no parcial.
@@ -900,15 +908,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           case 'observacion':
             return contacts.some(ct => (ct.installations || [])
               .some(inst => inst.observacion?.toLowerCase().includes(q)));
-          case 'todo':
-          default: {
-            const firstPhone = contacts[0]?.phone || '';
-            return (
-              c.name?.toLowerCase().includes(q) ||
-              c.identification?.includes(q) ||
-              firstPhone.includes(q)
-            );
-          }
+          default:
+            return c.name?.toLowerCase().includes(q);
         }
       })
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -960,17 +961,15 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     return allRows.filter(row => {
       switch (searchField) {
         case 'nombre':      return row.nombre.toLowerCase().includes(q);
+        case 'cedula':      return row.ruc.toLowerCase().includes(q);
         case 'ubicacion':   return row.ubicacion.toLowerCase().includes(q);
         case 'ciudad':      return row.ciudad.toLowerCase().includes(q);
+        case 'direccion':   return row.direccion.toLowerCase().includes(q);
+        case 'telefono':    return row.telefono.toLowerCase().includes(q);
+        case 'email':       return row.email.toLowerCase().includes(q);
         case 'equipo':      return row.equipo.toLowerCase() === q;
         case 'observacion': return row.observacion.toLowerCase().includes(q);
-        case 'todo':
-        default:
-          return (
-            row.nombre.toLowerCase().includes(q) ||
-            row.ruc.toLowerCase().includes(q) ||
-            row.telefono.toLowerCase().includes(q)
-          );
+        default:            return row.nombre.toLowerCase().includes(q);
       }
     });
   }, [clients, showInactive, search, searchField]);
@@ -1169,12 +1168,15 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       <div className="flex gap-2 flex-wrap sm:flex-nowrap">
         <select
           value={searchField}
-          onChange={e => { setSearchField(e.target.value); setSearch(''); }}
+          onChange={e => setSearchField(e.target.value)}
           className="border border-slate-300 rounded-lg px-2.5 py-2.5 text-sm bg-white focus:outline-none focus:border-pink-400 transition-colors flex-shrink-0">
-          <option value="todo">Buscar en: Todo</option>
-          <option value="nombre">Nombre</option>
+          <option value="nombre">Buscar en: Nombre</option>
+          <option value="cedula">Cédula/RUC</option>
           <option value="ubicacion">Ubicación</option>
           <option value="ciudad">Ciudad</option>
+          <option value="direccion">Dirección</option>
+          <option value="telefono">Teléfono</option>
+          <option value="email">Email</option>
           <option value="equipo">Equipo</option>
           <option value="observacion">Observación</option>
         </select>
@@ -1197,10 +1199,14 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
               onChange={e => setSearch(e.target.value)}
               placeholder={
                 searchField === 'nombre'      ? 'Buscar por nombre...' :
+                searchField === 'cedula'      ? 'Buscar por cédula/RUC...' :
                 searchField === 'ubicacion'   ? 'Buscar por ubicación...' :
                 searchField === 'ciudad'      ? 'Buscar por ciudad...' :
+                searchField === 'direccion'   ? 'Buscar por dirección...' :
+                searchField === 'telefono'    ? 'Buscar por teléfono...' :
+                searchField === 'email'       ? 'Buscar por email...' :
                 searchField === 'observacion' ? 'Buscar por observación...' :
-                'Buscar por nombre, cédula/RUC o teléfono...'
+                'Buscar...'
               }
               className="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-pink-400 transition-colors" />
             {search && (
