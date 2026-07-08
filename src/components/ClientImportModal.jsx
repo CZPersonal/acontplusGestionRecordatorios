@@ -305,8 +305,13 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
 
                           <td className="px-3 py-2 text-slate-400">{row.email || '—'}</td>
 
-                          <td className="px-3 py-2 max-w-[150px] truncate text-slate-500" title={row.serviceType}>
-                            {row.serviceType || '—'}
+                          <td className="px-3 py-2 max-w-[180px] text-slate-500">
+                            <div className="truncate" title={row.serviceType}>{row.serviceType || '—'}</div>
+                            {row.observacion && row.observacion !== row.serviceType && (
+                              <div className="truncate text-[11px] text-slate-400 italic" title={row.observacion}>
+                                {row.observacion}
+                              </div>
+                            )}
                           </td>
 
                           <td className="px-3 py-2">
