@@ -1078,6 +1078,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [editMode,     setEditMode]     = useState(false);
   const [pendingEdits, setPendingEdits] = useState({}); // { [rowKey]: { [field]: valor } }
   const [savingRows,   setSavingRows]   = useState(new Set());
+  const [confirmingToggleId, setConfirmingToggleId] = useState(null); // clientId con confirmación abierta
+  const [togglingIds,        setTogglingIds]        = useState(new Set()); // clientIds con activar/inactivar en curso
   const tableScrollRef = useRef(null);
 
   const confirmDiscardPendingEdits = () => {
@@ -1235,6 +1237,19 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Misma acción que handleToggleActive, con confirmación inline en la fila y
+  // estado de carga por cliente (en vez del isLoading global, para no bloquear
+  // el resto de la tabla mientras se confirma un solo activar/inactivar).
+  const handleToggleActiveInTable = async (client) => {
+    setTogglingIds(prev => new Set(prev).add(client.id));
+    try {
+      await handleToggleActive(client);
+    } finally {
+      setTogglingIds(prev => { const next = new Set(prev); next.delete(client.id); return next; });
+      setConfirmingToggleId(null);
     }
   };
 
@@ -1596,12 +1611,16 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       const rowEdits     = pendingEdits[row.rowKey];
                       const hasEdits     = rowEdits && Object.keys(rowEdits).length > 0;
                       const isSaving     = savingRows.has(row.rowKey);
+                      const isInactive   = client?.active === false;
                       return (
-                        <tr key={row.rowKey || i} className="hover:bg-slate-50">
+                        <tr key={row.rowKey || i} className={`hover:bg-slate-50 ${isInactive ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           {TABLE_COLUMNS.map(col => {
                             if (!editMode) {
                               return (
                                 <td key={col.key} className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate" title={row[col.key]}>
+                                  {col.key === 'nombre' && isInactive && (
+                                    <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 align-middle">Inactivo</span>
+                                  )}
                                   {row[col.key] || '—'}
                                 </td>
                               );
@@ -1656,11 +1675,36 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
                                     <Pencil size={12} />
                                   </button>
-                                  <button onClick={() => handleToggleActive(client)}
-                                    title={client.active === false ? 'Activar cliente' : 'Desactivar cliente'}
-                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
-                                    {client.active === false ? <UserCheck size={12} /> : <UserX size={12} />}
-                                  </button>
+                                  {confirmingToggleId === client.id ? (
+                                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white">
+                                      <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                                        {client.active === false ? '¿Activar?' : '¿Inactivar?'}
+                                      </span>
+                                      <button onClick={() => handleToggleActiveInTable(client)}
+                                        disabled={togglingIds.has(client.id)}
+                                        className={`px-1.5 py-0.5 rounded text-[11px] font-bold text-white disabled:opacity-60 ${
+                                          client.active === false ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'
+                                        }`}>
+                                        {togglingIds.has(client.id) ? <Loader2 size={11} className="animate-spin" /> : 'Sí'}
+                                      </button>
+                                      <button onClick={() => setConfirmingToggleId(null)}
+                                        disabled={togglingIds.has(client.id)}
+                                        className="px-1.5 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-60">
+                                        No
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setConfirmingToggleId(client.id)}
+                                      title={client.active === false ? 'Activar cliente' : 'Desactivar cliente'}
+                                      className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                                        client.active === false
+                                          ? 'border-green-200 text-green-600 hover:bg-green-50'
+                                          : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                                      }`}>
+                                      {client.active === false ? <UserCheck size={12} /> : <UserX size={12} />}
+                                      {client.active === false ? 'Activar' : 'Inactivar'}
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>
