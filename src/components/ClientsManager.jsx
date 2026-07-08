@@ -949,7 +949,31 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   };
   const clearSort = () => setSortLevels([]);
 
-  const tableRows = useMemo(() => flattenClientsForExport(filtered), [filtered]);
+  // La vista de tabla filtra CADA FILA (ubicación) individualmente, no el cliente
+  // completo — si no, una fila de "Lago Agrio" aparecía solo porque ese mismo
+  // cliente tenía OTRA ubicación en "Coca" que sí coincidía con la búsqueda.
+  const tableRows = useMemo(() => {
+    const activeClients = clients.filter(c => showInactive ? true : c.active !== false);
+    const allRows = flattenClientsForExport(activeClients);
+    const q = search.trim().toLowerCase();
+    if (!q) return allRows;
+    return allRows.filter(row => {
+      switch (searchField) {
+        case 'nombre':      return row.nombre.toLowerCase().includes(q);
+        case 'ubicacion':   return row.ubicacion.toLowerCase().includes(q);
+        case 'ciudad':      return row.ciudad.toLowerCase().includes(q);
+        case 'equipo':      return row.equipo.toLowerCase() === q;
+        case 'observacion': return row.observacion.toLowerCase().includes(q);
+        case 'todo':
+        default:
+          return (
+            row.nombre.toLowerCase().includes(q) ||
+            row.ruc.toLowerCase().includes(q) ||
+            row.telefono.toLowerCase().includes(q)
+          );
+      }
+    });
+  }, [clients, showInactive, search, searchField]);
   const sortedTableRows = useMemo(() => {
     if (sortLevels.length === 0) return tableRows;
     return [...tableRows].sort((a, b) => {
