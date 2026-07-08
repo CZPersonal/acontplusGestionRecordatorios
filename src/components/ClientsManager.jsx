@@ -846,8 +846,10 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const addToast          = useAppStore(s => s.addToast);
   const userRole          = useAppStore(s => s.userRole);
   const isAdmin           = userRole === 'admin';
+  const serviceTypes      = useAppStore(s => s.serviceTypes);
 
   const [search,         setSearch]         = useState('');
+  const [searchField,    setSearchField]    = useState('todo');
   const [showInactive,   setShowInactive]   = useState(false);
   const [showForm,       setShowForm]       = useState(false);
   const [editing,        setEditing]        = useState(null);
@@ -882,15 +884,35 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       .filter(c => showInactive ? true : c.active !== false)
       .filter(c => {
         if (!q) return true;
-        const firstPhone = getClientContacts(c)[0]?.phone || '';
-        return (
-          c.name?.toLowerCase().includes(q) ||
-          c.identification?.includes(q) ||
-          firstPhone.includes(q)
-        );
+        const contacts = getClientContacts(c);
+        switch (searchField) {
+          case 'nombre':
+            return c.name?.toLowerCase().includes(q);
+          case 'ubicacion':
+            return contacts.some(ct => ct.ubicacion?.toLowerCase().includes(q));
+          case 'ciudad':
+            return contacts.some(ct => ct.ciudad?.toLowerCase().includes(q));
+          case 'equipo':
+            // q viene de un desplegable con los tipos de equipo registrados —
+            // comparación exacta, no parcial.
+            return contacts.some(ct => (ct.installations || [])
+              .some(inst => inst.serviceType?.toLowerCase() === q));
+          case 'observacion':
+            return contacts.some(ct => (ct.installations || [])
+              .some(inst => inst.observacion?.toLowerCase().includes(q)));
+          case 'todo':
+          default: {
+            const firstPhone = contacts[0]?.phone || '';
+            return (
+              c.name?.toLowerCase().includes(q) ||
+              c.identification?.includes(q) ||
+              firstPhone.includes(q)
+            );
+          }
+        }
       })
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }, [clients, search, showInactive]);
+  }, [clients, search, searchField, showInactive]);
 
   const [pageSize, setPageSize] = useState(25);
   const pagination = usePagination(filtered, pageSize);
@@ -1073,20 +1095,52 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       )}
 
       {/* ── Buscador y filtro ── */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <input type="text" value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, cédula/RUC o teléfono..."
-            className="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-pink-400 transition-colors" />
-          {search && (
-            <button onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
-              <X size={14} />
-            </button>
-          )}
-        </div>
+      <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+        <select
+          value={searchField}
+          onChange={e => { setSearchField(e.target.value); setSearch(''); }}
+          className="border border-slate-300 rounded-lg px-2.5 py-2.5 text-sm bg-white focus:outline-none focus:border-pink-400 transition-colors flex-shrink-0">
+          <option value="todo">Buscar en: Todo</option>
+          <option value="nombre">Nombre</option>
+          <option value="ubicacion">Ubicación</option>
+          <option value="ciudad">Ciudad</option>
+          <option value="equipo">Equipo</option>
+          <option value="observacion">Observación</option>
+        </select>
+
+        {searchField === 'equipo' ? (
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <select value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:border-pink-400 transition-colors appearance-none">
+              <option value="">Todos los equipos</option>
+              {serviceTypes.map(st => (
+                <option key={st.id} value={st.name?.toLowerCase()}>{st.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input type="text" value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={
+                searchField === 'nombre'      ? 'Buscar por nombre...' :
+                searchField === 'ubicacion'   ? 'Buscar por ubicación...' :
+                searchField === 'ciudad'      ? 'Buscar por ciudad...' :
+                searchField === 'observacion' ? 'Buscar por observación...' :
+                'Buscar por nombre, cédula/RUC o teléfono...'
+              }
+              className="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-pink-400 transition-colors" />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
         <button
           onClick={() => setShowInactive(!showInactive)}
           className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
