@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
+import { useBorradores } from '../hooks/useBorradores';
+import { playNotificationSound } from '../utils/sound.js';
 import NavItem from './NavItem.jsx';
 import Dashboard from './Dashboard.jsx';
 import BillingReport from './BillingReport.jsx';
@@ -23,6 +25,25 @@ export default function AppRouter() {
   const tenantName       = useAppStore(s => s.tenantName);
   const tenantRuc        = useAppStore(s => s.tenantRuc);
   const empresaConfig    = useAppStore(s => s.empresaConfig);
+
+  // ─── Borradores: contador de pendientes + sonido al llegar uno nuevo ────────
+  const { borradores } = useBorradores(user);
+  const pendientesCount = useMemo(
+    () => borradores.filter(b => b.status === 'Pendiente').length,
+    [borradores]
+  );
+  const seenBorradorIds = useRef(null);
+  useEffect(() => {
+    const currentIds = new Set(borradores.filter(b => b.status === 'Pendiente').map(b => b.id));
+    if (seenBorradorIds.current === null) {
+      // Primera carga: solo registrar el estado inicial, sin sonar.
+      seenBorradorIds.current = currentIds;
+      return;
+    }
+    const hasNew = [...currentIds].some(id => !seenBorradorIds.current.has(id));
+    if (hasNew) playNotificationSound();
+    seenBorradorIds.current = currentIds;
+  }, [borradores]);
   const isOnline         = useAppStore(s => s.isOnline);
   const activeTab        = useAppStore(s => s.activeTab);
   const setActiveTab     = useAppStore(s => s.setActiveTab);
@@ -87,7 +108,7 @@ export default function AppRouter() {
           <NavItem icon={<CalendarDays />} label="Calendario"     isActive={activeTab === 'calendar'}   onClick={() => setActiveTab('calendar')} />
           <NavItem icon={<ClipboardList />}label="Gestión de visitas" isActive={activeTab === 'all-visits'} onClick={() => setActiveTab('all-visits')} />
           <NavItem icon={<Wallet />}       label="Cobros"         isActive={activeTab === 'billing'}      onClick={() => setActiveTab('billing')} />
-          <NavItem icon={<BookOpen />}     label="Borradores"     isActive={activeTab === 'borradores'}  onClick={() => setActiveTab('borradores')} />
+          <NavItem icon={<BookOpen />}     label="Borradores"     isActive={activeTab === 'borradores'}  onClick={() => setActiveTab('borradores')} badge={pendientesCount} />
           <NavItem icon={<Settings />}     label="Config."        isActive={activeTab === 'config'}      onClick={() => setActiveTab('config')} />
 
           {/* Logout desktop */}
