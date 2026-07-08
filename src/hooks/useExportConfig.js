@@ -61,10 +61,26 @@ export const BILLING_COLUMNS = [
   { key: 'paymentMethods', label: 'Formas de pago',             enabled: false },
 ];
 
+export const CLIENT_COLUMNS = [
+  { key: 'ruc',         label: 'RUC',         enabled: true },
+  { key: 'nombre',      label: 'Nombre',      enabled: true },
+  { key: 'extranjero',  label: 'Extranjero',  enabled: true },
+  { key: 'ubicacion',   label: 'Ubicación',   enabled: true },
+  { key: 'ciudad',      label: 'Ciudad',      enabled: true },
+  { key: 'direccion',   label: 'Dirección',   enabled: true },
+  { key: 'telefono',    label: 'Teléfono',    enabled: true },
+  { key: 'email',       label: 'Email',       enabled: true },
+  { key: 'mapsLink',    label: 'Link Maps',   enabled: true },
+  { key: 'referencia',  label: 'Referencia',  enabled: true },
+  { key: 'equipo',      label: 'Equipo',      enabled: true },
+  { key: 'observacion', label: 'Observación', enabled: true },
+];
+
 const DEFAULTS = {
   tasks:   TASK_COLUMNS,
   visits:  VISIT_COLUMNS,
   billing: BILLING_COLUMNS,
+  clients: CLIENT_COLUMNS,
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -74,6 +90,7 @@ export function useExportConfig(user) {
     tasks:   TASK_COLUMNS,
     visits:  VISIT_COLUMNS,
     billing: BILLING_COLUMNS,
+    clients: CLIENT_COLUMNS,
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -88,6 +105,7 @@ export function useExportConfig(user) {
           tasks:   mergeWithDefaults(data.tasks,   TASK_COLUMNS),
           visits:  mergeWithDefaults(data.visits,  VISIT_COLUMNS),
           billing: mergeWithDefaults(data.billing, BILLING_COLUMNS),
+          clients: mergeWithDefaults(data.clients, CLIENT_COLUMNS),
         });
       }
     });

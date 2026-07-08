@@ -13,48 +13,67 @@ import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/use
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { useAppStore } from '../lib/store';
 
-// Columnas del reporte de clientes — mismo formato que el Excel de importación.
-const CLIENT_EXPORT_COLUMNS = [
+// Columnas de la vista de tabla — TODOS los campos del cliente (a diferencia del
+// reporte exportado, que sí es configurable vía useExportConfig.js/getActiveColumns).
+const TABLE_COLUMNS = [
   { key: 'ruc',         label: 'RUC' },
-  { key: 'nombre',      label: 'NOMBRE' },
-  { key: 'ubicacion',   label: 'UBICACION' },
-  { key: 'ciudad',      label: 'CIUDAD' },
-  { key: 'direccion',   label: 'DIRECCION' },
-  { key: 'telefono',    label: 'TELEFONO' },
-  { key: 'email',       label: 'EMAIL' },
-  { key: 'equipo',      label: 'EQUIPO' },
-  { key: 'observacion', label: 'OBSERVACION' },
+  { key: 'nombre',      label: 'Nombre' },
+  { key: 'extranjero',  label: 'Extranjero' },
+  { key: 'ubicacion',   label: 'Ubicación' },
+  { key: 'ciudad',      label: 'Ciudad' },
+  { key: 'direccion',   label: 'Dirección' },
+  { key: 'telefono',    label: 'Teléfono' },
+  { key: 'email',       label: 'Email' },
+  { key: 'mapsLink',    label: 'Link Maps' },
+  { key: 'referencia',  label: 'Referencia' },
+  { key: 'equipo',      label: 'Equipo' },
+  { key: 'observacion', label: 'Observación' },
 ];
 
 // Aplana clientes → una fila por ubicación/instalación (mismo grano que el Excel
 // de importación: cada equipo/observación de cada ubicación es su propia fila).
+// Cada fila incluye referencias de identidad (clientId/contactId/installationId +
+// rowKey estable) para poder editar/guardar esa fila puntual desde la tabla.
 function flattenClientsForExport(clients) {
   const rows = [];
   clients.forEach(client => {
-    const ruc    = client.identification || client.id || '';
-    const nombre = client.name || '';
-    const contacts = getClientContacts(client);
+    const clientId   = client.id;
+    const ruc        = client.identification || client.id || '';
+    const nombre     = client.name || '';
+    const extranjero = client.foreign ? 'Sí' : 'No';
+    const contacts   = getClientContacts(client);
 
     if (contacts.length === 0) {
-      rows.push({ ruc, nombre, ubicacion: '', ciudad: '', direccion: '', telefono: '', email: '', equipo: '', observacion: '' });
+      rows.push({
+        clientId, contactId: null, installationId: null, rowKey: `${clientId}::nc::ni`,
+        ruc, nombre, extranjero,
+        ubicacion: '', ciudad: '', direccion: '', telefono: '', email: '',
+        mapsLink: '', referencia: '', equipo: '', observacion: '',
+      });
       return;
     }
 
     contacts.forEach(contact => {
       const base = {
-        ruc, nombre,
-        ubicacion: contact.ubicacion || '',
-        ciudad:    contact.ciudad    || '',
-        direccion: contact.address   || '',
-        telefono:  contact.phone     || '',
-        email:     contact.email     || '',
+        clientId, contactId: contact.id,
+        ruc, nombre, extranjero,
+        ubicacion:  contact.ubicacion  || '',
+        ciudad:     contact.ciudad     || '',
+        direccion:  contact.address    || '',
+        telefono:   contact.phone      || '',
+        email:      contact.email      || '',
+        mapsLink:   contact.mapsLink   || '',
+        referencia: contact.referencia || '',
       };
       const installations = contact.installations || [];
       if (installations.length === 0) {
-        rows.push({ ...base, equipo: '', observacion: '' });
+        rows.push({ ...base, installationId: null, rowKey: `${clientId}::${contact.id}::ni`, equipo: '', observacion: '' });
       } else {
         installations.forEach(inst => {
-          rows.push({ ...base, equipo: inst.serviceType || '', observacion: inst.observacion || '' });
+          rows.push({
+            ...base, installationId: inst.id, rowKey: `${clientId}::${contact.id}::${inst.id}`,
+            equipo: inst.serviceType || '', observacion: inst.observacion || '',
+          });
         });
       }
     });
@@ -75,7 +94,7 @@ function escapeHtml(str) {
 // Mismo patrón ya usado en el resto de la app (generateVisitPDF/generateReceipt):
 // sin librería nueva, se abre una ventana con estilos de impresión y el usuario
 // usa "Guardar como PDF" desde el diálogo de impresión del navegador.
-function printClientsReportPDF(rows, empresaConfig) {
+function printClientsReportPDF(rows, empresaConfig, columns) {
   const cfg       = empresaConfig || {};
   const logoSrc   = cfg.logoUrl || `${window.location.origin}/logo.png`;
   const nombreEmp = cfg.empresaNombre || 'ACONTPLUS';
@@ -125,8 +144,8 @@ function printClientsReportPDF(rows, empresaConfig) {
     </div>
   </div>
   <table>
-    <thead><tr>${CLIENT_EXPORT_COLUMNS.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${CLIENT_EXPORT_COLUMNS.map(c => `<td>${escapeHtml(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody>
+    <thead><tr>${columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${escapeHtml(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>
   <div class="footer">${escapeHtml(nombreEmp)} ${escapeHtml(sloganEmp)}</div>
 </div>
@@ -925,6 +944,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const isAdmin           = userRole === 'admin';
   const serviceTypes      = useAppStore(s => s.serviceTypes);
   const empresaConfig     = useAppStore(s => s.empresaConfig);
+  const getActiveColumns  = useAppStore(s => s.getActiveColumns);
+  const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
 
   const [search,         setSearch]         = useState('');
   const [searchField,    setSearchField]    = useState('nombre');
@@ -1000,18 +1021,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [viewMode,   setViewMode]   = useState('cards'); // 'cards' | 'table'
   const [sortLevels, setSortLevels] = useState([]);      // [{ field, dir }], hasta 3
 
-  const TABLE_COLUMNS = [
-    { key: 'ruc',         label: 'RUC' },
-    { key: 'nombre',      label: 'Nombre' },
-    { key: 'ubicacion',   label: 'Ubicación' },
-    { key: 'ciudad',      label: 'Ciudad' },
-    { key: 'direccion',   label: 'Dirección' },
-    { key: 'telefono',    label: 'Teléfono' },
-    { key: 'email',       label: 'Email' },
-    { key: 'equipo',      label: 'Equipo' },
-    { key: 'observacion', label: 'Observación' },
-  ];
-
   const toggleSort = (field) => {
     setSortLevels(prev => {
       const idx = prev.findIndex(s => s.field === field);
@@ -1064,6 +1073,106 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     });
   }, [tableRows, sortLevels]);
   const tablePagination = usePagination(sortedTableRows, pageSize);
+
+  // ─── Edición inline de la tabla (Guardar/Deshacer por fila, nunca automático) ──
+  const [editMode,     setEditMode]     = useState(false);
+  const [pendingEdits, setPendingEdits] = useState({}); // { [rowKey]: { [field]: valor } }
+  const [savingRows,   setSavingRows]   = useState(new Set());
+  const tableScrollRef = useRef(null);
+
+  const confirmDiscardPendingEdits = () => {
+    if (Object.keys(pendingEdits).length === 0) return true;
+    const ok = window.confirm('Tienes cambios sin guardar en la tabla. ¿Continuar de todas formas? Se perderán.');
+    if (ok) setPendingEdits({});
+    return ok;
+  };
+
+  const toggleEditMode = () => {
+    if (editMode) {
+      if (!confirmDiscardPendingEdits()) return;
+    }
+    setEditMode(v => !v);
+  };
+
+  const getCellValue = (row, field) => pendingEdits[row.rowKey]?.[field] ?? row[field];
+
+  const setCellEdit = (row, field, value) => {
+    setPendingEdits(prev => ({
+      ...prev,
+      [row.rowKey]: { ...prev[row.rowKey], [field]: value },
+    }));
+  };
+
+  const undoRowEdits = (rowKey) => {
+    setPendingEdits(prev => {
+      const next = { ...prev };
+      delete next[rowKey];
+      return next;
+    });
+  };
+
+  const saveRowEdits = async (row) => {
+    const edits = pendingEdits[row.rowKey];
+    if (!edits) return;
+    const client = clients.find(c => c.id === row.clientId);
+    if (!client) return;
+
+    setSavingRows(prev => new Set(prev).add(row.rowKey));
+    try {
+      const name           = edits.nombre !== undefined ? edits.nombre : client.name;
+      const identification  = edits.ruc    !== undefined ? edits.ruc    : client.identification;
+      const foreign         = edits.extranjero !== undefined ? edits.extranjero === 'Sí' : client.foreign;
+
+      const contactFields     = ['ubicacion', 'ciudad', 'direccion', 'telefono', 'email', 'mapsLink', 'referencia'];
+      const installFields     = ['equipo', 'observacion'];
+      const touchesContact    = contactFields.some(f => edits[f] !== undefined);
+      const touchesInstall    = installFields.some(f => edits[f] !== undefined);
+
+      let contacts = getClientContacts(client).map(c => ({ ...c, installations: [...(c.installations || [])] }));
+
+      if (touchesContact || touchesInstall) {
+        // Clientes "legacy" (campos planos, sin array contacts) generan un contacto
+        // sintético con un id aleatorio distinto en cada llamada a getClientContacts —
+        // si hay exactamente un contacto y no matchea por id, es ese mismo (evita
+        // crear uno vacío y perder sus datos al sobrescribir contacts en updateClient).
+        let contact = contacts.find(c => c.id === row.contactId)
+          || (contacts.length === 1 ? contacts[0] : null);
+        if (!contact) {
+          contact = emptyContact();
+          contacts = [...contacts, contact];
+        }
+        if (touchesContact) {
+          contact.ubicacion  = edits.ubicacion  !== undefined ? edits.ubicacion  : contact.ubicacion;
+          contact.ciudad     = edits.ciudad     !== undefined ? edits.ciudad     : contact.ciudad;
+          contact.address    = edits.direccion  !== undefined ? edits.direccion  : contact.address;
+          contact.phone      = edits.telefono   !== undefined ? edits.telefono   : contact.phone;
+          contact.email      = edits.email      !== undefined ? edits.email      : contact.email;
+          contact.mapsLink   = edits.mapsLink   !== undefined ? edits.mapsLink   : contact.mapsLink;
+          contact.referencia = edits.referencia !== undefined ? edits.referencia : contact.referencia;
+        }
+        if (touchesInstall) {
+          let inst = (contact.installations || []).find(i => i.id === row.installationId);
+          if (!inst) {
+            inst = emptyInstallation();
+            contact.installations = [...(contact.installations || []), inst];
+          }
+          inst.serviceType = edits.equipo      !== undefined ? edits.equipo      : inst.serviceType;
+          inst.observacion = edits.observacion !== undefined ? edits.observacion : inst.observacion;
+        }
+        contacts = contacts.map(c => c.id === contact.id ? contact : c);
+      }
+
+      const ok = await updateClient(client.id, { name, foreign, identification, contacts });
+      if (ok) {
+        addToast({ type: 'success', title: '✅ Fila guardada', body: `${name} se actualizó correctamente.` });
+        undoRowEdits(row.rowKey);
+      } else {
+        addToast({ type: 'error', title: '❌ Error', body: 'No se pudo guardar esta fila.' });
+      }
+    } finally {
+      setSavingRows(prev => { const next = new Set(prev); next.delete(row.rowKey); return next; });
+    }
+  };
 
   const handleSave = async (formData) => {
     const isEditing = !!editing;
@@ -1183,22 +1292,28 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
                 <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button onClick={() => { exportExcel('clients', CLIENT_EXPORT_COLUMNS, sortedTableRows); setShowExportMenu(false); }}
+                  <button onClick={() => { exportExcel('clients', getActiveColumns('clients'), sortedTableRows); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
                     <div><p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p></div>
                   </button>
                   <div className="border-t border-slate-100" />
-                  <button onClick={() => { exportCSV('clients', CLIENT_EXPORT_COLUMNS, sortedTableRows); setShowExportMenu(false); }}
+                  <button onClick={() => { exportCSV('clients', getActiveColumns('clients'), sortedTableRows); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-blue-100 rounded"><FileText size={14} className="text-blue-600" /></div>
                     <div><p className="text-sm font-medium text-slate-700">CSV</p></div>
                   </button>
                   <div className="border-t border-slate-100" />
-                  <button onClick={() => { printClientsReportPDF(sortedTableRows, empresaConfig); setShowExportMenu(false); }}
+                  <button onClick={() => { printClientsReportPDF(sortedTableRows, empresaConfig, getActiveColumns('clients')); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-red-100 rounded"><FileText size={14} className="text-red-600" /></div>
                     <div><p className="text-sm font-medium text-slate-700">PDF</p></div>
+                  </button>
+                  <div className="border-t border-slate-100" />
+                  <button onClick={() => { setShowExportConfig(true); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-slate-100 rounded"><Filter size={14} className="text-slate-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">Configurar columnas...</p></div>
                   </button>
                 </div>
               </>
@@ -1315,7 +1430,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
         </button>
 
         <div className="flex bg-slate-100 rounded-lg p-1 gap-0.5 flex-shrink-0">
-          <button onClick={() => setViewMode('cards')}
+          <button onClick={() => { if (confirmDiscardPendingEdits()) { setEditMode(false); setViewMode('cards'); } }}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
               viewMode === 'cards' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}>
@@ -1328,6 +1443,17 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
             Tabla
           </button>
         </div>
+
+        {viewMode === 'table' && (
+          <button onClick={toggleEditMode}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
+              editMode ? 'text-white border-transparent' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+            style={editMode ? { background: 'linear-gradient(135deg, #D61672, #FFA901)' } : {}}>
+            <Pencil size={14} />
+            {editMode ? 'Salir de edición' : 'Editar tabla'}
+          </button>
+        )}
       </div>
 
       {/* ── Tarjetas (vista actual, agrupada por cliente) ── */}
@@ -1396,24 +1522,39 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       {/* ── Vista de tabla plana (una fila por ubicación, ordenable hasta 3 niveles) ── */}
       {viewMode === 'table' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {sortLevels.length > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50">
-              <span className="text-xs text-slate-500">Ordenando por:</span>
-              {sortLevels.map((s, i) => {
-                const col = TABLE_COLUMNS.find(c => c.key === s.field);
-                return (
-                  <span key={s.field}
-                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
-                    {i + 1}. {col?.label} {s.dir === 'asc' ? '▲' : '▼'}
-                  </span>
-                );
-              })}
-              <button onClick={clearSort}
-                className="ml-auto text-xs font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1">
-                <X size={12} />Limpiar orden
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50">
+              {sortLevels.length > 0 && (
+                <>
+                  <span className="text-xs text-slate-500">Ordenando por:</span>
+                  {sortLevels.map((s, i) => {
+                    const col = TABLE_COLUMNS.find(c => c.key === s.field);
+                    return (
+                      <span key={s.field}
+                        className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+                        {i + 1}. {col?.label} {s.dir === 'asc' ? '▲' : '▼'}
+                      </span>
+                    );
+                  })}
+                  <button onClick={clearSort}
+                    className="text-xs font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                    <X size={12} />Limpiar orden
+                  </button>
+                </>
+              )}
+              {/* Scroll horizontal — solo desktop/laptop, en tablet/celular el scroll táctil ya funciona */}
+              <div className="ml-auto hidden sm:flex items-center gap-1">
+                <button onClick={() => tableScrollRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Desplazar tabla a la izquierda">
+                  <ChevronDown size={14} className="rotate-90" />
+                </button>
+                <button onClick={() => tableScrollRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Desplazar tabla a la derecha">
+                  <ChevronDown size={14} className="-rotate-90" />
+                </button>
+              </div>
+          </div>
           {sortedTableRows.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
               <Users size={40} className="mx-auto mb-3 opacity-25" />
@@ -1421,7 +1562,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div ref={tableScrollRef} className="overflow-x-auto overflow-y-auto max-h-[65vh]">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -1430,7 +1571,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                         const priority = level ? sortLevels.indexOf(level) + 1 : null;
                         return (
                           <th key={col.key} onClick={() => toggleSort(col.key)}
-                            className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                            className="sticky top-0 z-10 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors">
                             <span className="flex items-center gap-1">
                               {col.label}
                               {level ? (
@@ -1444,18 +1585,89 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                           </th>
                         );
                       })}
+                      <th className="sticky top-0 z-10 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {tablePagination.paginatedItems.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        {TABLE_COLUMNS.map(col => (
-                          <td key={col.key} className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate" title={row[col.key]}>
-                            {row[col.key] || '—'}
+                    {tablePagination.paginatedItems.map((row, i) => {
+                      const client       = clients.find(c => c.id === row.clientId);
+                      const rowEdits     = pendingEdits[row.rowKey];
+                      const hasEdits     = rowEdits && Object.keys(rowEdits).length > 0;
+                      const isSaving     = savingRows.has(row.rowKey);
+                      return (
+                        <tr key={row.rowKey || i} className="hover:bg-slate-50">
+                          {TABLE_COLUMNS.map(col => {
+                            if (!editMode) {
+                              return (
+                                <td key={col.key} className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate" title={row[col.key]}>
+                                  {row[col.key] || '—'}
+                                </td>
+                              );
+                            }
+                            const value = getCellValue(row, col.key);
+                            return (
+                              <td key={col.key} className="px-2 py-1.5">
+                                {col.key === 'equipo' ? (
+                                  <select value={value} disabled={isSaving}
+                                    onChange={e => setCellEdit(row, col.key, e.target.value)}
+                                    className="w-full min-w-[140px] px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-pink-400">
+                                    <option value="">—</option>
+                                    {serviceTypes.map(st => (
+                                      <option key={st.id} value={st.name}>{st.name}</option>
+                                    ))}
+                                  </select>
+                                ) : col.key === 'extranjero' ? (
+                                  <select value={value} disabled={isSaving}
+                                    onChange={e => setCellEdit(row, col.key, e.target.value)}
+                                    className="w-full min-w-[90px] px-2 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-pink-400">
+                                    <option value="No">No</option>
+                                    <option value="Sí">Sí</option>
+                                  </select>
+                                ) : (
+                                  <input type="text" value={value} disabled={isSaving}
+                                    onChange={e => setCellEdit(row, col.key, e.target.value)}
+                                    className="w-full min-w-[140px] px-2 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-pink-400" />
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {hasEdits && (
+                                <>
+                                  <button onClick={() => saveRowEdits(row)} disabled={isSaving}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}>
+                                    {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                                    Guardar
+                                  </button>
+                                  <button onClick={() => undoRowEdits(row.rowKey)} disabled={isSaving}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-60">
+                                    <X size={12} />Deshacer
+                                  </button>
+                                </>
+                              )}
+                              {client && (
+                                <>
+                                  <button onClick={() => handleEdit(client)}
+                                    title="Editar cliente"
+                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
+                                    <Pencil size={12} />
+                                  </button>
+                                  <button onClick={() => handleToggleActive(client)}
+                                    title={client.active === false ? 'Activar cliente' : 'Desactivar cliente'}
+                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
+                                    {client.active === false ? <UserCheck size={12} /> : <UserX size={12} />}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
-                        ))}
-                      </tr>
-                    ))}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
