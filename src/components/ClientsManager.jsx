@@ -917,6 +917,53 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [pageSize, setPageSize] = useState(25);
   const pagination = usePagination(filtered, pageSize);
 
+  // ─── Vista de tabla plana (una fila por ubicación, ordenable) ───────────────
+  const [viewMode,   setViewMode]   = useState('cards'); // 'cards' | 'table'
+  const [sortLevels, setSortLevels] = useState([]);      // [{ field, dir }], hasta 3
+
+  const TABLE_COLUMNS = [
+    { key: 'ruc',         label: 'RUC' },
+    { key: 'nombre',      label: 'Nombre' },
+    { key: 'ubicacion',   label: 'Ubicación' },
+    { key: 'ciudad',      label: 'Ciudad' },
+    { key: 'direccion',   label: 'Dirección' },
+    { key: 'telefono',    label: 'Teléfono' },
+    { key: 'email',       label: 'Email' },
+    { key: 'equipo',      label: 'Equipo' },
+    { key: 'observacion', label: 'Observación' },
+  ];
+
+  const toggleSort = (field) => {
+    setSortLevels(prev => {
+      const idx = prev.findIndex(s => s.field === field);
+      if (idx === -1) {
+        if (prev.length >= 3) return prev; // máximo 3 niveles
+        return [...prev, { field, dir: 'asc' }];
+      }
+      const level = prev[idx];
+      if (level.dir === 'asc') {
+        return prev.map((s, i) => i === idx ? { ...s, dir: 'desc' } : s);
+      }
+      return prev.filter((_, i) => i !== idx); // desc -> quitar del orden
+    });
+  };
+  const clearSort = () => setSortLevels([]);
+
+  const tableRows = useMemo(() => flattenClientsForExport(filtered), [filtered]);
+  const sortedTableRows = useMemo(() => {
+    if (sortLevels.length === 0) return tableRows;
+    return [...tableRows].sort((a, b) => {
+      for (const { field, dir } of sortLevels) {
+        const av = (a[field] || '').toString().toLowerCase();
+        const bv = (b[field] || '').toString().toLowerCase();
+        if (av < bv) return dir === 'asc' ? -1 : 1;
+        if (av > bv) return dir === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [tableRows, sortLevels]);
+  const tablePagination = usePagination(sortedTableRows, pageSize);
+
   const handleSave = async (formData) => {
     const isEditing = !!editing;
     const idChanged = isEditing
@@ -1152,9 +1199,25 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           <Filter size={14} />
           {showInactive ? 'Ver solo activos' : 'Ver inactivos'}
         </button>
+
+        <div className="flex bg-slate-100 rounded-lg p-1 gap-0.5 flex-shrink-0">
+          <button onClick={() => setViewMode('cards')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              viewMode === 'cards' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            Tarjetas
+          </button>
+          <button onClick={() => setViewMode('table')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              viewMode === 'table' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}>
+            Tabla
+          </button>
+        </div>
       </div>
 
-      {/* ── Tabla ── */}
+      {/* ── Tarjetas (vista actual, agrupada por cliente) ── */}
+      {viewMode === 'cards' && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
@@ -1214,6 +1277,90 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           </>
         )}
       </div>
+      )}
+
+      {/* ── Vista de tabla plana (una fila por ubicación, ordenable hasta 3 niveles) ── */}
+      {viewMode === 'table' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {sortLevels.length > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50">
+              <span className="text-xs text-slate-500">Ordenando por:</span>
+              {sortLevels.map((s, i) => {
+                const col = TABLE_COLUMNS.find(c => c.key === s.field);
+                return (
+                  <span key={s.field}
+                    className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-600">
+                    {i + 1}. {col?.label} {s.dir === 'asc' ? '▲' : '▼'}
+                  </span>
+                );
+              })}
+              <button onClick={clearSort}
+                className="ml-auto text-xs font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                <X size={12} />Limpiar orden
+              </button>
+            </div>
+          )}
+          {sortedTableRows.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <Users size={40} className="mx-auto mb-3 opacity-25" />
+              <p className="text-sm font-medium">Sin clientes que coincidan</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      {TABLE_COLUMNS.map(col => {
+                        const level = sortLevels.find(s => s.field === col.key);
+                        const priority = level ? sortLevels.indexOf(level) + 1 : null;
+                        return (
+                          <th key={col.key} onClick={() => toggleSort(col.key)}
+                            className="text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                            <span className="flex items-center gap-1">
+                              {col.label}
+                              {level ? (
+                                <span className="text-[10px] text-pink-600 font-bold">
+                                  {priority}{level.dir === 'asc' ? '▲' : '▼'}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">⇅</span>
+                              )}
+                            </span>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {tablePagination.paginatedItems.map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        {TABLE_COLUMNS.map(col => (
+                          <td key={col.key} className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate" title={row[col.key]}>
+                            {row[col.key] || '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100">
+                <Pagination
+                  currentPage={tablePagination.currentPage}
+                  totalPages={tablePagination.totalPages}
+                  onPageChange={tablePagination.goToPage}
+                  startIndex={tablePagination.startIndex}
+                  endIndex={tablePagination.endIndex}
+                  totalItems={tablePagination.totalItems}
+                  pageSize={pageSize}
+                  onPageSizeChange={(size) => { setPageSize(size); tablePagination.resetPage(); }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Modal importación */}
       {showImport && (
