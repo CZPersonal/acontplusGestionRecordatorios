@@ -980,7 +980,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return clients
-      .filter(c => showInactive ? true : c.active !== false)
+      .filter(c => showInactive ? c.active === false : c.active !== false)
       .filter(c => {
         if (!q) return true;
         const contacts = getClientContacts(c);
@@ -1041,7 +1041,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   // completo — si no, una fila de "Lago Agrio" aparecía solo porque ese mismo
   // cliente tenía OTRA ubicación en "Coca" que sí coincidía con la búsqueda.
   const tableRows = useMemo(() => {
-    const activeClients = clients.filter(c => showInactive ? true : c.active !== false);
+    const activeClients = clients.filter(c => showInactive ? c.active === false : c.active !== false);
     const allRows = flattenClientsForExport(activeClients);
     const q = search.trim().toLowerCase();
     if (!q) return allRows;
@@ -1441,7 +1441,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
           }`}
           style={showInactive ? { background: 'linear-gradient(135deg, #D61672, #FFA901)' } : {}}>
           <Filter size={14} />
-          {showInactive ? 'Ver solo activos' : 'Ver inactivos'}
+          {showInactive ? 'Ver solo activos' : 'Ver solo inactivos'}
         </button>
 
         <div className="flex bg-slate-100 rounded-lg p-1 gap-0.5 flex-shrink-0">
