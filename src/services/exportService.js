@@ -110,11 +110,18 @@ function escapeHtml(str) {
 
 function buildRows(activeColumns, data, valueFn) {
   const headers = activeColumns.map(c => c.label);
+  const keys    = activeColumns.map(c => c.key);
   const rows    = data.map(item =>
     activeColumns.map(c => String(valueFn(c.key, item)))
   );
-  return { headers, rows };
+  return { headers, keys, rows };
 }
+
+// Columnas que deben exportarse como NUMERO real (para poder sumarlas/operar en Excel),
+// nunca como texto forzado. Todo lo demás (RUC, cédula, teléfono, orden de servicio,
+// nombres, observaciones, etc.) se exporta como texto para que Excel no reinterprete
+// ceros a la izquierda o números largos como notación científica.
+const NUMERIC_COLUMN_KEYS = new Set(['valorCobrar', 'totalValor', 'totalAbonado', 'totalSaldo']);
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────
 
@@ -143,7 +150,7 @@ export function exportExcel(reportType, activeColumns, data) {
                 : reportType === 'visits'  ? visitValue
                 : reportType === 'clients' ? clientValue
                 : billingValue;
-  const { headers, rows } = buildRows(activeColumns, data, valueFn);
+  const { headers, keys, rows } = buildRows(activeColumns, data, valueFn);
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
     xmlns:x="urn:schemas-microsoft-com:office:excel"
     xmlns="http://www.w3.org/TR/REC-html40">
@@ -151,11 +158,17 @@ export function exportExcel(reportType, activeColumns, data) {
   <style>
     th { background:#1e40af; color:#fff; font-weight:bold; padding:8px; }
     td { padding:6px 8px; border:1px solid #e2e8f0; }
+    td.text { mso-number-format:"\\@"; }
     tr:nth-child(even) td { background:#f8fafc; }
   </style></head>
   <body><table>
     <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${rows.map(r => `<tr>${r.map((c, i) => {
+      const isNumeric = NUMERIC_COLUMN_KEYS.has(keys[i]);
+      return isNumeric
+        ? `<td>${escapeHtml(c)}</td>`
+        : `<td class="text" x:str>${escapeHtml(c)}</td>`;
+    }).join('')}</tr>`).join('')}</tbody>
   </table></body></html>`;
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
