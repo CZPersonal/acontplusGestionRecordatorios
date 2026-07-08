@@ -1302,58 +1302,56 @@ export default function TechPortal({ user }) {
             </div>
           </div>
           {/* Derecha: alertas + notificaciones + refrescar + salir */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="relative">
-              <button
-                onClick={() => setShowAlertsPanel(v => !v)}
-                className={`relative p-2 rounded-lg border transition-colors ${
-                  unreadAlerts.length > 0
-                    ? 'text-amber-600 bg-amber-50 border-amber-200'
-                    : 'text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50'
-                }`}
-                title="Alertas de visitas (hoy y atrasadas)">
-                <AlertTriangle size={16} />
-                {unreadAlerts.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
-                    {unreadAlerts.length > 99 ? '99+' : unreadAlerts.length}
-                  </span>
-                )}
-              </button>
-
-              {showAlertsPanel && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowAlertsPanel(false)} />
-                  <div className="absolute right-0 mt-2 w-80 max-w-[85vw] bg-white rounded-xl border border-slate-200 shadow-xl z-50 max-h-96 overflow-y-auto">
-                    <div className="px-4 py-3 border-b border-slate-100">
-                      <p className="text-sm font-bold text-slate-800">Alertas de visitas</p>
-                      <p className="text-xs text-slate-400">Hoy y atrasadas · toca una para marcarla leída</p>
-                    </div>
-                    {unreadAlerts.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-sm text-slate-400">Sin alertas pendientes</div>
-                    ) : (
-                      <div className="divide-y divide-slate-100">
-                        {unreadAlerts.map(entry => {
-                          const { visit } = entry;
-                          const isOverdue = visit.scheduledDate < today;
-                          return (
-                            <button key={visit.id} onClick={() => markAlertRead(visit.id)}
-                              className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-2">
-                              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${isOverdue ? 'bg-red-500' : 'bg-blue-500'}`} />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-slate-800 truncate">{visit.clientName}</p>
-                                <p className="text-xs text-slate-400">
-                                  {isOverdue ? '⚠️ Atrasada' : '📅 Hoy'} · {formatDateOnly(visit.scheduledDate)}{visit.scheduledTime ? ` · ${visit.scheduledTime}` : ''}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </>
+          <div className="relative flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => setShowAlertsPanel(v => !v)}
+              className={`relative p-2 rounded-lg border transition-colors ${
+                unreadAlerts.length > 0
+                  ? 'text-amber-600 bg-amber-50 border-amber-200'
+                  : 'text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50'
+              }`}
+              title="Alertas de visitas (hoy y atrasadas)">
+              <AlertTriangle size={16} />
+              {unreadAlerts.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                  {unreadAlerts.length > 99 ? '99+' : unreadAlerts.length}
+                </span>
               )}
-            </div>
+            </button>
+
+            {showAlertsPanel && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAlertsPanel(false)} />
+                <div className="absolute right-0 top-full mt-2 w-80 max-w-[85vw] bg-white rounded-xl border border-slate-200 shadow-xl z-50 max-h-96 overflow-y-auto">
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <p className="text-sm font-bold text-slate-800">Alertas de visitas</p>
+                    <p className="text-xs text-slate-400">Hoy y atrasadas · toca una para marcarla leída</p>
+                  </div>
+                  {unreadAlerts.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-slate-400">Sin alertas pendientes</div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {unreadAlerts.map(entry => {
+                        const { visit } = entry;
+                        const isOverdue = visit.scheduledDate < today;
+                        return (
+                          <button key={visit.id} onClick={() => markAlertRead(visit.id)}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-2">
+                            <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${isOverdue ? 'bg-red-500' : 'bg-blue-500'}`} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{visit.clientName}</p>
+                              <p className="text-xs text-slate-400">
+                                {isOverdue ? '⚠️ Atrasada' : '📅 Hoy'} · {formatDateOnly(visit.scheduledDate)}{visit.scheduledTime ? ` · ${visit.scheduledTime}` : ''}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
             <button
               onClick={() => {
                 requestNotifications?.();
