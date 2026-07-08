@@ -22,6 +22,7 @@ export default function AppRouter() {
   const user             = useAppStore(s => s.user);
   const tenantName       = useAppStore(s => s.tenantName);
   const tenantRuc        = useAppStore(s => s.tenantRuc);
+  const empresaConfig    = useAppStore(s => s.empresaConfig);
   const isOnline         = useAppStore(s => s.isOnline);
   const activeTab        = useAppStore(s => s.activeTab);
   const setActiveTab     = useAppStore(s => s.setActiveTab);
@@ -74,10 +75,10 @@ export default function AppRouter() {
 
           {/* Logo desktop */}
           <div className="hidden md:flex items-center space-x-3 mb-8 px-1">
-            <img src="/logo.png" alt="Acontplus" className="w-10 h-10 object-contain flex-shrink-0" />
+            <img src={empresaConfig.logoUrl || '/logo.png'} alt={empresaConfig.empresaNombre || 'Acontplus'} className="w-10 h-10 object-contain flex-shrink-0" />
             <div>
-              <h1 className="text-base font-bold leading-tight" style={{ color: '#D61672' }}>ACONTPLUS</h1>
-              <p className="text-xs font-medium" style={{ color: '#FFA901' }}>Recordatorios</p>
+              <h1 className="text-base font-bold leading-tight" style={{ color: '#D61672' }}>{empresaConfig.empresaNombre || 'ACONTPLUS'}</h1>
+              <p className="text-xs font-medium" style={{ color: '#FFA901' }}>{empresaConfig.empresaSlogan || 'Recordatorios'}</p>
             </div>
           </div>
 
@@ -109,15 +110,15 @@ export default function AppRouter() {
         {/* Barra superior */}
         <div className="flex items-center justify-between mb-4 md:mb-6">
           <div className="flex items-center space-x-2 md:hidden">
-            <img src="/logo.png" alt="Acontplus" className="w-8 h-8 object-contain" />
-            <span className="text-sm font-bold" style={{ color: '#D61672' }}>ACONTPLUS</span>
+            <img src={empresaConfig.logoUrl || '/logo.png'} alt={empresaConfig.empresaNombre || 'Acontplus'} className="w-8 h-8 object-contain" />
+            <span className="text-sm font-bold" style={{ color: '#D61672' }}>{empresaConfig.empresaNombre || 'ACONTPLUS'}</span>
           </div>
 
           {/* Empresa info — visible en todas las vistas */}
-          {tenantName && (
+          {(empresaConfig.empresaNombre || tenantName) && (
             <div className="hidden md:flex flex-col leading-tight">
-              <span className="text-sm font-bold text-slate-800">{tenantName}</span>
-              {tenantRuc && <span className="text-xs text-slate-400">RUC: {tenantRuc}</span>}
+              <span className="text-sm font-bold text-slate-800">{empresaConfig.empresaNombre || tenantName}</span>
+              {(empresaConfig.ruc || tenantRuc) && <span className="text-xs text-slate-400">RUC: {empresaConfig.ruc || tenantRuc}</span>}
             </div>
           )}
 
