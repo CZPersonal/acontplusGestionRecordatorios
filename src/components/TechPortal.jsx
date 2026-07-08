@@ -1187,6 +1187,44 @@ export default function TechPortal({ user }) {
     return groups;
   }, [allVisitsByDate, today]);
 
+  // ─── Alertas de visitas (hoy + atrasadas), con estado leída/no leída ────────
+  const ALERT_READ_KEY = `acontplus_read_alerts_${user.uid}`;
+  const [readAlertIds, setReadAlertIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(ALERT_READ_KEY) || '[]')); }
+    catch { return new Set(); }
+  });
+  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
+
+  const alertEntries = useMemo(
+    () => [...atrasadas, ...hoy.filter(e => e.visit.status !== 'Realizada')],
+    [atrasadas, hoy]
+  );
+  const unreadAlerts = useMemo(
+    () => alertEntries.filter(e => !readAlertIds.has(e.visit.id)),
+    [alertEntries, readAlertIds]
+  );
+
+  const markAlertRead = (visitId) => {
+    setReadAlertIds(prev => {
+      const next = new Set(prev).add(visitId);
+      try { localStorage.setItem(ALERT_READ_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
+  // Poda ids leídos que ya no corresponden a ninguna alerta vigente (la visita
+  // se completó, dejó de estar atrasada, etc.) para no acumular basura en localStorage.
+  useEffect(() => {
+    const currentIds = new Set(alertEntries.map(e => e.visit.id));
+    setReadAlertIds(prev => {
+      const pruned = new Set([...prev].filter(id => currentIds.has(id)));
+      if (pruned.size === prev.size) return prev;
+      try { localStorage.setItem(ALERT_READ_KEY, JSON.stringify([...pruned])); } catch {}
+      return pruned;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertEntries]);
+
   const handleConfirm = async (taskId, visitId, isNewVisit = false) => {
     setConfirming(visitId);
     try {
@@ -1263,8 +1301,59 @@ export default function TechPortal({ user }) {
               <p className="text-xs text-slate-400 leading-tight truncate">{user.email}</p>
             </div>
           </div>
-          {/* Derecha: notificaciones + refrescar + salir */}
+          {/* Derecha: alertas + notificaciones + refrescar + salir */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="relative">
+              <button
+                onClick={() => setShowAlertsPanel(v => !v)}
+                className={`relative p-2 rounded-lg border transition-colors ${
+                  unreadAlerts.length > 0
+                    ? 'text-amber-600 bg-amber-50 border-amber-200'
+                    : 'text-slate-400 border-slate-200 hover:text-slate-600 hover:bg-slate-50'
+                }`}
+                title="Alertas de visitas (hoy y atrasadas)">
+                <AlertTriangle size={16} />
+                {unreadAlerts.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {unreadAlerts.length > 99 ? '99+' : unreadAlerts.length}
+                  </span>
+                )}
+              </button>
+
+              {showAlertsPanel && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowAlertsPanel(false)} />
+                  <div className="absolute right-0 mt-2 w-80 max-w-[85vw] bg-white rounded-xl border border-slate-200 shadow-xl z-50 max-h-96 overflow-y-auto">
+                    <div className="px-4 py-3 border-b border-slate-100">
+                      <p className="text-sm font-bold text-slate-800">Alertas de visitas</p>
+                      <p className="text-xs text-slate-400">Hoy y atrasadas · toca una para marcarla leída</p>
+                    </div>
+                    {unreadAlerts.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-slate-400">Sin alertas pendientes</div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {unreadAlerts.map(entry => {
+                          const { visit } = entry;
+                          const isOverdue = visit.scheduledDate < today;
+                          return (
+                            <button key={visit.id} onClick={() => markAlertRead(visit.id)}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-2">
+                              <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${isOverdue ? 'bg-red-500' : 'bg-blue-500'}`} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-slate-800 truncate">{visit.clientName}</p>
+                                <p className="text-xs text-slate-400">
+                                  {isOverdue ? '⚠️ Atrasada' : '📅 Hoy'} · {formatDateOnly(visit.scheduledDate)}{visit.scheduledTime ? ` · ${visit.scheduledTime}` : ''}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => {
                 requestNotifications?.();
