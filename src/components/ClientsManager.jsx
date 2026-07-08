@@ -62,6 +62,83 @@ function flattenClientsForExport(clients) {
   return rows;
 }
 
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ─── Reporte de clientes en PDF (HTML imprimible en ventana nueva) ───────────
+// Mismo patrón ya usado en el resto de la app (generateVisitPDF/generateReceipt):
+// sin librería nueva, se abre una ventana con estilos de impresión y el usuario
+// usa "Guardar como PDF" desde el diálogo de impresión del navegador.
+function printClientsReportPDF(rows, empresaConfig) {
+  const cfg       = empresaConfig || {};
+  const logoSrc   = cfg.logoUrl || `${window.location.origin}/logo.png`;
+  const nombreEmp = cfg.empresaNombre || 'ACONTPLUS';
+  const sloganEmp = cfg.empresaSlogan || 'Recordatorios';
+  const rucEmp    = cfg.ruc || '';
+  const fecha     = new Date().toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Reporte de clientes</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:10px;color:#1e293b;background:#fff}
+    .page{padding:24px}
+    .header{display:flex;justify-content:space-between;align-items:center;
+            margin-bottom:14px;padding-bottom:10px;border-bottom:3px solid #D61672}
+    .header-brand{display:flex;align-items:center;gap:8px}
+    .header-brand img{width:36px;height:36px;object-fit:contain}
+    .header-brand h1{font-size:14px;font-weight:bold;color:#D61672}
+    .header-brand p{font-size:9px;color:#FFA901;font-weight:bold}
+    .header-brand small{font-size:8px;color:#94a3b8;display:block}
+    .header-right{text-align:right;font-size:9px;color:#64748b}
+    table{width:100%;border-collapse:collapse}
+    th{background:#D61672;color:#fff;text-align:left;padding:5px 6px;font-size:9px;white-space:nowrap}
+    td{padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:9px}
+    tr:nth-child(even) td{background:#f8fafc}
+    .footer{margin-top:10px;font-size:8px;color:#94a3b8;text-align:right}
+    @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}.page{padding:12px}}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="header-brand">
+      <img src="${logoSrc}" alt="${escapeHtml(nombreEmp)}"/>
+      <div>
+        <h1>${escapeHtml(nombreEmp)}</h1><p>${escapeHtml(sloganEmp)}</p>
+        ${rucEmp ? `<small>RUC: ${escapeHtml(rucEmp)}</small>` : ''}
+      </div>
+    </div>
+    <div class="header-right">
+      <div><strong>Reporte de clientes</strong></div>
+      <div>${rows.length} registro${rows.length !== 1 ? 's' : ''}</div>
+      <div>Generado: ${fecha}</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr>${CLIENT_EXPORT_COLUMNS.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${CLIENT_EXPORT_COLUMNS.map(c => `<td>${escapeHtml(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>
+  <div class="footer">${escapeHtml(nombreEmp)} ${escapeHtml(sloganEmp)}</div>
+</div>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+}
+
 // ─── Selector de tipo de equipo/instalación/servicio con botón "+" ───────────
 function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd }) {
   const [adding,   setAdding]   = useState(false);
@@ -847,6 +924,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const userRole          = useAppStore(s => s.userRole);
   const isAdmin           = userRole === 'admin';
   const serviceTypes      = useAppStore(s => s.serviceTypes);
+  const empresaConfig     = useAppStore(s => s.empresaConfig);
 
   const [search,         setSearch]         = useState('');
   const [searchField,    setSearchField]    = useState('nombre');
@@ -1105,16 +1183,22 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
                 <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button onClick={() => { exportExcel('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
+                  <button onClick={() => { exportExcel('clients', CLIENT_EXPORT_COLUMNS, sortedTableRows); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
                     <div><p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p></div>
                   </button>
                   <div className="border-t border-slate-100" />
-                  <button onClick={() => { exportCSV('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
+                  <button onClick={() => { exportCSV('clients', CLIENT_EXPORT_COLUMNS, sortedTableRows); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-blue-100 rounded"><FileText size={14} className="text-blue-600" /></div>
                     <div><p className="text-sm font-medium text-slate-700">CSV</p></div>
+                  </button>
+                  <div className="border-t border-slate-100" />
+                  <button onClick={() => { printClientsReportPDF(sortedTableRows, empresaConfig); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-red-100 rounded"><FileText size={14} className="text-red-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">PDF</p></div>
                   </button>
                 </div>
               </>
