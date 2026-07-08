@@ -117,7 +117,7 @@ export default function Reports({ tasks, exportConfig, onOpenConfig }) {
                     <FileText size={14} className="text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-700">Excel (.xls)</p>
+                    <p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p>
                     <p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p>
                   </div>
                 </button>

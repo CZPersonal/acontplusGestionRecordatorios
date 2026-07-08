@@ -225,7 +225,7 @@ export default function VisitsReport({ tasks, exportConfig, onOpenConfig }) {
                 <button onClick={() => { exportExcel('visits', exportConfig, filteredRows); setShowExportMenu(false); }}
                   className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-slate-50 text-left">
                   <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
-                  <div><p className="text-sm font-medium text-slate-700">Excel (.xls)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
+                  <div><p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
                 </button>
                 <div className="border-t border-slate-100" />
                 <button onClick={() => { exportCSV('visits', exportConfig, filteredRows); setShowExportMenu(false); }}

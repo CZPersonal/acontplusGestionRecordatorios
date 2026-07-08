@@ -180,7 +180,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                 <button onClick={() => { exportExcel('billing', exportConfig, filteredRows); setShowExport(false); }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
                   <div className="p-1.5 bg-green-100 rounded"><FileText size={13} className="text-green-600" /></div>
-                  <div><p className="font-medium text-slate-700">Excel (.xls)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
+                  <div><p className="font-medium text-slate-700">Excel (.xlsx)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
                 </button>
                 <div className="border-t border-slate-100" />
                 <button onClick={() => { exportCSV('billing', exportConfig, filteredRows); setShowExport(false); }}

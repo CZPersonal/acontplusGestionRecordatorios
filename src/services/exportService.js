@@ -1,5 +1,6 @@
 // src/services/exportService.js
 // Funciones de exportación CSV y Excel que respetan la config de columnas activas.
+import * as XLSX from 'xlsx';
 import { localDateStr } from '../utils/dates.js';
 import { fmtMoneyRaw } from '../utils/format.js';
 
@@ -96,16 +97,6 @@ function billingValue(key, { task, visit, summary, cuotas }) {
   }
 }
 
-// ─── Escape HTML para prevenir XSS en exportación Excel ──────────────────────
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 // ─── Generador de filas ────────────────────────────────────────────────────────
 
 function buildRows(activeColumns, data, valueFn) {
@@ -143,7 +134,7 @@ export function exportCSV(reportType, activeColumns, data) {
   URL.revokeObjectURL(url);
 }
 
-// ─── Excel ────────────────────────────────────────────────────────────────────
+// ─── Excel (.xlsx real, vía SheetJS — compatible con Office actual) ──────────
 
 export function exportExcel(reportType, activeColumns, data) {
   const valueFn = reportType === 'tasks'   ? taskValue
@@ -151,30 +142,21 @@ export function exportExcel(reportType, activeColumns, data) {
                 : reportType === 'clients' ? clientValue
                 : billingValue;
   const { headers, keys, rows } = buildRows(activeColumns, data, valueFn);
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-    xmlns:x="urn:schemas-microsoft-com:office:excel"
-    xmlns="http://www.w3.org/TR/REC-html40">
-  <head><meta charset="UTF-8">
-  <style>
-    th { background:#1e40af; color:#fff; font-weight:bold; padding:8px; }
-    td { padding:6px 8px; border:1px solid #e2e8f0; }
-    td.text { mso-number-format:"\\@"; }
-    tr:nth-child(even) td { background:#f8fafc; }
-  </style></head>
-  <body><table>
-    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${r.map((c, i) => {
-      const isNumeric = NUMERIC_COLUMN_KEYS.has(keys[i]);
-      return isNumeric
-        ? `<td>${escapeHtml(c)}</td>`
-        : `<td class="text" x:str>${escapeHtml(c)}</td>`;
-    }).join('')}</tr>`).join('')}</tbody>
-  </table></body></html>`;
-  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `reporte_${reportType}_${localDateStr()}.xls`;
-  a.click();
-  URL.revokeObjectURL(url);
+
+  // Los montos (Total/Abonado/Saldo/valorCobrar) se guardan como número real para
+  // poder sumarlos en Excel; el resto (RUC, cédula, teléfono, etc.) queda como texto
+  // — al venir del array como string, SheetJS los guarda como celda de texto,
+  // evitando que Excel reinterprete ceros a la izquierda o números largos.
+  const excelRows = rows.map(row =>
+    row.map((val, i) => {
+      if (!NUMERIC_COLUMN_KEYS.has(keys[i]) || val === '') return val;
+      const num = parseFloat(val);
+      return Number.isNaN(num) ? val : num;
+    })
+  );
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...excelRows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+  XLSX.writeFile(wb, `reporte_${reportType}_${localDateStr()}.xlsx`);
 }

@@ -1038,7 +1038,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                   <button onClick={() => { exportExcel('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
                     <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
-                    <div><p className="text-sm font-medium text-slate-700">Excel (.xls)</p></div>
+                    <div><p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p></div>
                   </button>
                   <div className="border-t border-slate-100" />
                   <button onClick={() => { exportCSV('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
