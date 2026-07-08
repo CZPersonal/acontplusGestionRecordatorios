@@ -1,7 +1,10 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
-export default function Pagination({ currentPage, totalPages, onPageChange, startIndex, endIndex, totalItems }) {
-  if (totalPages <= 1) return null;
+export default function Pagination({
+  currentPage, totalPages, onPageChange, startIndex, endIndex, totalItems,
+  pageSize, onPageSizeChange, pageSizeOptions = [25, 50, 100],
+}) {
+  if (totalPages <= 1 && !onPageSizeChange) return null;
 
   // Generar rango de páginas visibles
   const getPageRange = () => {
@@ -33,12 +36,27 @@ export default function Pagination({ currentPage, totalPages, onPageChange, star
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
 
-      {/* Info */}
-      <p className="text-xs text-slate-500 order-2 sm:order-1">
-        Mostrando <span className="font-semibold text-slate-700">{startIndex}–{endIndex}</span> de <span className="font-semibold text-slate-700">{totalItems}</span> registros
-      </p>
+      {/* Info + tamaño de página */}
+      <div className="flex items-center gap-3 order-2 sm:order-1">
+        <p className="text-xs text-slate-500">
+          Mostrando <span className="font-semibold text-slate-700">{startIndex}–{endIndex}</span> de <span className="font-semibold text-slate-700">{totalItems}</span> registros
+        </p>
+        {onPageSizeChange && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span className="hidden sm:inline">Por página:</span>
+            <select
+              value={pageSize}
+              onChange={e => onPageSizeChange(Number(e.target.value))}
+              className="border border-slate-200 rounded-lg px-1.5 py-1 text-xs font-medium bg-white focus:outline-none focus:border-pink-400"
+            >
+              {pageSizeOptions.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
 
       {/* Controles */}
+      {totalPages > 1 && (
       <div className="flex items-center space-x-1 order-1 sm:order-2">
 
         {/* Primera página */}
@@ -100,6 +118,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange, star
           <ChevronsRight size={16} />
         </button>
       </div>
+      )}
     </div>
   );
 }

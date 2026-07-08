@@ -65,6 +65,12 @@ function visitValue(key, { task, visit }) {
   }
 }
 
+// Clientes (row = { ruc, nombre, ubicacion, ciudad, direccion, telefono, email, equipo, observacion })
+// — una fila por ubicación/instalación, mismo formato que el Excel de importación.
+function clientValue(key, row) {
+  return row[key] || '';
+}
+
 // Cobros (row = { task, visit, summary, cuotas })
 function billingValue(key, { task, visit, summary, cuotas }) {
   switch (key) {
@@ -115,6 +121,7 @@ function buildRows(activeColumns, data, valueFn) {
 export function exportCSV(reportType, activeColumns, data) {
   const valueFn = reportType === 'tasks'   ? taskValue
                 : reportType === 'visits'  ? visitValue
+                : reportType === 'clients' ? clientValue
                 : billingValue;
   const { headers, rows } = buildRows(activeColumns, data, valueFn);
   const csv = [headers, ...rows]
@@ -134,6 +141,7 @@ export function exportCSV(reportType, activeColumns, data) {
 export function exportExcel(reportType, activeColumns, data) {
   const valueFn = reportType === 'tasks'   ? taskValue
                 : reportType === 'visits'  ? visitValue
+                : reportType === 'clients' ? clientValue
                 : billingValue;
   const { headers, rows } = buildRows(activeColumns, data, valueFn);
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"

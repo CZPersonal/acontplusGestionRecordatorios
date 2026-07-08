@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
-  CheckCircle, Loader2, Upload, Users, Phone,
+  CheckCircle, Loader2, Upload, Download, FileText, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
   ChevronDown, ChevronUp, Trash2, Clipboard, CalendarDays,
 } from 'lucide-react';
@@ -10,7 +10,57 @@ import { usePagination } from '../hooks/usePagination.js';
 import ClientImportModal from './ClientImportModal.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
 import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/useClients.js';
+import { exportCSV, exportExcel } from '../services/exportService.js';
 import { useAppStore } from '../lib/store';
+
+// Columnas del reporte de clientes — mismo formato que el Excel de importación.
+const CLIENT_EXPORT_COLUMNS = [
+  { key: 'ruc',         label: 'RUC' },
+  { key: 'nombre',      label: 'NOMBRE' },
+  { key: 'ubicacion',   label: 'UBICACION' },
+  { key: 'ciudad',      label: 'CIUDAD' },
+  { key: 'direccion',   label: 'DIRECCION' },
+  { key: 'telefono',    label: 'TELEFONO' },
+  { key: 'email',       label: 'EMAIL' },
+  { key: 'equipo',      label: 'EQUIPO' },
+  { key: 'observacion', label: 'OBSERVACION' },
+];
+
+// Aplana clientes → una fila por ubicación/instalación (mismo grano que el Excel
+// de importación: cada equipo/observación de cada ubicación es su propia fila).
+function flattenClientsForExport(clients) {
+  const rows = [];
+  clients.forEach(client => {
+    const ruc    = client.identification || client.id || '';
+    const nombre = client.name || '';
+    const contacts = getClientContacts(client);
+
+    if (contacts.length === 0) {
+      rows.push({ ruc, nombre, ubicacion: '', ciudad: '', direccion: '', telefono: '', email: '', equipo: '', observacion: '' });
+      return;
+    }
+
+    contacts.forEach(contact => {
+      const base = {
+        ruc, nombre,
+        ubicacion: contact.ubicacion || '',
+        ciudad:    contact.ciudad    || '',
+        direccion: contact.address   || '',
+        telefono:  contact.phone     || '',
+        email:     contact.email     || '',
+      };
+      const installations = contact.installations || [];
+      if (installations.length === 0) {
+        rows.push({ ...base, equipo: '', observacion: '' });
+      } else {
+        installations.forEach(inst => {
+          rows.push({ ...base, equipo: inst.serviceType || '', observacion: inst.observacion || '' });
+        });
+      }
+    });
+  });
+  return rows;
+}
 
 // ─── Selector de tipo de equipo/instalación/servicio con botón "+" ───────────
 function ServiceTypeSelector({ value, onChange, serviceTypes, onAdd }) {
@@ -803,6 +853,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [editing,        setEditing]        = useState(null);
   const [isLoading,      setIsLoading]      = useState(false);
   const [showImport,     setShowImport]     = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [historialClient, setHistorialClient] = useState(null);
 
   useEffect(() => {
@@ -841,7 +892,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }, [clients, search, showInactive]);
 
-  const pagination = usePagination(filtered, 15);
+  const [pageSize, setPageSize] = useState(25);
+  const pagination = usePagination(filtered, pageSize);
 
   const handleSave = async (formData) => {
     const isEditing = !!editing;
@@ -949,6 +1001,33 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
             <Upload size={15} />
             <span>Importar Excel</span>
           </button>
+
+          <div className="relative">
+            <button onClick={() => setShowExportMenu(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-2.5 border border-slate-200 bg-white rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+              <Download size={15} />
+              <span>Reporte</span>
+              <ChevronDown size={14} />
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <button onClick={() => { exportExcel('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">Excel (.xls)</p></div>
+                  </button>
+                  <div className="border-t border-slate-100" />
+                  <button onClick={() => { exportCSV('clients', CLIENT_EXPORT_COLUMNS, flattenClientsForExport(clients)); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-blue-100 rounded"><FileText size={14} className="text-blue-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">CSV</p></div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           {!showForm && (
             <button
@@ -1074,6 +1153,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                 startIndex={pagination.startIndex}
                 endIndex={pagination.endIndex}
                 totalItems={pagination.totalItems}
+                pageSize={pageSize}
+                onPageSizeChange={(size) => { setPageSize(size); pagination.resetPage(); }}
               />
             </div>
           </>
