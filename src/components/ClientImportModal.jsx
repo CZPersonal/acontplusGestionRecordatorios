@@ -247,7 +247,8 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Dirección</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600 whitespace-nowrap">Teléfono</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Email</th>
-                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Equipo / Observación</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Equipo</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-600">Observación</th>
                         <th className="px-3 py-2.5"></th>
                       </tr>
                     </thead>
@@ -305,13 +306,12 @@ export default function ClientImportModal({ existingClients, onImport, onClose }
 
                           <td className="px-3 py-2 text-slate-400">{row.email || '—'}</td>
 
-                          <td className="px-3 py-2 max-w-[180px] text-slate-500">
-                            <div className="truncate" title={row.serviceType}>{row.serviceType || '—'}</div>
-                            {row.observacion && row.observacion !== row.serviceType && (
-                              <div className="truncate text-[11px] text-slate-400 italic" title={row.observacion}>
-                                {row.observacion}
-                              </div>
-                            )}
+                          <td className="px-3 py-2 max-w-[130px] truncate text-slate-500" title={row.serviceType}>
+                            {row.serviceType || '—'}
+                          </td>
+
+                          <td className="px-3 py-2 max-w-[160px] truncate text-slate-500" title={row.observacion}>
+                            {row.observacion || '—'}
                           </td>
 
                           <td className="px-3 py-2">
