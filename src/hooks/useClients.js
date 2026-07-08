@@ -299,7 +299,12 @@ export function useClients(user) {
             email:         r.email,
             ciudad:        r.ciudad,
             ubicacion:     r.ubicacion,
-            installations: r.serviceType ? [emptyInstallation({ serviceType: r.serviceType })] : [],
+            installations: r.serviceType ? [emptyInstallation({
+              serviceType: r.serviceType,
+              // r.observacion también alimenta serviceType cuando Equipo viene vacío
+              // (ver normalizeRow) — en ese caso no se duplica el mismo texto en los dos campos.
+              observacion: r.observacion && r.observacion !== r.serviceType ? r.observacion : '',
+            })] : [],
           })),
           active:    true,
           createdAt: new Date().toISOString(),
