@@ -4,6 +4,7 @@ import {
   CheckCircle, Loader2, Upload, Download, FileText, Users, Phone,
   MapPin, CreditCard, Filter, Wrench, ExternalLink, Navigation,
   ChevronDown, ChevronUp, Trash2, Clipboard, CalendarDays,
+  Eye, EyeOff, Columns3,
 } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
@@ -955,6 +956,10 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [isLoading,      setIsLoading]      = useState(false);
   const [showImport,     setShowImport]     = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showColumnsMenu, setShowColumnsMenu] = useState(false);
+  // Columnas visibles EN PANTALLA en la vista Tabla — independiente de las columnas
+  // del reporte exportado (getActiveColumns('clients')), no se persiste en Firestore.
+  const [hiddenColumnKeys, setHiddenColumnKeys] = useState(() => new Set());
   const [historialClient, setHistorialClient] = useState(null);
 
   useEffect(() => {
@@ -1036,6 +1041,40 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     });
   };
   const clearSort = () => setSortLevels([]);
+
+  const toggleColumnVisibility = (key) => {
+    setHiddenColumnKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const visibleTableColumns = useMemo(
+    () => TABLE_COLUMNS.filter(c => !hiddenColumnKeys.has(c.key)),
+    [hiddenColumnKeys]
+  );
+
+  // Navegación tipo hoja de cálculo entre celdas (modo lectura): las flechas mueven
+  // el foco a la celda vecina dentro de <tbody>; Tab/Shift+Tab ya funciona solo con
+  // tabIndex=0 (orden natural del DOM), no necesita manejo aparte.
+  const handleCellKeyDown = (e) => {
+    const { key } = e;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
+    e.preventDefault();
+    const cell = e.currentTarget;
+    const row  = cell.parentElement;
+    const body = row.parentElement;
+    const rowIdx = Array.prototype.indexOf.call(body.children, row);
+    const colIdx = Array.prototype.indexOf.call(row.children, cell);
+    let targetRow = rowIdx, targetCol = colIdx;
+    if (key === 'ArrowUp')    targetRow -= 1;
+    if (key === 'ArrowDown')  targetRow += 1;
+    if (key === 'ArrowLeft')  targetCol -= 1;
+    if (key === 'ArrowRight') targetCol += 1;
+    const nextRow  = body.children[targetRow];
+    const nextCell = nextRow?.children[targetCol];
+    nextCell?.focus();
+  };
 
   // La vista de tabla filtra CADA FILA (ubicación) individualmente, no el cliente
   // completo — si no, una fila de "Lago Agrio" aparecía solo porque ese mismo
@@ -1469,6 +1508,45 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
             {editMode ? 'Salir de edición' : 'Editar tabla'}
           </button>
         )}
+
+        {viewMode === 'table' && (
+          <div className="relative">
+            <button onClick={() => setShowColumnsMenu(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex-shrink-0">
+              <Columns3 size={14} />
+              Columnas
+              <ChevronDown size={14} />
+            </button>
+            {showColumnsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowColumnsMenu(false)} />
+                <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-slate-100">
+                    <p className="text-xs text-slate-500">Mostrar/ocultar columnas en pantalla</p>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {TABLE_COLUMNS.map(col => {
+                      const visible = !hiddenColumnKeys.has(col.key);
+                      return (
+                        <button key={col.key} onClick={() => toggleColumnVisibility(col.key)}
+                          className="w-full flex items-center justify-between gap-2 px-4 py-2 text-sm hover:bg-slate-50 text-left">
+                          <span className={visible ? 'text-slate-700' : 'text-slate-400'}>{col.label}</span>
+                          {visible ? <Eye size={14} className="text-slate-500" /> : <EyeOff size={14} className="text-slate-300" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-slate-100">
+                    <button onClick={() => setHiddenColumnKeys(new Set())}
+                      className="w-full px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 text-left">
+                      Mostrar todas
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Tarjetas (vista actual, agrupada por cliente) ── */}
@@ -1581,7 +1659,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      {TABLE_COLUMNS.map(col => {
+                      {visibleTableColumns.map(col => {
                         const level = sortLevels.find(s => s.field === col.key);
                         const priority = level ? sortLevels.indexOf(level) + 1 : null;
                         return (
@@ -1614,10 +1692,12 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       const isInactive   = client?.active === false;
                       return (
                         <tr key={row.rowKey || i} className={`hover:bg-slate-50 ${isInactive ? 'opacity-60 bg-slate-50/50' : ''}`}>
-                          {TABLE_COLUMNS.map(col => {
+                          {visibleTableColumns.map(col => {
                             if (!editMode) {
                               return (
-                                <td key={col.key} className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate" title={row[col.key]}>
+                                <td key={col.key} tabIndex={0} onKeyDown={handleCellKeyDown}
+                                  className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate outline-none focus:ring-2 focus:ring-inset focus:ring-pink-400 focus:bg-pink-50"
+                                  title={row[col.key]}>
                                   {col.key === 'nombre' && isInactive && (
                                     <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 align-middle">Inactivo</span>
                                   )}
