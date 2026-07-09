@@ -19,8 +19,8 @@ import { useAppStore } from '../lib/store';
 // Columnas de la vista de tabla — TODOS los campos del cliente (a diferencia del
 // reporte exportado, que sí es configurable vía useExportConfig.js/getActiveColumns).
 const TABLE_COLUMNS = [
-  { key: 'ruc',         label: 'RUC' },
   { key: 'nombre',      label: 'Nombre' },
+  { key: 'ruc',         label: 'RUC' },
   { key: 'extranjero',  label: 'Extranjero' },
   { key: 'ubicacion',   label: 'Ubicación' },
   { key: 'ciudad',      label: 'Ciudad' },
@@ -1076,10 +1076,10 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
       return next;
     });
   };
-  // RUC y Nombre quedan "congelados" (sticky) a la izquierda al hacer scroll
-  // horizontal, para saber a quién corresponde la fila que se está viendo.
-  const FROZEN_COLUMN_LEFT = { ruc: 0, nombre: 120 };
-  const FROZEN_COLUMN_WIDTH = { ruc: 120, nombre: 160 };
+  // Nombre queda "congelada" (sticky) a la izquierda al hacer scroll horizontal,
+  // para saber a quién corresponde la fila que se está viendo.
+  const FROZEN_COLUMN_LEFT = { nombre: 0 };
+  const FROZEN_COLUMN_WIDTH = { nombre: 160 };
   const getFrozenStyle = (key) => FROZEN_COLUMN_LEFT[key] !== undefined
     ? { position: 'sticky', left: FROZEN_COLUMN_LEFT[key], width: FROZEN_COLUMN_WIDTH[key], minWidth: FROZEN_COLUMN_WIDTH[key] }
     : undefined;
