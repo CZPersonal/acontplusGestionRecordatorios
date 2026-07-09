@@ -1108,7 +1108,25 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     if (key === 'ArrowRight') targetCol += 1;
     const nextRow  = body.children[targetRow];
     const nextCell = nextRow?.children[targetCol];
-    nextCell?.focus();
+    if (!nextCell) return;
+    nextCell.focus();
+
+    // El foco nativo no sabe que la columna Nombre queda encima (sticky) del resto
+    // al hacer scroll horizontal — sin este ajuste, al volver con ArrowLeft la
+    // celda de al lado (ej. RUC) queda tapada detrás de Nombre en vez de quedar
+    // completamente visible.
+    const container = tableScrollRef.current;
+    if (container) {
+      const containerRect = container.getBoundingClientRect();
+      const cellRect       = nextCell.getBoundingClientRect();
+      const frozenWidth    = FROZEN_COLUMN_WIDTH.nombre || 0;
+      const visibleLeft    = containerRect.left + (targetCol === 0 ? 0 : frozenWidth);
+      if (cellRect.left < visibleLeft) {
+        container.scrollLeft -= (visibleLeft - cellRect.left);
+      } else if (cellRect.right > containerRect.right) {
+        container.scrollLeft += (cellRect.right - containerRect.right);
+      }
+    }
   };
 
   // La vista de tabla filtra CADA FILA (ubicación) individualmente, no el cliente
