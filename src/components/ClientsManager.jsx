@@ -658,7 +658,7 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, onDelete, isAdmin, isLoading, wrapperClassName = 'relative mt-2' }) {
+function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, onDelete, onHistorial, isAdmin, isLoading, wrapperClassName = 'relative mt-2', showDelete = true }) {
   const [open,           setOpen]           = useState(false);
   const [confirming,     setConfirming]     = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -687,6 +687,15 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
 
       {open && (
         <div className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[160px] py-1 overflow-hidden">
+
+          {/* Calendario / historial de visitas */}
+          {onHistorial && (
+            <button
+              onClick={() => { onHistorial(client); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 transition-colors">
+              <CalendarDays size={12} className="text-purple-500" /> Calendario / historial
+            </button>
+          )}
 
           {/* Nueva visita */}
           <button
@@ -745,7 +754,7 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
           )}
 
           {/* Eliminar — solo panel de administrador */}
-          {isAdmin && (
+          {isAdmin && showDelete && (
             <>
               <div className="border-t border-slate-100 my-1" />
               {!confirmingDelete ? (
@@ -1109,12 +1118,12 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     const nextRow  = body.children[targetRow];
     const nextCell = nextRow?.children[targetCol];
     if (!nextCell) return;
-    nextCell.focus();
-
-    // El foco nativo no sabe que la columna Nombre queda encima (sticky) del resto
-    // al hacer scroll horizontal — sin este ajuste, al volver con ArrowLeft la
-    // celda de al lado (ej. RUC) queda tapada detrás de Nombre en vez de quedar
-    // completamente visible.
+    // preventScroll: el auto-scroll nativo del navegador al enfocar no sabe que
+    // Nombre queda encima (sticky) del resto — si se deja que el navegador ajuste
+    // el scroll primero, su calculo (ignora la columna congelada) interfiere con
+    // el ajuste manual de abajo y la celda queda tapada. Se desactiva el nativo y
+    // se calcula el scroll a mano con la geometria real, sin ese conflicto.
+    nextCell.focus({ preventScroll: true });
     const container = tableScrollRef.current;
     if (container) {
       const containerRect = container.getBoundingClientRect();
@@ -1805,24 +1814,18 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                                 </>
                               )}
                               {client && (
-                                <>
-                                  <button onClick={() => setHistorialClient(client)}
-                                    title="Calendario / historial de visitas"
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors border border-purple-100">
-                                    <CalendarDays size={12} />
-                                  </button>
-                                  <ActionsMenu
-                                    client={client}
-                                    visitCount={visitCountMap[client.id] || 0}
-                                    onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
-                                    onEdit={handleEdit}
-                                    onToggleActive={handleToggleActive}
-                                    onDelete={handleDeleteClient}
-                                    isAdmin={isAdmin}
-                                    isLoading={isLoading}
-                                    wrapperClassName="relative"
-                                  />
-                                </>
+                                <ActionsMenu
+                                  client={client}
+                                  visitCount={visitCountMap[client.id] || 0}
+                                  onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
+                                  onEdit={handleEdit}
+                                  onToggleActive={handleToggleActive}
+                                  onHistorial={(c) => setHistorialClient(c)}
+                                  isAdmin={isAdmin}
+                                  isLoading={isLoading}
+                                  wrapperClassName="relative"
+                                  showDelete={false}
+                                />
                               )}
                             </div>
                           </td>
