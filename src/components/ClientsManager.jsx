@@ -1128,8 +1128,14 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     if (container) {
       const containerRect = container.getBoundingClientRect();
       const cellRect       = nextCell.getBoundingClientRect();
-      const frozenWidth    = FROZEN_COLUMN_WIDTH.nombre || 0;
-      const visibleLeft    = containerRect.left + (targetCol === 0 ? 0 : frozenWidth);
+      // Medir el ancho REAL de la celda congelada (columna 0, Nombre) en vez de
+      // confiar en el valor declarado en CSS (FROZEN_COLUMN_WIDTH): con
+      // table-layout:auto (el default de <table>) el ancho renderizado puede no
+      // coincidir exactamente con el declarado, y eso dejaba el ajuste corto,
+      // tapando RUC parcialmente.
+      const frozenCell  = targetCol !== 0 ? nextRow.children[0] : null;
+      const frozenWidth = frozenCell ? frozenCell.getBoundingClientRect().width : 0;
+      const visibleLeft = containerRect.left + frozenWidth;
       if (cellRect.left < visibleLeft) {
         container.scrollLeft -= (visibleLeft - cellRect.left);
       } else if (cellRect.right > containerRect.right) {
