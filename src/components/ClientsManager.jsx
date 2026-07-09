@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import {
   Search, Plus, Pencil, UserX, UserCheck, X,
   CheckCircle, Loader2, Upload, Download, FileText, Users, Phone,
@@ -12,6 +13,7 @@ import ClientImportModal from './ClientImportModal.jsx';
 import ClientHistorialModal from './ClientHistorialModal.jsx';
 import { emptyContact, emptyInstallation, getClientContacts } from '../hooks/useClients.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
+import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
 // Columnas de la vista de tabla — TODOS los campos del cliente (a diferencia del
@@ -947,6 +949,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const empresaConfig     = useAppStore(s => s.empresaConfig);
   const getActiveColumns  = useAppStore(s => s.getActiveColumns);
   const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
+  const user                = useAppStore(s => s.user);
 
   const [search,         setSearch]         = useState('');
   const [searchField,    setSearchField]    = useState('nombre');
@@ -958,9 +961,25 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showColumnsMenu, setShowColumnsMenu] = useState(false);
   // Columnas visibles EN PANTALLA en la vista Tabla — independiente de las columnas
-  // del reporte exportado (getActiveColumns('clients')), no se persiste en Firestore.
+  // del reporte exportado (getActiveColumns('clients')); se persiste en Firestore
+  // (doc propio dentro de export_config, no comparte el doc "columns" de la
+  // config de exportación).
   const [hiddenColumnKeys, setHiddenColumnKeys] = useState(() => new Set());
   const [historialClient, setHistorialClient] = useState(null);
+
+  useEffect(() => {
+    if (!user) return;
+    // Reutiliza la colección export_config (ya permitida en firestore.rules para
+    // cualquier miembro del tenant) con un doc propio, en vez de crear una colección
+    // nueva que requeriría desplegar reglas de Firestore por separado.
+    const docRef = doc(getCollectionRef('export_config'), 'clients_table_columns');
+    const unsub = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        setHiddenColumnKeys(new Set(snap.data().hiddenColumns || []));
+      }
+    });
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
     if (!pendingClientHistorial) return;
@@ -1023,8 +1042,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   const pagination = usePagination(filtered, pageSize);
 
   // ─── Vista de tabla plana (una fila por ubicación, ordenable) ───────────────
-  const [viewMode,   setViewMode]   = useState('cards'); // 'cards' | 'table'
-  const [sortLevels, setSortLevels] = useState([]);      // [{ field, dir }], hasta 3
+  const [viewMode,   setViewMode]   = useState('table'); // 'cards' | 'table'
+  const [sortLevels, setSortLevels] = useState([{ field: 'nombre', dir: 'asc' }]); // [{ field, dir }], hasta 3
 
   const toggleSort = (field) => {
     setSortLevels(prev => {
@@ -1042,13 +1061,29 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
   };
   const clearSort = () => setSortLevels([]);
 
+  const saveHiddenColumns = (nextSet) => {
+    if (!user) return;
+    setDoc(doc(getCollectionRef('export_config'), 'clients_table_columns'),
+      { hiddenColumns: [...nextSet] }, { merge: true }
+    ).catch(e => console.error('Error guardando columnas de tabla:', e));
+  };
+
   const toggleColumnVisibility = (key) => {
     setHiddenColumnKeys(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
+      saveHiddenColumns(next);
       return next;
     });
   };
+  // RUC y Nombre quedan "congelados" (sticky) a la izquierda al hacer scroll
+  // horizontal, para saber a quién corresponde la fila que se está viendo.
+  const FROZEN_COLUMN_LEFT = { ruc: 0, nombre: 120 };
+  const FROZEN_COLUMN_WIDTH = { ruc: 120, nombre: 160 };
+  const getFrozenStyle = (key) => FROZEN_COLUMN_LEFT[key] !== undefined
+    ? { position: 'sticky', left: FROZEN_COLUMN_LEFT[key], width: FROZEN_COLUMN_WIDTH[key], minWidth: FROZEN_COLUMN_WIDTH[key] }
+    : undefined;
+
   const visibleTableColumns = useMemo(
     () => TABLE_COLUMNS.filter(c => !hiddenColumnKeys.has(c.key)),
     [hiddenColumnKeys]
@@ -1537,7 +1572,7 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                     })}
                   </div>
                   <div className="border-t border-slate-100">
-                    <button onClick={() => setHiddenColumnKeys(new Set())}
+                    <button onClick={() => { setHiddenColumnKeys(new Set()); saveHiddenColumns(new Set()); }}
                       className="w-full px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 text-left">
                       Mostrar todas
                     </button>
@@ -1648,6 +1683,19 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                 </button>
               </div>
           </div>
+          {/* Paginación arriba de la tabla — siempre visible, sin depender del scroll */}
+          <div className="px-4 py-3 border-b border-slate-100">
+            <Pagination
+              currentPage={tablePagination.currentPage}
+              totalPages={tablePagination.totalPages}
+              onPageChange={tablePagination.goToPage}
+              startIndex={tablePagination.startIndex}
+              endIndex={tablePagination.endIndex}
+              totalItems={tablePagination.totalItems}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => { setPageSize(size); tablePagination.resetPage(); }}
+            />
+          </div>
           {sortedTableRows.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
               <Users size={40} className="mx-auto mb-3 opacity-25" />
@@ -1662,9 +1710,11 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       {visibleTableColumns.map(col => {
                         const level = sortLevels.find(s => s.field === col.key);
                         const priority = level ? sortLevels.indexOf(level) + 1 : null;
+                        const isFrozen = FROZEN_COLUMN_LEFT[col.key] !== undefined;
                         return (
                           <th key={col.key} onClick={() => toggleSort(col.key)}
-                            className="sticky top-0 z-10 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                            style={getFrozenStyle(col.key)}
+                            className={`sticky top-0 bg-slate-50 text-left px-4 py-3 font-semibold text-slate-600 whitespace-nowrap cursor-pointer select-none hover:bg-slate-100 transition-colors ${isFrozen ? 'z-30' : 'z-10'}`}>
                             <span className="flex items-center gap-1">
                               {col.label}
                               {level ? (
@@ -1693,10 +1743,12 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       return (
                         <tr key={row.rowKey || i} className={`hover:bg-slate-50 ${isInactive ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           {visibleTableColumns.map(col => {
+                            const isFrozen = FROZEN_COLUMN_LEFT[col.key] !== undefined;
                             if (!editMode) {
                               return (
                                 <td key={col.key} tabIndex={0} onKeyDown={handleCellKeyDown}
-                                  className="px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate outline-none focus:ring-2 focus:ring-inset focus:ring-pink-400 focus:bg-pink-50"
+                                  style={getFrozenStyle(col.key)}
+                                  className={`px-4 py-2.5 text-slate-600 whitespace-nowrap max-w-[220px] truncate outline-none focus:ring-2 focus:ring-inset focus:ring-pink-400 focus:bg-pink-50 ${isFrozen ? 'bg-white z-20' : ''}`}
                                   title={row[col.key]}>
                                   {col.key === 'nombre' && isInactive && (
                                     <span className="mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-500 align-middle">Inactivo</span>
@@ -1707,7 +1759,8 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                             }
                             const value = getCellValue(row, col.key);
                             return (
-                              <td key={col.key} className="px-2 py-1.5">
+                              <td key={col.key} style={getFrozenStyle(col.key)}
+                                className={`px-2 py-1.5 ${isFrozen ? 'bg-white z-20' : ''}`}>
                                 {col.key === 'equipo' ? (
                                   <select value={value} disabled={isSaving}
                                     onChange={e => setCellEdit(row, col.key, e.target.value)}
@@ -1755,6 +1808,16 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                                     className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
                                     <Pencil size={12} />
                                   </button>
+                                  <button onClick={() => openNewVisitModal({ clientId: client.id })}
+                                    title="Nueva visita"
+                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
+                                    <Wrench size={12} />
+                                  </button>
+                                  <button onClick={() => setHistorialClient(client)}
+                                    title="Calendario / historial de visitas"
+                                    className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors">
+                                    <CalendarDays size={12} />
+                                  </button>
                                   {confirmingToggleId === client.id ? (
                                     <div className="flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 bg-white">
                                       <span className="text-[11px] text-slate-500 whitespace-nowrap">
@@ -1794,18 +1857,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                     })}
                   </tbody>
                 </table>
-              </div>
-              <div className="px-4 py-3 border-t border-slate-100">
-                <Pagination
-                  currentPage={tablePagination.currentPage}
-                  totalPages={tablePagination.totalPages}
-                  onPageChange={tablePagination.goToPage}
-                  startIndex={tablePagination.startIndex}
-                  endIndex={tablePagination.endIndex}
-                  totalItems={tablePagination.totalItems}
-                  pageSize={pageSize}
-                  onPageSizeChange={(size) => { setPageSize(size); tablePagination.resetPage(); }}
-                />
               </div>
             </>
           )}
