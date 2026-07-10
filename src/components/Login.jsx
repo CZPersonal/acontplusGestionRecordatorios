@@ -3,8 +3,10 @@ import { Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
+const LAST_EMAIL_KEY = 'acontplus_last_login_email';
+
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem(LAST_EMAIL_KEY) || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +33,7 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      localStorage.setItem(LAST_EMAIL_KEY, email);
     } catch (err) {
       if (err.code === 'auth/network-request-failed') {
         setError('Error de red. Verifica tu conexión a internet e intenta de nuevo.');
