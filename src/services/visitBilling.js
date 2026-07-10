@@ -15,6 +15,19 @@ export function calcPaymentSummary(visit) {
   return { total, abonado, saldo, pagado };
 }
 
+// Estado de cobro único por visita (usado por el badge, el filtro y la
+// exportación — un solo lugar para no repetir el orden de precedencia entre
+// los tres). "Vencido" = tiene al menos una cuota programada con fecha ya
+// pasada que no quedó cubierta por lo realmente abonado.
+export function getPayStatus({ summary, commitmentDate, cuotas }, today) {
+  if (summary.total === 0) return 'Sin valor';
+  if (summary.pagado)      return 'Cobrado';
+  const hasVencidas = (cuotas || []).some(c => c.fecha && c.fecha < today && !c.pagado);
+  if (hasVencidas)          return 'Vencido';
+  if (commitmentDate)      return 'Compromiso';
+  return 'No Cobrado';
+}
+
 export function generateReceiptNo(visitId) {
   const ts   = Date.now().toString().slice(-6);
   const part = visitId?.slice(-4).toUpperCase() || 'XXXX';

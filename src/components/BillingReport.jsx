@@ -8,7 +8,7 @@ import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import AbonosModal from './AbonosModal.jsx';
-import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas, printReceipt } from '../services/visitBilling.js';
+import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas, printReceipt, getPayStatus } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
@@ -38,14 +38,15 @@ function flattenNewVisits(visits) {
 }
 
 // ─── Estado de cobro ──────────────────────────────────────────────────────────
-function PayStatusBadge({ summary, commitmentDate }) {
-  if (summary.total === 0)
+function PayStatusBadge({ summary, commitmentDate, cuotas, today }) {
+  const status = getPayStatus({ summary, commitmentDate, cuotas }, today);
+  if (status === 'Sin valor')
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">Sin valor</span>;
-  if (summary.pagado)
+  if (status === 'Cobrado')
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✅ Cobrado</span>;
-  if (summary.abonado > 0)
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">No Cobrado</span>;
-  if (commitmentDate)
+  if (status === 'Vencido')
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">⚠️ Vencido</span>;
+  if (status === 'Compromiso')
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Compromiso {formatDateOnly(commitmentDate)}</span>;
   return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">No Cobrado</span>;
 }
@@ -67,6 +68,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const [billingTarget,  setBillingTarget]  = useState(null); // { task, visit, isNew, allVisits? }
   const [abonosTarget,   setAbonosTarget]   = useState(null); // { task, visit }
 
+  const today = localDateStr();
   const { abonosByVisit, addAbono, deleteAbono } = useAbonos();
   const newVisits = useAppStore(s => s.visits);
   const establecimientos       = useAppStore(s => s.establecimientos);
@@ -101,27 +103,20 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   // Aplicar filtros
   const filteredRows = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
-    return allRows.filter(({ task, visit, summary }) => {
+    return allRows.filter(({ task, visit, summary, cuotas }) => {
       if (q &&
         !task.clientName?.toLowerCase().includes(q) &&
         !task.serviceOrder?.toLowerCase().includes(q)) return false;
       if (filters.dateFrom && (visit.scheduledDate || '') < filters.dateFrom) return false;
       if (filters.dateTo   && (visit.scheduledDate || '') > filters.dateTo)   return false;
       if (filters.serviceType !== 'Todos' && task.serviceType !== filters.serviceType) return false;
-      if (filters.payStatus !== 'Todos') {
-        const st = filters.payStatus;
-        if (st === 'Cobrado'    && !summary.pagado)                          return false;
-        if (st === 'No Cobrado' && !(
-          (summary.abonado > 0 && !summary.pagado) ||
-          (summary.total > 0 && summary.abonado === 0 && !visit.commitmentDate)
-        )) return false;
-        if (st === 'Sin valor'  && summary.total !== 0)                      return false;
-        if (st === 'Compromiso' && !visit.commitmentDate)                    return false;
-      }
+      if (filters.payStatus !== 'Todos' &&
+        getPayStatus({ summary, commitmentDate: visit.commitmentDate, cuotas }, today) !== filters.payStatus
+      ) return false;
       if (filters.establecimiento && visit.establecimientoId !== filters.establecimiento) return false;
       return true;
     });
-  }, [allRows, filters]);
+  }, [allRows, filters, today]);
 
   const pagination = usePagination(filteredRows, 20);
 
@@ -131,8 +126,11 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
     const totalAbonado = filteredRows.reduce((s, r) => s + r.summary.abonado, 0);
     const totalSaldo   = filteredRows.reduce((s, r) => s + r.summary.saldo,   0);
     const pagadas      = filteredRows.filter(r => r.summary.pagado).length;
-    return { totalValor, totalAbonado, totalSaldo, pagadas, total: filteredRows.length };
-  }, [filteredRows]);
+    const vencidas     = filteredRows.filter(r =>
+      getPayStatus({ summary: r.summary, commitmentDate: r.visit.commitmentDate, cuotas: r.cuotas }, today) === 'Vencido'
+    ).length;
+    return { totalValor, totalAbonado, totalSaldo, pagadas, vencidas, total: filteredRows.length };
+  }, [filteredRows, today]);
 
   const lbl = "block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1";
   const inp = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-pink-400 transition-colors bg-white";
@@ -197,12 +195,13 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
       </div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
-          { label: 'Total a cobrar',  value: `$${fmtMoney(kpis.totalValor)}`,   color: 'text-slate-700',  bg: 'bg-slate-50'  },
-          { label: 'Total cobrado',   value: `$${fmtMoney(kpis.totalAbonado)}`,  color: 'text-green-700',  bg: 'bg-green-50'  },
-          { label: 'Saldo pendiente', value: `$${fmtMoney(kpis.totalSaldo)}`,    color: 'text-orange-700', bg: 'bg-orange-50' },
-          { label: 'Visitas pagadas', value: `${kpis.pagadas} / ${kpis.total}`,  color: 'text-blue-700',   bg: 'bg-blue-50'   },
+          { label: 'Total a cobrar',   value: `$${fmtMoney(kpis.totalValor)}`,   color: 'text-slate-700',  bg: 'bg-slate-50'  },
+          { label: 'Total cobrado',    value: `$${fmtMoney(kpis.totalAbonado)}`,  color: 'text-green-700',  bg: 'bg-green-50'  },
+          { label: 'Saldo pendiente',  value: `$${fmtMoney(kpis.totalSaldo)}`,    color: 'text-orange-700', bg: 'bg-orange-50' },
+          { label: 'Visitas cobradas', value: `${kpis.pagadas} / ${kpis.total}`,  color: 'text-blue-700',   bg: 'bg-blue-50'   },
+          { label: 'Cuotas vencidas',  value: `${kpis.vencidas}`,                 color: 'text-red-700',    bg: 'bg-red-50'    },
         ].map(({ label, value, color, bg }) => (
           <div key={label} className={`${bg} rounded-xl border border-slate-200 p-4 shadow-sm`}>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
@@ -277,6 +276,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                 <option value="Todos">Todos</option>
                 <option value="Cobrado">Cobrado</option>
                 <option value="No Cobrado">No Cobrado</option>
+                <option value="Vencido">Vencido (cuotas atrasadas)</option>
                 <option value="Compromiso">Con fecha compromiso</option>
                 <option value="Sin valor">Sin valor registrado</option>
               </select>
@@ -322,7 +322,6 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pagination.paginatedItems.map(({ task, visit, summary, isNew, cuotas }) => {
-                    const today     = localDateStr();
                     const isOverdue = visit.commitmentDate && visit.commitmentDate < today && !summary.pagado;
 
                     return (
@@ -371,7 +370,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                         </td>
 
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <PayStatusBadge summary={summary} commitmentDate={visit.commitmentDate} />
+                          <PayStatusBadge summary={summary} commitmentDate={visit.commitmentDate} cuotas={cuotas} today={today} />
                           {isOverdue && (
                             <p className="text-xs text-red-500 mt-0.5">⚠️ Compromiso vencido</p>
                           )}

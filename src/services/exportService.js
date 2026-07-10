@@ -3,6 +3,7 @@
 import * as XLSX from 'xlsx';
 import { localDateStr } from '../utils/dates.js';
 import { fmtMoneyRaw } from '../utils/format.js';
+import { getPayStatus } from './visitBilling.js';
 
 const fmt = (isoString) => {
   if (!isoString) return '';
@@ -85,11 +86,7 @@ function billingValue(key, { task, visit, summary, cuotas }) {
     case 'totalAbonado':    return fmtMoneyRaw(summary.abonado);
     case 'totalSaldo':      return fmtMoneyRaw(summary.saldo);
     case 'payStatus':
-      if (summary.total === 0)     return 'Sin valor';
-      if (summary.pagado)          return 'Cobrado';
-      if (summary.abonado > 0)     return 'No Cobrado';
-      if (visit.commitmentDate)    return 'Compromiso';
-      return 'No Cobrado';
+      return getPayStatus({ summary, commitmentDate: visit.commitmentDate, cuotas }, localDateStr());
     case 'commitmentDate':  return fmtDate(visit.commitmentDate);
     case 'paymentMethods':  return (visit.payments || []).map(p => `${p.method}:$${p.amount}`).join(' | ');
     case 'cuotas':          return (cuotas || []).map(c => `${fmtDate(c.fecha)}: $${fmtMoneyRaw(c.valor)} (${c.pagado ? 'Pagada' : 'Pendiente'})`).join(' | ');
