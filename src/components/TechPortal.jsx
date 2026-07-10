@@ -1180,10 +1180,13 @@ export default function TechPortal({ user }) {
         }
       });
     });
-    groups.hoy.sort((a, b) => (a.visit.scheduledTime || '').localeCompare(b.visit.scheduledTime || ''));
-    groups.proximas.sort((a, b) => a.visit.scheduledDate.localeCompare(b.visit.scheduledDate));
-    groups.atrasadas.sort((a, b) => b.visit.scheduledDate.localeCompare(a.visit.scheduledDate));
-    groups.realizadas.sort((a, b) => b.visit.scheduledDate.localeCompare(a.visit.scheduledDate));
+    // Ordenadas por fecha de creación, las más nuevas primero (antes por fecha/
+    // hora programada) — en las 4 categorías, a pedido del usuario.
+    const byCreatedDesc = (a, b) => new Date(b.visit.createdAt || 0) - new Date(a.visit.createdAt || 0);
+    groups.hoy.sort(byCreatedDesc);
+    groups.proximas.sort(byCreatedDesc);
+    groups.atrasadas.sort(byCreatedDesc);
+    groups.realizadas.sort(byCreatedDesc);
     return groups;
   }, [allVisitsByDate, today]);
 
