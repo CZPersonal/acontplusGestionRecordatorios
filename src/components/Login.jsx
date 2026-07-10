@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { auth, functions } from '../lib/firebase';
 
 const LAST_EMAIL_KEY = 'acontplus_last_login_email';
 
@@ -49,7 +50,11 @@ export default function Login() {
     if (!email.trim()) { setError('Ingresa tu email primero.'); return; }
     setError(''); setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      // Enviado por Resend (mismo dominio de confianza que las demás
+      // notificaciones del sistema) en vez del correo por defecto de Firebase
+      // Auth, que llegaba consistentemente a spam.
+      const sendPasswordReset = httpsCallable(functions, 'sendPasswordReset');
+      await sendPasswordReset({ email: email.trim() });
       setResetSent(true);
     } catch (err) {
       setError('No se encontró una cuenta con ese email.');

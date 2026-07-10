@@ -1,9 +1,10 @@
 const { onSchedule }        = require('firebase-functions/v2/scheduler');
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { onRequest }         = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }     = require('firebase-admin/app');
 const { getFirestore }      = require('firebase-admin/firestore');
 const { getMessaging }      = require('firebase-admin/messaging');
+const { getAuth }           = require('firebase-admin/auth');
 const { defineSecret } = require('firebase-functions/params');
 const { Resend }       = require('resend');
 const QRCode           = require('qrcode');
@@ -1412,6 +1413,73 @@ exports.generateQrCode = onRequest(
       console.error('Error al generar QR:', err);
       res.status(500).send('Error al generar QR');
     }
+  }
+);
+
+// ─── 9. Recuperación de contraseña vía Resend ────────────────────────────────
+// El correo de recuperación por defecto de Firebase Auth se envía desde un
+// dominio genérico de Google (sin SPF/DKIM del dominio propio), lo que hacía
+// que cayera en spam de forma consistente, en cualquier proveedor de correo.
+// Se genera el enlace con el Admin SDK (Firebase sigue validando/expirando el
+// código igual que siempre) pero el correo se envía por Resend, desde el
+// mismo dominio de confianza que ya usan las demás notificaciones del sistema.
+function buildPasswordResetEmailHtml(resetLink, empresaNombre) {
+  const nombre = (empresaNombre || 'Acontplus').trim();
+  return `<!DOCTYPE html>
+<html lang="es"><body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <div style="max-width:480px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+    <div style="background:linear-gradient(135deg,#D61672,#FFA901);padding:28px 24px;text-align:center;">
+      <h1 style="margin:0;color:#fff;font-size:20px;">Restablecer contraseña</h1>
+    </div>
+    <div style="padding:28px 24px;">
+      <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 20px;">
+        Recibimos una solicitud para restablecer la contraseña de tu cuenta en ${nombre} Recordatorios.
+      </p>
+      <div style="text-align:center;margin:24px 0;">
+        <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#D61672,#FFA901);color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 28px;border-radius:10px;font-size:14px;">
+          Restablecer contraseña
+        </a>
+      </div>
+      <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:20px 0 0;">
+        Si no solicitaste este cambio, puedes ignorar este correo — tu contraseña actual seguirá funcionando. Este enlace expira pronto y solo puede usarse una vez.
+      </p>
+    </div>
+  </div>
+</body></html>`;
+}
+
+exports.sendPasswordReset = onCall(
+  { region: 'us-central1', secrets: [resendApiKey] },
+  async (request) => {
+    const email = String(request.data?.email || '').trim().toLowerCase();
+    if (!email) {
+      throw new HttpsError('invalid-argument', 'Debes indicar un email.');
+    }
+
+    let resetLink;
+    try {
+      resetLink = await getAuth().generatePasswordResetLink(email, {
+        url: 'https://gestorrecordatorios.web.app/',
+      });
+    } catch (err) {
+      console.error('sendPasswordReset: error generando enlace:', err.code || err.message);
+      throw new HttpsError('not-found', 'No se encontró una cuenta con ese email.');
+    }
+
+    try {
+      const resend = new Resend(resendApiKey.value());
+      await resend.emails.send({
+        from:    getFromEmail('Acontplus'),
+        to:      [email],
+        subject: 'Restablecer tu contraseña',
+        html:    buildPasswordResetEmailHtml(resetLink, 'Acontplus'),
+      });
+    } catch (err) {
+      console.error('sendPasswordReset: error enviando correo:', err);
+      throw new HttpsError('internal', 'No se pudo enviar el correo de recuperación.');
+    }
+
+    return { ok: true };
   }
 );
 

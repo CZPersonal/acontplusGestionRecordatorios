@@ -5,6 +5,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getMessaging, isSupported } from 'firebase/messaging';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -50,4 +51,8 @@ isSupported().then(supported => {
 
 const storage = getStorage(app);
 
-export { app, auth, db, messaging, storage };
+// us-central1 explícito para que coincida con la región de las Cloud Functions
+// (functions/index.js las declara todas con region: 'us-central1').
+const functions = getFunctions(app, 'us-central1');
+
+export { app, auth, db, messaging, storage, functions };
