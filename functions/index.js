@@ -1423,29 +1423,57 @@ exports.generateQrCode = onRequest(
 // Se genera el enlace con el Admin SDK (Firebase sigue validando/expirando el
 // código igual que siempre) pero el correo se envía por Resend, desde el
 // mismo dominio de confianza que ya usan las demás notificaciones del sistema.
+// Tabla + bgcolor (no CSS background/gradient) y sin border-radius crítico —
+// el motor de Outlook de escritorio (basado en Word) ignora gradientes CSS y
+// no aplica de forma confiable background/padding sobre <a>, dejando el botón
+// como texto plano sin estilo. Mismo patrón (tablas, colores sólidos) que ya
+// usan el resto de plantillas de correo del sistema (buildVisitEmailHtml,
+// buildClientVisitEmailHtml), en vez del <div>+gradient que se usó al
+// principio para esta plantilla.
 function buildPasswordResetEmailHtml(resetLink, empresaNombre) {
-  const nombre = (empresaNombre || 'Acontplus').trim();
+  const nombre = escHtml((empresaNombre || 'Acontplus').trim());
   return `<!DOCTYPE html>
-<html lang="es"><body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
-  <div style="max-width:480px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
-    <div style="background:linear-gradient(135deg,#D61672,#FFA901);padding:28px 24px;text-align:center;">
-      <h1 style="margin:0;color:#fff;font-size:20px;">Restablecer contraseña</h1>
-    </div>
-    <div style="padding:28px 24px;">
-      <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 20px;">
-        Recibimos una solicitud para restablecer la contraseña de tu cuenta en ${nombre} Recordatorios.
-      </p>
-      <div style="text-align:center;margin:24px 0;">
-        <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#D61672,#FFA901);color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 28px;border-radius:10px;font-size:14px;">
-          Restablecer contraseña
-        </a>
-      </div>
-      <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:20px 0 0;">
-        Si no solicitaste este cambio, puedes ignorar este correo — tu contraseña actual seguirá funcionando. Este enlace expira pronto y solo puede usarse una vez.
-      </p>
-    </div>
-  </div>
-</body></html>`;
+<html lang="es">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0"
+          style="max-width:480px;width:100%;background:#ffffff;border-radius:12px;">
+          <tr>
+            <td bgcolor="#D61672" align="center" style="padding:28px 24px;border-radius:12px 12px 0 0;">
+              <span style="color:#ffffff;font-size:20px;font-weight:bold;">Restablecer contraseña</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 24px;">
+              <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 20px;">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta en ${nombre} Recordatorios.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:24px auto;">
+                <tr>
+                  <td bgcolor="#D61672" align="center" style="border-radius:8px;">
+                    <a href="${resetLink}" style="display:block;padding:13px 32px;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">
+                      Restablecer contraseña
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="color:#334155;font-size:12px;line-height:1.6;margin:8px 0 0;text-align:center;">
+                Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+                <a href="${resetLink}" style="color:#D61672;word-break:break-all;">${resetLink}</a>
+              </p>
+              <p style="color:#94a3b8;font-size:12px;line-height:1.6;margin:20px 0 0;">
+                Si no solicitaste este cambio, puedes ignorar este correo — tu contraseña actual seguirá funcionando. Este enlace expira pronto y solo puede usarse una vez.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 exports.sendPasswordReset = onCall(
