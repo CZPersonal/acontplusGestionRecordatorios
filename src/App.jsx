@@ -17,15 +17,7 @@ import CompanySelector from './components/CompanySelector.jsx';
 import AppRouter from './components/AppRouter.jsx';
 import TechPortal from './components/TechPortal.jsx';
 import ResetPasswordConfirm from './components/ResetPasswordConfirm.jsx';
-
-const SESSION_KEY = 'acontplus_session';
-
-function saveSession(data) {
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify(data)); } catch { /* quota */ }
-}
-function loadSession() {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || '{}'); } catch { return {}; }
-}
+import { saveSession, loadSession } from './lib/session.js';
 
 export default function App() {
   const user             = useAppStore(s => s.user);

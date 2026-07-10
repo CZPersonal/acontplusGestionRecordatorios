@@ -7,13 +7,17 @@ import { useAppStore } from '../lib/store';
 const CONFIG_DOC_ID = 'config_empresa';
 
 export function useConfiguracion(user) {
+  const tenantId = useAppStore(s => s.tenantId);
   const [config,    setConfig]    = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving,  setIsSaving]  = useState(false);
   const [permError, setPermError] = useState(false);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo la configuración de la empresa anterior.
   useEffect(() => {
-    if (!user) {
+    if (!user || !tenantId) {
       setIsLoading(false);
       return;
     }
@@ -60,7 +64,7 @@ export function useConfiguracion(user) {
       clearTimeout(timeout);
       unsub();
     };
-  }, [user]);
+  }, [user, tenantId]);
 
   const saveConfig = async (data) => {
     if (!user) return false;

@@ -1,10 +1,12 @@
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
+import { saveSession } from '../lib/session.js';
 import { Building2, LogOut } from 'lucide-react';
 
 export default function CompanySelector() {
   const user             = useAppStore(s => s.user);
+  const tenantIds        = useAppStore(s => s.tenantIds);
   const availableTenants = useAppStore(s => s.availableTenants);
 
   const selectTenant = (tenant) => {
@@ -12,6 +14,13 @@ export default function CompanySelector() {
       tenantId:   tenant.id,
       tenantName: tenant.name,
       tenantRuc:  tenant.ruc,
+    });
+    // Sin esto, recargar la página (o perder la red) antes de que el rol se
+    // termine de resolver restauraba la última empresa guardada en vez de la
+    // que se acaba de elegir aquí.
+    saveSession({
+      uid: user?.uid, email: user?.email, displayName: user?.displayName || '',
+      tenantId: tenant.id, tenantIds, tenantName: tenant.name, tenantRuc: tenant.ruc,
     });
   };
 

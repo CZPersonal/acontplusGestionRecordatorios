@@ -8,11 +8,15 @@ import { logAudit } from '../services/auditService';
 const VISITS_PAGE_SIZE = 200;
 
 export function useVisits(user) {
+  const tenantId = useAppStore(s => s.tenantId);
   const [visits,        setVisits]        = useState([]);
   const [isLoadingVisits, setIsLoading]   = useState(true);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo las visitas de la empresa anterior.
   useEffect(() => {
-    if (!user) {
+    if (!user || !tenantId) {
       setVisits([]);
       setIsLoading(false);
       return;
@@ -33,7 +37,7 @@ export function useVisits(user) {
     });
 
     return () => unsub();
-  }, [user]);
+  }, [user, tenantId]);
 
   // ─── Crear visita (transacción atómica: contador + visita) ──────────────────
   const addVisit = async (data) => {

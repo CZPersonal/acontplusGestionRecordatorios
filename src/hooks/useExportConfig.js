@@ -86,6 +86,7 @@ const DEFAULTS = {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useExportConfig(user) {
+  const tenantId = useAppStore(s => s.tenantId);
   const [configs, setConfigs] = useState({
     tasks:   TASK_COLUMNS,
     visits:  VISIT_COLUMNS,
@@ -94,8 +95,11 @@ export function useExportConfig(user) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo la configuración de exportación de la empresa anterior.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !tenantId) return;
     const docRef = doc(getCollectionRef('export_config'), 'columns');
     const unsub  = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
@@ -110,7 +114,7 @@ export function useExportConfig(user) {
       }
     });
     return () => unsub();
-  }, [user]);
+  }, [user, tenantId]);
 
   // Columnas guardadas + nuevas columnas del default que no existen aún
   function mergeWithDefaults(saved, defaults) {

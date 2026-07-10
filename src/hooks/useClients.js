@@ -44,15 +44,19 @@ export const getClientContacts = (client) => {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useClients(user) {
+  const tenantId = useAppStore(s => s.tenantId);
   const [clients, setClients] = useState([]);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo los clientes de la empresa anterior.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !tenantId) { setClients([]); return; }
     const unsubscribe = onSnapshot(getCollectionRef('clients'), (snapshot) => {
       setClients(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, tenantId]);
 
   // ─── saveClient: llamado desde TaskForm al crear/actualizar tarea ──────────
   // Acepta: { identification, clientName, foreign, contacts[] }

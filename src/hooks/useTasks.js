@@ -11,6 +11,7 @@ const TASKS_PAGE_SIZE = 200;
 
 export function useTasks(user) {
   const refreshKey = useAppStore(s => s.refreshKey);
+  const tenantId   = useAppStore(s => s.tenantId);
 
   const [rawTasks,       setRawTasks]       = useState([]);
   const [extraTasks,     setExtraTasks]     = useState([]);
@@ -25,8 +26,11 @@ export function useTasks(user) {
   const extraTaskIdsRef  = useRef(new Set());
   const isLoadingMoreRef = useRef(false);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo las tareas de la empresa anterior.
   useEffect(() => {
-    if (!user) {
+    if (!user || !tenantId) {
       setRawTasks([]);
       setExtraTasks([]);
       setVisitsMap({});
@@ -105,7 +109,7 @@ export function useTasks(user) {
       lastDocRef.current = null;
       extraTaskIdsRef.current.clear();
     };
-  }, [user, refreshKey]);
+  }, [user, tenantId, refreshKey]);
 
   // ─── Combinar primera página (real-time) con páginas extra (getDocs) ─────────
   const allRawTasks = useMemo(() => {

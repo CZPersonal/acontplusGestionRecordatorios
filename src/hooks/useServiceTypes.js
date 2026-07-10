@@ -4,11 +4,15 @@ import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 
 export function useServiceTypes(user) {
+  const tenantId = useAppStore(s => s.tenantId);
   const [serviceTypes, setServiceTypes] = useState([]);
   const [isLoading, setIsLoading]       = useState(false);
 
+  // tenantId en las dependencias: sin esto, cambiar de empresa en
+  // CompanySelector no volvía a suscribir la lectura, y el usuario seguía
+  // viendo los tipos de servicio de la empresa anterior.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !tenantId) return;
     const unsub     = onSnapshot(query(getCollectionRef('service_types'), limit(200)), (snap) => {
       const data = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -16,7 +20,7 @@ export function useServiceTypes(user) {
       setServiceTypes(data);
     });
     return () => unsub();
-  }, [user]);
+  }, [user, tenantId]);
 
   const addServiceType = async ({ name, description }) => {
     if (!user || !name?.trim()) return false;
