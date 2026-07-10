@@ -16,6 +16,7 @@ import TenantSetup from './components/TenantSetup.jsx';
 import CompanySelector from './components/CompanySelector.jsx';
 import AppRouter from './components/AppRouter.jsx';
 import TechPortal from './components/TechPortal.jsx';
+import ResetPasswordConfirm from './components/ResetPasswordConfirm.jsx';
 
 const SESSION_KEY = 'acontplus_session';
 
@@ -239,6 +240,14 @@ export default function App() {
   }, [toasts, removeToast, addToast, permission, showAlerts, requestPermission]);
 
   // ─── Guards ────────────────────────────────────────────────────────────────
+  // Enlace de restablecimiento de contraseña (ver ResetPasswordConfirm.jsx) —
+  // se revisa antes que cualquier estado de sesión, ya que el usuario llega
+  // sin haber iniciado sesión.
+  const resetParams = new URLSearchParams(window.location.search);
+  if (resetParams.get('mode') === 'resetPassword' && resetParams.get('oobCode')) {
+    return <ResetPasswordConfirm oobCode={resetParams.get('oobCode')} />;
+  }
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">

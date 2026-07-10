@@ -1458,8 +1458,16 @@ exports.sendPasswordReset = onCall(
 
     let resetLink;
     try {
+      // handleCodeInApp:true hace que el enlace apunte directo a nuestra propia
+      // app (con ?mode=resetPassword&oobCode=... como query params) en vez de
+      // pasar primero por la página de Firebase — así el código de un solo uso
+      // no se consume hasta que el usuario haga clic real dentro de la app
+      // (ver ResetPasswordConfirm.jsx), evitando que un escaneo automático de
+      // enlaces de seguridad del correo lo invalide antes de que el usuario
+      // llegue a usarlo.
       resetLink = await getAuth().generatePasswordResetLink(email, {
         url: 'https://gestorrecordatorios.web.app/',
+        handleCodeInApp: true,
       });
     } catch (err) {
       console.error('sendPasswordReset: error generando enlace:', err.code || err.message);
