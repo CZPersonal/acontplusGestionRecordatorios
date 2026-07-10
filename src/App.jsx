@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, arrayUnion, disableNetwork, enableNetwork } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { useAppStore } from './lib/store';
 import { useTasks } from './hooks/useTasks';
@@ -130,6 +130,39 @@ export default function App() {
       }
     });
     return () => unsub();
+  }, []);
+
+  // ─── Reconectar Firestore al volver de una pestaña inactiva por mucho rato ──
+  // Las conexiones en tiempo real (onSnapshot) de una pestaña que llevó horas
+  // en segundo plano (o la máquina entró en reposo) a veces quedan obsoletas
+  // sin que el SDK lo detecte de inmediato — los cambios de otros usuarios
+  // (ej. un técnico confirmando una visita) no llegaban hasta un refresco
+  // manual (Ctrl+F5). Forzar un ciclo de desconexión/reconexión al volver a
+  // primer plano, si estuvo oculta más de RECONNECT_THRESHOLD_MS, resuelve
+  // esto sin necesidad de que el usuario recargue la página a mano.
+  useEffect(() => {
+    const RECONNECT_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutos
+    let hiddenAt = null;
+
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt === null) return;
+      const elapsed = Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (elapsed < RECONNECT_THRESHOLD_MS) return;
+      try {
+        await disableNetwork(db);
+        await enableNetwork(db);
+      } catch (e) {
+        console.warn('Error al forzar reconexión de Firestore:', e);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // ─── Role refresh + datos de establecimientos del miembro ────────────────
