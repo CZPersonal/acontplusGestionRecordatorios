@@ -1382,9 +1382,19 @@ exports.notifyBorradorCreado = onDocumentCreated(
 // Los clientes de correo (especialmente Gmail) bloquean por completo las
 // imágenes data: URI en HTML, así que el QR debe servirse desde una URL http
 // real en vez de embeberse en base64 dentro del correo.
+// Este endpoint necesariamente queda público (invoker: 'public') — los clientes
+// de correo (Gmail, Outlook, etc.) cargan la imagen <img src> sin poder enviar
+// un token de autenticación. Como mitigación de abuso (alguien llamándolo en
+// bucle para generar costo), se acota maxInstances/timeout/memory al mínimo
+// necesario para esta tarea liviana, y se rechaza cualquier método que no sea
+// GET.
 exports.generateQrCode = onRequest(
-  { region: 'us-central1', invoker: 'public' },
+  { region: 'us-central1', invoker: 'public', maxInstances: 5, timeoutSeconds: 10, memory: '128MiB' },
   async (req, res) => {
+    if (req.method !== 'GET') {
+      res.status(405).send('Método no permitido');
+      return;
+    }
     const digits = String(req.query.phone || '').replace(/\D/g, '');
     if (!digits || digits.length < 8 || digits.length > 15) {
       res.status(400).send('Número inválido');
