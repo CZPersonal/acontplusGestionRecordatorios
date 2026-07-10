@@ -165,6 +165,28 @@ export function visitToDisplayTask(visit) {
   };
 }
 
+// ─── Aplanar todas las visitas (modelo legado: tareas con visitas embebidas) ──
+export function flattenVisits(tasks) {
+  const rows = [];
+  tasks.forEach(task => {
+    (task.visits || []).forEach(visit => {
+      const summary = calcPaymentSummary(visit);
+      rows.push({ task, visit, summary, isNew: false });
+    });
+  });
+  return rows;
+}
+
+// ─── Aplanar visitas de la colección plana (Gestión de visitas) ──────────────
+export function flattenNewVisits(visits) {
+  return visits.map(visit => ({
+    task:    visitToDisplayTask(visit),
+    visit,
+    summary: calcPaymentSummary(visit),
+    isNew:   true,
+  }));
+}
+
 // Determina qué cuotas programadas (abonos) ya quedan cubiertas por el total
 // realmente abonado, asignando en orden de fecha (más antigua primero) — no
 // depende de un campo `estado` persistido, así siempre queda consistente

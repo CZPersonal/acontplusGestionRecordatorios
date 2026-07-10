@@ -57,6 +57,7 @@ export default function AppRouter() {
   const closeNewVisitModal = useAppStore(s => s.closeNewVisitModal);
 
   const tasks        = useAppStore(s => s.tasks);
+  const visits       = useAppStore(s => s.visits);
   const clients      = useAppStore(s => s.clients);
   const serviceTypes = useAppStore(s => s.serviceTypes);
 
@@ -176,6 +177,9 @@ export default function AppRouter() {
         {activeTab === 'dashboard' && (
           <Dashboard
             tasks={tasks}
+            visits={visits}
+            clients={clients}
+            borradoresPendientes={pendientesCount}
             onNavigate={setActiveTab}
             notificationPermission={notificationPermission}
             onRequestNotifications={requestNotifications}
