@@ -33,21 +33,25 @@ export function useConfiguracion(user) {
       ref,
       (snap) => {
         clearTimeout(timeout);
-        const data = snap.exists() ? snap.data() : null;
-        setConfig(data);
-        if (data) {
-          useAppStore.setState({
-            empresaConfig: {
-              empresaNombre:   data.empresaNombre   || 'ACONTPLUS',
-              empresaSlogan:   data.empresaSlogan   || 'Recordatorios',
-              empresaTag:      data.empresaTag      || 'Facturar nunca fue tan fácil',
-              whatsappNumero:  data.whatsappNumero  || '',
-              whatsappPrefijo: data.whatsappPrefijo || '593',
-              logoUrl:         data.logoUrl         || '',
-              ruc:             data.ruc             || '',
-            },
-          });
-        }
+        // Antes, si la empresa nueva aún no tenía documento de configuración
+        // creado (snap.exists() === false), no se llamaba a setState y
+        // empresaConfig se quedaba con los datos de la ÚLTIMA empresa que sí
+        // los tenía — la cabecera mostraba nombre/RUC de la empresa anterior.
+        // Ahora siempre se resetea (a vacío) para esa empresa, aunque no
+        // tenga configuración propia todavía.
+        const data = snap.exists() ? snap.data() : {};
+        setConfig(snap.exists() ? data : null);
+        useAppStore.setState({
+          empresaConfig: {
+            empresaNombre:   data.empresaNombre   || '',
+            empresaSlogan:   data.empresaSlogan   || '',
+            empresaTag:      data.empresaTag      || '',
+            whatsappNumero:  data.whatsappNumero  || '',
+            whatsappPrefijo: data.whatsappPrefijo || '593',
+            logoUrl:         data.logoUrl         || '',
+            ruc:             data.ruc             || '',
+          },
+        });
         setIsLoading(false);
         setPermError(false);
       },
