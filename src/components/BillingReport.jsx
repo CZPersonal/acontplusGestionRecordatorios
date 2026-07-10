@@ -42,12 +42,12 @@ function PayStatusBadge({ summary, commitmentDate }) {
   if (summary.total === 0)
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-400">Sin valor</span>;
   if (summary.pagado)
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✅ Pagado</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✅ Cobrado</span>;
   if (summary.abonado > 0)
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Abono parcial</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">No Cobrado</span>;
   if (commitmentDate)
     return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">Compromiso {formatDateOnly(commitmentDate)}</span>;
-  return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Pendiente</span>;
+  return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">No Cobrado</span>;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -110,11 +110,13 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
       if (filters.serviceType !== 'Todos' && task.serviceType !== filters.serviceType) return false;
       if (filters.payStatus !== 'Todos') {
         const st = filters.payStatus;
-        if (st === 'Pagado'        && !summary.pagado)                          return false;
-        if (st === 'Abono parcial' && !(summary.abonado > 0 && !summary.pagado)) return false;
-        if (st === 'Pendiente'     && !(summary.total > 0 && summary.abonado === 0 && !visit.commitmentDate)) return false;
-        if (st === 'Sin valor'     && summary.total !== 0)                      return false;
-        if (st === 'Compromiso'    && !visit.commitmentDate)                    return false;
+        if (st === 'Cobrado'    && !summary.pagado)                          return false;
+        if (st === 'No Cobrado' && !(
+          (summary.abonado > 0 && !summary.pagado) ||
+          (summary.total > 0 && summary.abonado === 0 && !visit.commitmentDate)
+        )) return false;
+        if (st === 'Sin valor'  && summary.total !== 0)                      return false;
+        if (st === 'Compromiso' && !visit.commitmentDate)                    return false;
       }
       if (filters.establecimiento && visit.establecimientoId !== filters.establecimiento) return false;
       return true;
@@ -273,9 +275,8 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
               <select value={filters.payStatus}
                 onChange={e => handleFilter('payStatus', e.target.value)} className={inp}>
                 <option value="Todos">Todos</option>
-                <option value="Pagado">Pagado</option>
-                <option value="Abono parcial">Abono parcial</option>
-                <option value="Pendiente">Pendiente de cobro</option>
+                <option value="Cobrado">Cobrado</option>
+                <option value="No Cobrado">No Cobrado</option>
                 <option value="Compromiso">Con fecha compromiso</option>
                 <option value="Sin valor">Sin valor registrado</option>
               </select>
