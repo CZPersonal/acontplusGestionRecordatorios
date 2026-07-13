@@ -76,11 +76,27 @@ export const CLIENT_COLUMNS = [
   { key: 'observacion', label: 'Observación', enabled: true },
 ];
 
+export const SERIES_COLUMNS = [
+  { key: 'seriesNumber',   label: 'N° Serie',           enabled: true  },
+  { key: 'recurrenceInfo', label: 'Visita en la serie', enabled: true  },
+  { key: 'clientName',     label: 'Cliente',            enabled: true  },
+  { key: 'identification', label: 'Identificación',     enabled: true  },
+  { key: 'phone',          label: 'Teléfono',           enabled: true  },
+  { key: 'clientEmail',    label: 'Email',              enabled: false },
+  { key: 'address',        label: 'Dirección',          enabled: true  },
+  { key: 'periodicidad',   label: 'Periodicidad',       enabled: true  },
+  { key: 'scheduledDate',  label: 'Fecha programada',   enabled: true  },
+  { key: 'scheduledTime',  label: 'Hora',               enabled: false },
+  { key: 'technician',     label: 'Técnico',            enabled: true  },
+  { key: 'visitStatus',    label: 'Estado',             enabled: true  },
+];
+
 const DEFAULTS = {
   tasks:   TASK_COLUMNS,
   visits:  VISIT_COLUMNS,
   billing: BILLING_COLUMNS,
   clients: CLIENT_COLUMNS,
+  series:  SERIES_COLUMNS,
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -92,6 +108,7 @@ export function useExportConfig(user) {
     visits:  VISIT_COLUMNS,
     billing: BILLING_COLUMNS,
     clients: CLIENT_COLUMNS,
+    series:  SERIES_COLUMNS,
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -110,6 +127,7 @@ export function useExportConfig(user) {
           visits:  mergeWithDefaults(data.visits,  VISIT_COLUMNS),
           billing: mergeWithDefaults(data.billing, BILLING_COLUMNS),
           clients: mergeWithDefaults(data.clients, CLIENT_COLUMNS),
+          series:  mergeWithDefaults(data.series,  SERIES_COLUMNS),
         });
       }
     });

@@ -73,6 +73,25 @@ function clientValue(key, row) {
   return row[key] || '';
 }
 
+// Series de visitas recurrentes (row = { visit, seriesNumber, periodicidadLabel })
+function seriesValue(key, { visit: v, seriesNumber, periodicidadLabel }) {
+  switch (key) {
+    case 'seriesNumber':   return seriesNumber != null ? String(seriesNumber) : '';
+    case 'recurrenceInfo': return (v.recurrenceIndex && v.recurrenceTotal) ? `${v.recurrenceIndex}/${v.recurrenceTotal}` : '';
+    case 'clientName':     return v.clientName    || '';
+    case 'identification': return v.clientId      || '';
+    case 'phone':          return v.phone         || '';
+    case 'clientEmail':    return v.clientEmail   || '';
+    case 'address':        return [v.ubicacion, v.ciudad, v.address].filter(Boolean).join(' · ');
+    case 'periodicidad':   return periodicidadLabel || '';
+    case 'scheduledDate':  return fmtDate(v.scheduledDate);
+    case 'scheduledTime':  return v.scheduledTime || '';
+    case 'technician':     return v.technician    || '';
+    case 'visitStatus':    return v.status        || '';
+    default: return '';
+  }
+}
+
 // Cobros (row = { task, visit, summary, cuotas })
 function billingValue(key, { task, visit, summary, cuotas }) {
   switch (key) {
@@ -117,6 +136,7 @@ export function exportCSV(reportType, activeColumns, data) {
   const valueFn = reportType === 'tasks'   ? taskValue
                 : reportType === 'visits'  ? visitValue
                 : reportType === 'clients' ? clientValue
+                : reportType === 'series'  ? seriesValue
                 : billingValue;
   const { headers, rows } = buildRows(activeColumns, data, valueFn);
   const csv = [headers, ...rows]
@@ -137,6 +157,7 @@ export function exportExcel(reportType, activeColumns, data) {
   const valueFn = reportType === 'tasks'   ? taskValue
                 : reportType === 'visits'  ? visitValue
                 : reportType === 'clients' ? clientValue
+                : reportType === 'series'  ? seriesValue
                 : billingValue;
   const { headers, keys, rows } = buildRows(activeColumns, data, valueFn);
 

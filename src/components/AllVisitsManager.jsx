@@ -10,11 +10,12 @@ import BillingModal from './BillingModal.jsx';
 import { calcPaymentSummary } from '../services/visitBilling.js';
 import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
+import { exportExcel, exportCSV } from '../services/exportService.js';
 import {
   Search, X, Plus, Edit2, Trash2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
   Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar, DollarSign,
-  ChevronDown, ChevronUp, Layers, Printer,
+  ChevronDown, ChevronUp, Layers, Printer, Download, Settings,
 } from 'lucide-react';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
@@ -181,6 +182,8 @@ function HistorialView({ user }) {
 
 // ─── Series de visitas recurrentes ────────────────────────────────────────────
 function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskForPDF, isVisitOverdue }) {
+  const getActiveColumns    = useAppStore(s => s.getActiveColumns);
+  const setShowExportConfig = useAppStore(s => s.setShowExportConfig);
   const [search, setSearch]             = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterTech, setFilterTech]     = useState('');
@@ -189,6 +192,7 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
   const [filterTo, setFilterTo]         = useState('');
   const [filterEst, setFilterEst]       = useState('');
   const [expanded, setExpanded]         = useState(() => new Set());
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const hasFilters = !!(search || filterStatus || filterTech || filterUrgency || filterFrom || filterTo || filterEst);
   const clearFilters = () => {
@@ -219,6 +223,33 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
       .sort((a, b) => (b.visits[0].scheduledDate || '').localeCompare(a.visits[0].scheduledDate || ''));
   }, [seriesGroups, search, filterStatus, filterTech, filterUrgency, filterFrom, filterTo, filterEst, isVisitOverdue]);
 
+  // Numeración estable "Serie N" por orden de creación (independiente del
+  // orden de la lista, que cambia según filtros) — todas las visitas de un
+  // mismo grupo comparten createdAt (se crean en una sola transacción).
+  const seriesNumberByGroup = useMemo(() => {
+    const sorted = [...seriesGroups].sort((a, b) =>
+      (a.visits[0].createdAt || '').localeCompare(b.visits[0].createdAt || ''));
+    const map = {};
+    sorted.forEach((g, i) => { map[g.groupId] = i + 1; });
+    return map;
+  }, [seriesGroups]);
+
+  // Una fila por visita (no un resumen por serie): permite filtrar/ordenar
+  // por fecha o cliente en Excel sin perder el detalle de cada ocurrencia.
+  const exportRows = useMemo(() => {
+    return filteredGroups.flatMap(group =>
+      group.visits.map(v => ({
+        seriesNumber: seriesNumberByGroup[group.groupId],
+        visit: v,
+        periodicidadLabel: v.periodicidad
+          ? (PERIODICIDAD_OPTIONS.find(o => o.value === v.periodicidad)?.label || v.periodicidad)
+          : '',
+      }))
+    );
+  }, [filteredGroups, seriesNumberByGroup]);
+
+  const exportConfig = getActiveColumns('series');
+
   const toggleExpand = (groupId) => {
     setExpanded(prev => {
       const next = new Set(prev);
@@ -233,10 +264,45 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
     <div className="space-y-4">
       {/* ── Header ── */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-        <h2 className="text-base font-bold text-slate-800">Series de visitas</h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          {filteredGroups.length} serie{filteredGroups.length !== 1 ? 's' : ''} de visitas recurrentes
-        </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Series de visitas</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {filteredGroups.length} serie{filteredGroups.length !== 1 ? 's' : ''} de visitas recurrentes
+              {' · '}{exportRows.length} visita{exportRows.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowExportConfig(true)}
+              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              title="Configurar columnas de exportación">
+              <Settings size={13} />
+              <span className="hidden sm:inline">Columnas</span>
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowExportMenu(v => !v)}
+                disabled={exportRows.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-40">
+                <Download size={13} /><span>Exportar</span><ChevronDown size={12} />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-10 overflow-hidden">
+                  <button onClick={() => { exportExcel('series', exportConfig, exportRows); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-green-100 rounded"><FileText size={14} className="text-green-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">Excel (.xlsx)</p><p className="text-xs text-slate-400">{exportConfig.length} columnas activas</p></div>
+                  </button>
+                  <div className="border-t border-slate-100" />
+                  <button onClick={() => { exportCSV('series', exportConfig, exportRows); setShowExportMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left">
+                    <div className="p-1.5 bg-blue-100 rounded"><FileText size={14} className="text-blue-600" /></div>
+                    <div><p className="text-sm font-medium text-slate-700">CSV</p><p className="text-xs text-slate-400">Compatible con cualquier app</p></div>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Filtros ── */}

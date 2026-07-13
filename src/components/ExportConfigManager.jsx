@@ -3,13 +3,14 @@ import {
   X, GripVertical, RotateCcw, Save, CheckCircle,
   Loader2, FileText, Eye, EyeOff, Info
 } from 'lucide-react';
-import { TASK_COLUMNS, VISIT_COLUMNS, BILLING_COLUMNS, CLIENT_COLUMNS } from '../hooks/useExportConfig.js';
+import { TASK_COLUMNS, VISIT_COLUMNS, BILLING_COLUMNS, CLIENT_COLUMNS, SERIES_COLUMNS } from '../hooks/useExportConfig.js';
 
 const REPORT_TABS = [
   { key: 'tasks',   label: 'Tareas',   defaults: TASK_COLUMNS   },
   { key: 'visits',  label: 'Visitas',  defaults: VISIT_COLUMNS  },
   { key: 'billing', label: 'Cobros',   defaults: BILLING_COLUMNS },
   { key: 'clients', label: 'Clientes', defaults: CLIENT_COLUMNS },
+  { key: 'series',  label: 'Series',   defaults: SERIES_COLUMNS },
 ];
 
 // ─── Fila de columna con drag ──────────────────────────────────────────────────
