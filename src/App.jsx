@@ -56,9 +56,13 @@ export default function App() {
         }
 
         if (ids.length === 0) {
-          // Sin empresa — intentar localStorage como último recurso
+          // Sin empresa en Firestore — solo rescatar localStorage si estamos
+          // offline (Firestore no pudo confirmar el estado real) Y la sesión
+          // guardada es de este mismo usuario. Si hay red, Firestore ya dio
+          // la respuesta autoritativa (sin tenant) y no hay que usar datos
+          // de otra sesión/usuario que haya quedado en este navegador.
           const s = loadSession();
-          if (s.tenantId) {
+          if (!navigator.onLine && s.tenantId && s.uid === u.uid) {
             useAppStore.setState({
               user: u, tenantId: s.tenantId, tenantIds: s.tenantIds || [s.tenantId],
               availableTenants: [], tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
