@@ -38,13 +38,22 @@ export default function App() {
           .catch(() => {});
 
         let userData = {};
+        // fromCache: la respuesta vino del caché local de Firestore, no
+        // confirmada por el servidor — puede estar desactualizada. A
+        // diferencia de navigator.onLine (que solo indica si hay ALGUNA
+        // interfaz de red activa, no si Firestore es alcanzable), este flag
+        // del propio SDK es la señal correcta de "esto podría no ser el
+        // estado real todavía".
+        let dataFromCache = false;
         try {
           const snap = await getDoc(doc(db, 'users', u.uid));
           userData = snap.exists() ? snap.data() : {};
+          dataFromCache = snap.metadata.fromCache;
         } catch {
           // Sin red y sin caché de Firestore — recuperar ids de localStorage
           const s = loadSession();
           if (s.tenantId) userData = { tenantIds: s.tenantIds || [s.tenantId] };
+          dataFromCache = true;
         }
 
         // Migrar tenantId (string) → tenantIds (array) si es necesario
@@ -56,13 +65,15 @@ export default function App() {
         }
 
         if (ids.length === 0) {
-          // Sin empresa en Firestore — solo rescatar localStorage si estamos
-          // offline (Firestore no pudo confirmar el estado real) Y la sesión
-          // guardada es de este mismo usuario. Si hay red, Firestore ya dio
-          // la respuesta autoritativa (sin tenant) y no hay que usar datos
-          // de otra sesión/usuario que haya quedado en este navegador.
+          // Sin empresa según esta lectura — solo rescatar localStorage si
+          // la respuesta no fue confirmada por el servidor (dataFromCache,
+          // no navigator.onLine — un dispositivo puede reportarse "online"
+          // con conexión real degradada o sin alcance a Firestore) Y la
+          // sesión guardada es de este mismo usuario. Si el servidor SÍ
+          // confirmó que no tiene tenant, esa respuesta es autoritativa y
+          // no hay que usar datos de otra sesión/usuario en este navegador.
           const s = loadSession();
-          if (!navigator.onLine && s.tenantId && s.uid === u.uid) {
+          if (dataFromCache && s.tenantId && s.uid === u.uid) {
             useAppStore.setState({
               user: u, tenantId: s.tenantId, tenantIds: s.tenantIds || [s.tenantId],
               availableTenants: [], tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
