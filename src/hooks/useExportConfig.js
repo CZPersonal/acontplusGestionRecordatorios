@@ -146,7 +146,15 @@ export function useExportConfig(user) {
   }
 
   const saveConfig = async (type, columns) => {
-    if (!user) return false;
+    // Lee el usuario fresco del store en vez de la clausura del parámetro
+    // `user`: esta función se publica a useAppStore solo cuando cambian
+    // `configs`/`isLoading` (ver efecto de sincronización más abajo), no
+    // cuando cambia `user` — si el tenant nunca dispara un setConfigs tras
+    // el primer render, el store queda con un saveConfig atado a un `user`
+    // desactualizado (a veces null, de antes de resolverse el login) y
+    // todo guardado falla silenciosamente con "no se pudo guardar".
+    const currentUser = useAppStore.getState().user;
+    if (!currentUser) return false;
     setIsLoading(true);
     try {
       await setDoc(
