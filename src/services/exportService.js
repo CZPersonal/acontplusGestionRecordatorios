@@ -73,6 +73,16 @@ function clientValue(key, row) {
   return row[key] || '';
 }
 
+// Estado visible de la visita — misma precedencia que VisitStatusBadge.jsx:
+// Realizada > Cancelada > Anulada > (confirmed ? Confirmada : Programada).
+function seriesDisplayStatus(v) {
+  if (v.status === 'Realizada') return 'Realizada';
+  if (v.status === 'Cancelada') return 'Cancelada';
+  if (v.status === 'Anulada')   return 'Anulada';
+  if (v.status === 'Confirmada' || v.confirmed) return 'Confirmada';
+  return 'Programada';
+}
+
 // Series de visitas recurrentes (row = { visit, seriesNumber, periodicidadLabel })
 function seriesValue(key, { visit: v, seriesNumber, periodicidadLabel }) {
   switch (key) {
@@ -87,7 +97,10 @@ function seriesValue(key, { visit: v, seriesNumber, periodicidadLabel }) {
     case 'scheduledDate':  return fmtDate(v.scheduledDate);
     case 'scheduledTime':  return v.scheduledTime || '';
     case 'technician':     return v.technician    || '';
-    case 'visitStatus':    return v.status        || '';
+    case 'visitStatus':    return seriesDisplayStatus(v);
+    case 'confirmedAt':    return v.confirmedAt ? fmt(v.confirmedAt) : '';
+    case 'completedAt':    return v.completedAt ? fmt(v.completedAt) : '';
+    case 'closingObservations': return v.closingObservations || '';
     default: return '';
   }
 }

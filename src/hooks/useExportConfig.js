@@ -77,18 +77,21 @@ export const CLIENT_COLUMNS = [
 ];
 
 export const SERIES_COLUMNS = [
-  { key: 'seriesNumber',   label: 'N° Serie',           enabled: true  },
-  { key: 'recurrenceInfo', label: 'Visita en la serie', enabled: true  },
-  { key: 'clientName',     label: 'Cliente',            enabled: true  },
-  { key: 'identification', label: 'Identificación',     enabled: true  },
-  { key: 'phone',          label: 'Teléfono',           enabled: true  },
-  { key: 'clientEmail',    label: 'Email',              enabled: false },
-  { key: 'address',        label: 'Dirección',          enabled: true  },
-  { key: 'periodicidad',   label: 'Periodicidad',       enabled: true  },
-  { key: 'scheduledDate',  label: 'Fecha programada',   enabled: true  },
-  { key: 'scheduledTime',  label: 'Hora',               enabled: false },
-  { key: 'technician',     label: 'Técnico',            enabled: true  },
-  { key: 'visitStatus',    label: 'Estado',             enabled: true  },
+  { key: 'seriesNumber',        label: 'N° Serie',                enabled: true  },
+  { key: 'recurrenceInfo',      label: 'Visita en la serie',      enabled: true  },
+  { key: 'clientName',          label: 'Cliente',                 enabled: true  },
+  { key: 'identification',      label: 'Identificación',          enabled: true  },
+  { key: 'phone',               label: 'Teléfono',                enabled: true  },
+  { key: 'clientEmail',         label: 'Email',                   enabled: false },
+  { key: 'address',             label: 'Dirección',               enabled: true  },
+  { key: 'periodicidad',        label: 'Periodicidad',            enabled: true  },
+  { key: 'scheduledDate',       label: 'Fecha programada',        enabled: true  },
+  { key: 'scheduledTime',       label: 'Hora programada',         enabled: true  },
+  { key: 'technician',          label: 'Técnico',                 enabled: true  },
+  { key: 'visitStatus',         label: 'Estado',                  enabled: true  },
+  { key: 'confirmedAt',         label: 'Fecha/hora confirmación', enabled: true  },
+  { key: 'completedAt',         label: 'Fecha/hora realización',  enabled: true  },
+  { key: 'closingObservations', label: 'Obs. cierre',             enabled: true  },
 ];
 
 const DEFAULTS = {
