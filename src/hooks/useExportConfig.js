@@ -146,7 +146,7 @@ export function useExportConfig(user) {
   }
 
   const saveConfig = async (type, columns) => {
-    if (!user) return;
+    if (!user) return false;
     setIsLoading(true);
     try {
       await setDoc(
@@ -154,8 +154,10 @@ export function useExportConfig(user) {
         { [type]: columns },
         { merge: true }
       );
+      return true;
     } catch (err) {
       console.error('Error guardando config exportación:', err);
+      return false;
     } finally {
       setIsLoading(false);
     }

@@ -1,12 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X, GripVertical, RotateCcw, Save, CheckCircle,
   Loader2, FileText, Eye, EyeOff, Info
 } from 'lucide-react';
-import { TASK_COLUMNS, VISIT_COLUMNS, BILLING_COLUMNS, CLIENT_COLUMNS, SERIES_COLUMNS } from '../hooks/useExportConfig.js';
+import { VISIT_COLUMNS, BILLING_COLUMNS, CLIENT_COLUMNS, SERIES_COLUMNS } from '../hooks/useExportConfig.js';
+import { useAppStore } from '../lib/store.js';
 
 const REPORT_TABS = [
-  { key: 'tasks',   label: 'Tareas',   defaults: TASK_COLUMNS   },
   { key: 'visits',  label: 'Visitas',  defaults: VISIT_COLUMNS  },
   { key: 'billing', label: 'Cobros',   defaults: BILLING_COLUMNS },
   { key: 'clients', label: 'Clientes', defaults: CLIENT_COLUMNS },
@@ -58,13 +58,16 @@ function ColumnRow({ col, index, onToggle, onDragStart, onDragOver, onDrop, isDr
 
 // ─── Panel de un reporte ───────────────────────────────────────────────────────
 function ReportPanel({ type, columns, onSave, onReset, isLoading }) {
+  const addToast = useAppStore(s => s.addToast);
   const [localCols, setLocalCols] = useState(columns);
   const [saved,     setSaved]     = useState(false);
   const dragFrom    = useRef(null);
   const dragOverIdx = useRef(null);
 
-  // Mantener sincronizado si las props cambian (ej: guardado externo)
-  useState(() => { setLocalCols(columns); }, [columns]);
+  // Mantener sincronizado si las props cambian (ej: guardado externo).
+  // Antes usaba useState(fn, deps) por error -- useState no acepta un
+  // array de dependencias, así que nunca resincronizaba tras el mount inicial.
+  useEffect(() => { setLocalCols(columns); }, [columns]);
 
   const handleToggle = (idx) => {
     setLocalCols(prev => prev.map((c, i) => i === idx ? { ...c, enabled: !c.enabled } : c));
@@ -87,9 +90,13 @@ function ReportPanel({ type, columns, onSave, onReset, isLoading }) {
   };
 
   const handleSave = async () => {
-    await onSave(type, localCols);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const ok = await onSave(type, localCols);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } else {
+      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo guardar la configuración de columnas.' });
+    }
   };
 
   const handleReset = async () => {
@@ -182,7 +189,7 @@ function ReportPanel({ type, columns, onSave, onReset, isLoading }) {
 
 // ─── Modal principal ───────────────────────────────────────────────────────────
 export default function ExportConfigManager({ configs, isLoading, onSave, onReset, onClose }) {
-  const [activeTab, setActiveTab] = useState('tasks');
+  const [activeTab, setActiveTab] = useState('visits');
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black bg-opacity-50">
