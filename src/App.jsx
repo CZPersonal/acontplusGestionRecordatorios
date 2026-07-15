@@ -19,9 +19,142 @@ import TechPortal from './components/TechPortal.jsx';
 import ResetPasswordConfirm from './components/ResetPasswordConfirm.jsx';
 import { saveSession, loadSession } from './lib/session.js';
 
+const TENANT_LOOKUP_TIMEOUT_MS = 9000;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('tenant-lookup-timeout')), ms)),
+  ]);
+}
+
+// Contador global de intentos de resolución de tenant. Permite descartar el
+// resultado de una lectura lenta que finalmente responde después de que un
+// reintento más reciente ya concluyó — evita que datos obsoletos pisen un
+// estado más nuevo.
+let resolutionToken = 0;
+
+// Resuelve tenantId/tenantIds/rol para un usuario ya autenticado. Se llama al
+// iniciar sesión y también desde el botón "Reintentar" de la pantalla de
+// reconexión, por eso vive fuera del efecto.
+async function resolveTenantForUser(u) {
+  const myToken = ++resolutionToken;
+  const isStale = () => myToken !== resolutionToken;
+
+  useAppStore.setState({ user: u, isAuthLoading: true, authConnectionIssue: false });
+
+  // Fire-and-forget: se encola offline, no bloquea el arranque
+  setDoc(doc(db, 'users', u.uid), { email: u.email, lastLogin: new Date().toISOString() }, { merge: true })
+    .catch(() => {});
+
+  let userData = {};
+  // fromCache: la respuesta vino del caché local de Firestore, no confirmada
+  // por el servidor — puede estar desactualizada. A diferencia de
+  // navigator.onLine (que solo indica si hay ALGUNA interfaz de red activa,
+  // no si Firestore es alcanzable), este flag del propio SDK es la señal
+  // correcta de "esto podría no ser el estado real todavía".
+  let dataFromCache = false;
+  // Solo true si el servidor respondió activamente (no timeout, no error,
+  // no caché) — es la única condición que autoriza a concluir "sin tenant".
+  let confirmedByServer = false;
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'users', u.uid)), TENANT_LOOKUP_TIMEOUT_MS);
+    userData = snap.exists() ? snap.data() : {};
+    dataFromCache = snap.metadata.fromCache;
+    confirmedByServer = !dataFromCache;
+  } catch {
+    // Sin red, timeout o sin caché de Firestore — recuperar ids de localStorage
+    const s = loadSession();
+    if (s.tenantId) userData = { tenantIds: s.tenantIds || [s.tenantId] };
+    dataFromCache = true;
+  }
+
+  if (isStale()) return;
+
+  // Migrar tenantId (string) → tenantIds (array) si es necesario
+  let ids = userData.tenantIds ?? [];
+  if (ids.length === 0 && userData.tenantId) {
+    ids = [userData.tenantId];
+    setDoc(doc(db, 'users', u.uid), { tenantIds: arrayUnion(userData.tenantId) }, { merge: true })
+      .catch(() => {});
+  }
+
+  if (ids.length === 0) {
+    // Sin empresa según esta lectura — rescatar localStorage solo si la
+    // sesión guardada es de este mismo usuario en este mismo dispositivo.
+    const s = loadSession();
+    if (s.tenantId && s.uid === u.uid) {
+      useAppStore.setState({
+        user: u, tenantId: s.tenantId, tenantIds: s.tenantIds || [s.tenantId],
+        availableTenants: [], tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
+        userRole: s.userRole || 'tecnico', isAuthLoading: false, authConnectionIssue: false,
+      });
+    } else if (confirmedByServer) {
+      // El servidor confirmó activamente que no hay tenant — veredicto real,
+      // no hay nada más que rescatar y sí corresponde ir a TenantSetup.
+      useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false, authConnectionIssue: false });
+    } else {
+      // Ambiguo: ni el servidor confirmó nada, ni hay sesión local que
+      // rescatar (típico de un dispositivo donde el usuario nunca inició
+      // sesión). No hay evidencia de "sin empresa" — pedir reintento en vez
+      // de asumirlo, para no mandar a un usuario con tenant real a TenantSetup.
+      useAppStore.setState({ isAuthLoading: false, authConnectionIssue: true });
+    }
+  } else if (ids.length === 1) {
+    // Una sola empresa — seleccionar automáticamente
+    try {
+      const [td, memberSnap] = await withTimeout(Promise.all([
+        getDoc(doc(db, 'tenants', ids[0])),
+        getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
+      ]), TENANT_LOOKUP_TIMEOUT_MS);
+      if (isStale()) return;
+      let role = 'admin';
+      let memberEsts = [];
+      let memberEstDefault = null;
+      if (memberSnap.exists()) {
+        const md = memberSnap.data();
+        role = md.role || 'admin';
+        memberEsts = md.establecimientos || [];
+        memberEstDefault = md.establecimientoDefault || null;
+      } else {
+        setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
+          uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
+        }).catch(() => {});
+      }
+      const tenantName = td.data()?.name ?? '';
+      const tenantRuc  = td.data()?.ruc  ?? '';
+      saveSession({ uid: u.uid, email: u.email, displayName: u.displayName || '', tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
+      useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, memberEstablecimientos: memberEsts, memberEstablecimientoDefault: memberEstDefault, isAuthLoading: false, authConnectionIssue: false });
+    } catch {
+      if (isStale()) return;
+      // Timeout o sin red: el tenant YA es conocido (viene de esta misma
+      // lectura o de la sesión local), así que se usa igual — solo el rol y
+      // nombre pueden quedar desactualizados hasta la próxima reconexión.
+      const s = loadSession();
+      useAppStore.setState({
+        user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [],
+        tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
+        userRole: s.userRole || 'tecnico', isAuthLoading: false, authConnectionIssue: false,
+      });
+    }
+  } else {
+    // Múltiples empresas — cargar lista y mostrar selector
+    try {
+      const docs = await withTimeout(Promise.all(ids.map(id => getDoc(doc(db, 'tenants', id)))), TENANT_LOOKUP_TIMEOUT_MS);
+      if (isStale()) return;
+      const available = docs.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' }));
+      useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: available, tenantName: '', tenantRuc: '', isAuthLoading: false, authConnectionIssue: false });
+    } catch {
+      if (isStale()) return;
+      useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false, authConnectionIssue: false });
+    }
+  }
+}
+
 export default function App() {
   const user             = useAppStore(s => s.user);
   const isAuthLoading    = useAppStore(s => s.isAuthLoading);
+  const authConnectionIssue = useAppStore(s => s.authConnectionIssue);
   const tenantId         = useAppStore(s => s.tenantId);
   const tenantIds        = useAppStore(s => s.tenantIds);
   const isLoadingTasks   = useAppStore(s => s.isLoadingTasks);
@@ -33,98 +166,7 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        // Fire-and-forget: se encola offline, no bloquea el arranque
-        setDoc(doc(db, 'users', u.uid), { email: u.email, lastLogin: new Date().toISOString() }, { merge: true })
-          .catch(() => {});
-
-        let userData = {};
-        // fromCache: la respuesta vino del caché local de Firestore, no
-        // confirmada por el servidor — puede estar desactualizada. A
-        // diferencia de navigator.onLine (que solo indica si hay ALGUNA
-        // interfaz de red activa, no si Firestore es alcanzable), este flag
-        // del propio SDK es la señal correcta de "esto podría no ser el
-        // estado real todavía".
-        let dataFromCache = false;
-        try {
-          const snap = await getDoc(doc(db, 'users', u.uid));
-          userData = snap.exists() ? snap.data() : {};
-          dataFromCache = snap.metadata.fromCache;
-        } catch {
-          // Sin red y sin caché de Firestore — recuperar ids de localStorage
-          const s = loadSession();
-          if (s.tenantId) userData = { tenantIds: s.tenantIds || [s.tenantId] };
-          dataFromCache = true;
-        }
-
-        // Migrar tenantId (string) → tenantIds (array) si es necesario
-        let ids = userData.tenantIds ?? [];
-        if (ids.length === 0 && userData.tenantId) {
-          ids = [userData.tenantId];
-          setDoc(doc(db, 'users', u.uid), { tenantIds: arrayUnion(userData.tenantId) }, { merge: true })
-            .catch(() => {});
-        }
-
-        if (ids.length === 0) {
-          // Sin empresa según esta lectura — solo rescatar localStorage si
-          // la respuesta no fue confirmada por el servidor (dataFromCache,
-          // no navigator.onLine — un dispositivo puede reportarse "online"
-          // con conexión real degradada o sin alcance a Firestore) Y la
-          // sesión guardada es de este mismo usuario. Si el servidor SÍ
-          // confirmó que no tiene tenant, esa respuesta es autoritativa y
-          // no hay que usar datos de otra sesión/usuario en este navegador.
-          const s = loadSession();
-          if (dataFromCache && s.tenantId && s.uid === u.uid) {
-            useAppStore.setState({
-              user: u, tenantId: s.tenantId, tenantIds: s.tenantIds || [s.tenantId],
-              availableTenants: [], tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
-              userRole: s.userRole || 'tecnico', isAuthLoading: false,
-            });
-          } else {
-            useAppStore.setState({ user: u, tenantId: null, tenantIds: [], availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
-          }
-        } else if (ids.length === 1) {
-          // Una sola empresa — seleccionar automáticamente
-          try {
-            const [td, memberSnap] = await Promise.all([
-              getDoc(doc(db, 'tenants', ids[0])),
-              getDoc(doc(db, 'tenants', ids[0], 'members', u.uid)),
-            ]);
-            let role = 'admin';
-            let memberEsts = [];
-            let memberEstDefault = null;
-            if (memberSnap.exists()) {
-              const md = memberSnap.data();
-              role = md.role || 'admin';
-              memberEsts = md.establecimientos || [];
-              memberEstDefault = md.establecimientoDefault || null;
-            } else {
-              setDoc(doc(db, 'tenants', ids[0], 'members', u.uid), {
-                uid: u.uid, email: u.email, role: 'admin', joinedAt: new Date().toISOString(),
-              }).catch(() => {});
-            }
-            const tenantName = td.data()?.name ?? '';
-            const tenantRuc  = td.data()?.ruc  ?? '';
-            saveSession({ uid: u.uid, email: u.email, displayName: u.displayName || '', tenantId: ids[0], tenantIds: ids, userRole: role, tenantName, tenantRuc });
-            useAppStore.setState({ user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [], tenantName, tenantRuc, userRole: role, memberEstablecimientos: memberEsts, memberEstablecimientoDefault: memberEstDefault, isAuthLoading: false });
-          } catch {
-            // Sin red: usar tenant conocido, priorizar rol guardado en localStorage
-            const s = loadSession();
-            useAppStore.setState({
-              user: u, tenantId: ids[0], tenantIds: ids, availableTenants: [],
-              tenantName: s.tenantName || '', tenantRuc: s.tenantRuc || '',
-              userRole: s.userRole || 'tecnico', isAuthLoading: false,
-            });
-          }
-        } else {
-          // Múltiples empresas — cargar lista y mostrar selector
-          try {
-            const docs = await Promise.all(ids.map(id => getDoc(doc(db, 'tenants', id))));
-            const available = docs.map(d => ({ id: d.id, name: d.data()?.name ?? '', ruc: d.data()?.ruc ?? '' }));
-            useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: available, tenantName: '', tenantRuc: '', isAuthLoading: false });
-          } catch {
-            useAppStore.setState({ user: u, tenantId: null, tenantIds: ids, availableTenants: [], tenantName: '', tenantRuc: '', isAuthLoading: false });
-          }
-        }
+        resolveTenantForUser(u);
       } else {
         // Sin sesión Firebase: si estamos offline y hay sesión guardada, restaurar
         // sin mostrar pantalla de login (técnico de campo sin red)
@@ -297,9 +339,32 @@ export default function App() {
     );
   }
 
-  if (!user)                                         return <Login />;
-  if (tenantIds.length === 0)                        return <TenantSetup />;
-  if (!tenantId && tenantIds.length > 1)             return <CompanySelector />;
+  if (!user) return <Login />;
+
+  // No se pudo confirmar ni descartar la empresa del usuario (timeout/error
+  // de red sin caché ni sesión local que rescatar) — nunca se asume "sin
+  // empresa" en este caso, se pide reintentar la conexión.
+  if (authConnectionIssue) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+        <img src="/logo.png" alt="Acontplus" className="w-16 h-16 object-contain mb-4" />
+        <p className="text-sm font-semibold text-slate-700 mb-1">No se pudo confirmar tu empresa</p>
+        <p className="text-xs text-slate-500 mb-4 text-center max-w-xs">
+          Parece que la conexión está inestable. Verifica tu internet e intenta de nuevo.
+        </p>
+        <button
+          onClick={() => resolveTenantForUser(auth.currentUser ?? user)}
+          className="px-5 py-2.5 rounded-xl text-white font-bold text-sm"
+          style={{ background: 'linear-gradient(135deg, #D61672, #FFA901)' }}
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (tenantIds.length === 0)            return <TenantSetup />;
+  if (!tenantId && tenantIds.length > 1) return <CompanySelector />;
 
   // Offline: no bloquear con spinner si no hay red aunque las tareas no hayan cargado
   if (isLoadingTasks && tasks.length === 0 && isOnline) {

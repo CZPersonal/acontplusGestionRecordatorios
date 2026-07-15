@@ -8,6 +8,10 @@ export const useAppStore = create((set, get) => ({
   // ─── Auth ─────────────────────────────────────────────────────────────────
   user:          null,
   isAuthLoading: true,
+  // true cuando no se pudo confirmar ni descartar el tenant del usuario
+  // (timeout/error de red sin caché ni sesión local que rescatar) — nunca
+  // debe interpretarse como "sin empresa", solo como "hay que reintentar".
+  authConnectionIssue: false,
   userRole:      'admin',   // 'admin' | 'tecnico' — poblado en App.jsx tras leer members/{uid}
 
   // ─── Tenant (poblado en App.jsx tras auth) ────────────────────────────────
