@@ -17,6 +17,7 @@ import {
   Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar, DollarSign,
   ChevronDown, ChevronUp, Layers, Printer, Download, Settings,
 } from 'lucide-react';
+import { MIN_SEARCH_LENGTH } from '../utils/visitWindow';
 import { VisitStatusBadge } from './VisitStatusBadge.jsx';
 
 // ─── Paletas de colores ───────────────────────────────────────────────────────
@@ -313,6 +314,7 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
             placeholder="Buscar por cliente, OS, técnico, servicio, ubicación, teléfono…"
             className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" />
         </div>
+        <HistorySearchButton search={search} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={sel}>
             <option value="">Estado visita</option>
@@ -438,6 +440,33 @@ function SeriesView({ visits, tecnicos, establecimientos, onEditVisit, makeTaskF
         </div>
       )}
     </div>
+  );
+}
+
+// P9: la lista solo carga las visitas recientes/pendientes; este botón consulta
+// el historial completo por OS, Nº de visita o cliente y suma lo encontrado.
+function HistorySearchButton({ search }) {
+  const searchVisitsHistory = useAppStore(s => s.searchVisitsHistory);
+  const addToast = useAppStore(s => s.addToast);
+  const [busy, setBusy] = useState(false);
+  const term = (search || '').trim();
+  if (term.length < MIN_SEARCH_LENGTH) return null;
+
+  const run = async () => {
+    setBusy(true);
+    const r = await searchVisitsHistory?.(term);
+    setBusy(false);
+    if (!r) { addToast({ type: 'error', title: '❌ Error', body: 'No se pudo buscar en el historial. Verifica tu conexión.' }); return; }
+    if (r.found === 0) addToast({ type: 'info', title: 'Sin resultados', body: `No hay visitas con OS, número o cliente que empiece por "${term}".` });
+    else addToast({ type: 'success', title: '🔎 Historial', body: r.added > 0 ? `Se agregaron ${r.added} visita(s) antiguas a la lista.` : 'Todas las coincidencias ya estaban en la lista.' });
+  };
+
+  return (
+    <button onClick={run} disabled={busy}
+      className="text-xs font-semibold text-pink-600 hover:text-pink-700 disabled:opacity-50 flex items-center gap-1">
+      <Search size={12} /> {busy ? 'Buscando…' : 'Buscar en todo el historial'}
+      <span className="font-normal text-slate-400">(OS, nº de visita o inicio del nombre)</span>
+    </button>
   );
 }
 
@@ -657,6 +686,11 @@ export default function AllVisitsManager({ user }) {
             style={innerTab === 'series' ? { background: '#D61672' } : {}}>
             Series
           </button>
+          <button onClick={() => window.location.reload()}
+            title="Recarga la página para ver los cambios hechos en las visitas"
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50">
+            <RefreshCw size={13} /> Actualizar
+          </button>
         </div>
 
         {innerTab === 'historial' && <HistorialView user={user} />}
@@ -703,6 +737,7 @@ export default function AllVisitsManager({ user }) {
                   placeholder="Buscar por cliente, OS, técnico, servicio, ubicación, teléfono…"
                   className="w-full pl-9 pr-4 py-2.5 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" />
               </div>
+              <HistorySearchButton search={search} />
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                 <select value={filterStatus} onChange={e => setFilter(e.target.value)} className={sel}>
                   <option value="">Estado visita</option>

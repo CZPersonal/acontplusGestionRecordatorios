@@ -1,16 +1,20 @@
-import { useState, useEffect } from 'react';
-import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, query, orderBy, limit, runTransaction, arrayUnion } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDocs, query, where, runTransaction, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { getVisitsFlatRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { logAudit } from '../services/auditService';
 import { visitAuditMeta } from '../utils/auditMeta';
+import { windowStartDate, mergeVisits, prefixRange, searchVariants } from '../utils/visitWindow';
 
-const VISITS_PAGE_SIZE = 200;
+// Campos por los que se busca en todo el historial (cada uno es una consulta de un solo campo).
+const HISTORY_SEARCH_FIELDS = ['serviceOrder', 'visitNumber', 'clientName'];
 
 export function useVisits(user) {
   const tenantId = useAppStore(s => s.tenantId);
-  const [visits,        setVisits]        = useState([]);
+  const [windowVisits,  setWindowVisits]  = useState([]);
+  const [historyVisits, setHistoryVisits] = useState([]);
+  const visits = useMemo(() => mergeVisits(historyVisits, windowVisits), [windowVisits, historyVisits]);
   const [isLoadingVisits, setIsLoading]   = useState(true);
 
   // tenantId en las dependencias: sin esto, cambiar de empresa en
@@ -18,27 +22,69 @@ export function useVisits(user) {
   // viendo las visitas de la empresa anterior.
   useEffect(() => {
     if (!user || !tenantId) {
-      setVisits([]);
+      setWindowVisits([]);
+      setHistoryVisits([]);
       setIsLoading(false);
       return;
     }
 
-    const q = query(
-      getVisitsFlatRef(),
-      orderBy('createdAt', 'desc'),
-      limit(VISITS_PAGE_SIZE),
-    );
+    setHistoryVisits([]);
 
-    const unsub = onSnapshot(q, (snap) => {
-      setVisits(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setIsLoading(false);
+    // P9: ya no se carga "las 200 más recientes por createdAt" (dejaba fuera
+    // visitas antiguas y rompía la búsqueda por OS). Se suscriben tres consultas
+    // de un solo campo (sin índices compuestos) y se unen por id:
+    //   1) visitas con fecha programada dentro de la ventana (últimos 90 días y futuro)
+    //   2) todas las Programadas, sin importar la fecha (atrasadas y seguimiento)
+    //   3) todas las que tienen valor a cobrar (Cobros)
+    const ref = getVisitsFlatRef();
+    const queries = [
+      query(ref, where('scheduledDate', '>=', windowStartDate())),
+      query(ref, where('status', '==', 'Programada')),
+      query(ref, where('valorCobrar', '>', 0)),
+    ];
+    const results = queries.map(() => []);
+    const ready   = queries.map(() => false);
+
+    const unsubs = queries.map((q, i) => onSnapshot(q, (snap) => {
+      results[i] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      ready[i] = true;
+      setWindowVisits(mergeVisits(...results));
+      if (ready.every(Boolean)) setIsLoading(false);
     }, (err) => {
       console.error('Error cargando visitas:', err);
-      setIsLoading(false);
-    });
+      ready[i] = true;
+      if (ready.every(Boolean)) setIsLoading(false);
+    }));
+
+    const unsub = () => unsubs.forEach(u => u());
 
     return () => unsub();
   }, [user, tenantId]);
+
+  // ─── Buscar en todo el historial (P9) ───────────────────────────────────────
+  // Consulta por prefijo de OS, Nº de visita y cliente; los resultados se suman
+  // a la lista de la sesión. Devuelve cuántas visitas nuevas aportó.
+  const searchVisitsHistory = async (term) => {
+    const variants = searchVariants(term);
+    if (variants.length === 0) return { added: 0, found: 0, tooShort: true };
+    try {
+      const ref = getVisitsFlatRef();
+      const snaps = await Promise.all(
+        HISTORY_SEARCH_FIELDS.flatMap(field => variants.map(t => {
+          const [lo, hi] = prefixRange(t);
+          return getDocs(query(ref, where(field, '>=', lo), where(field, '<=', hi)));
+        }))
+      );
+      const found = mergeVisits(snaps.flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() }))));
+      const known = new Set(useAppStore.getState().visits.map(v => v.id));
+      const added = found.filter(v => !known.has(v.id)).length;
+      setHistoryVisits(prev => mergeVisits(prev, found));
+      return { added, found: found.length, tooShort: false };
+    } catch (err) {
+      console.error('Error buscando en el historial:', err);
+      return null;
+    }
+  };
 
   // ─── Crear visita (transacción atómica: contador + visita) ──────────────────
   const addVisit = async (data) => {
@@ -385,6 +431,7 @@ export function useVisits(user) {
       addVisit, addVisitSeries, editVisit, deleteVisit,
       completeVisit, cancelVisit, annulVisit,
       revertVisit, confirmVisit, unconfirmVisit, rescheduleVisit, generateSupportVisit,
+      searchVisitsHistory,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -394,5 +441,6 @@ export function useVisits(user) {
     addVisit, addVisitSeries, editVisit, deleteVisit,
     completeVisit, cancelVisit, annulVisit,
     revertVisit, confirmVisit, unconfirmVisit, rescheduleVisit, generateSupportVisit,
+    searchVisitsHistory,
   };
 }
