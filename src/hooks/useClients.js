@@ -224,7 +224,13 @@ export function useClients(user) {
         }
       }
 
-      await deleteDoc(doc(getCollectionRef('clients'), id));
+      // No se borra el documento anterior (las reglas de Firestore bloquean
+      // `delete` en clients): queda inactivo y enlazado al nuevo ID.
+      await updateDoc(doc(getCollectionRef('clients'), id), {
+        active:     false,
+        replacedBy: newId,
+        updatedAt:  new Date().toISOString(),
+      });
       return true;
     } catch (error) {
       console.error('Error al actualizar cliente:', error);

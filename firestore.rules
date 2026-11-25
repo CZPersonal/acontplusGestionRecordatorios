@@ -68,7 +68,8 @@ service cloud.firestore {
       match /visits/{visitId} {
         allow read:           if request.auth != null && isMember(tenantId);
         allow create, update: if request.auth != null && isMember(tenantId);
-        allow delete:         if request.auth != null && isAdmin(tenantId);
+        // Sin borrado: las visitas se anulan/cancelan (P5).
+        allow delete:         if false;
       }
     }
 
@@ -84,7 +85,9 @@ service cloud.firestore {
         && isMember(tenantId)
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0;
-      allow delete: if request.auth != null && isAdmin(tenantId);
+      // Sin borrado: los clientes se inactivan (P5). El cambio de cédula deja
+      // el documento anterior inactivo con `replacedBy`.
+      allow delete: if false;
     }
 
     match /tenants/{tenantId}/service_types/{typeId} {
@@ -140,7 +143,8 @@ service cloud.firestore {
         && request.resource.data.clientName is string
         && request.resource.data.clientName.size() > 0;
       allow update: if request.auth != null && isMember(tenantId);
-      allow delete: if request.auth != null && isAdmin(tenantId);
+      // Sin borrado: los borradores se anulan o convierten (P5).
+      allow delete: if false;
     }
 
     // ─── Contadores atómicos (visitNumber, etc.) ─────────────────────────────
@@ -169,7 +173,8 @@ service cloud.firestore {
         && request.resource.data.clientName.size() > 0
         && request.resource.data.status is string;
       allow update: if request.auth != null && isMember(tenantId);
-      allow delete: if request.auth != null && isAdmin(tenantId);
+      // Sin borrado: las visitas se anulan o cancelan (P5).
+      allow delete: if false;
     }
 
     match /tenants/{tenantId}/abonos/{abonoId} {
