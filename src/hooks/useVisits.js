@@ -216,12 +216,14 @@ export function useVisits(user) {
     const { user: u } = useAppStore.getState();
     if (!u) return false;
     try {
+      const prev = useAppStore.getState().visits.find(v => v.id === visitId);
       await updateDoc(doc(getVisitsFlatRef(), visitId), {
         status:      'Cancelada',
         cancelledAt: new Date().toISOString(),
         cancelledBy: u.email,
         updatedAt:   new Date().toISOString(),
       });
+      logAudit(u, 'visit_cancelled', 'visit', visitId, visitAuditMeta(prev));
       return true;
     } catch (err) {
       console.error('Error al cancelar visita:', err);
