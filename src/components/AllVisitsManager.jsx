@@ -12,7 +12,7 @@ import { formatDateOnly, formatDateTime } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
 import { exportExcel, exportCSV } from '../services/exportService.js';
 import {
-  Search, X, Plus, Edit2, Trash2, CheckCircle2,
+  Search, X, Plus, Edit2, CheckCircle2,
   RotateCcw, XCircle, Ban, ClipboardList, MapPin, Phone,
   Wrench, UserCheck, FileText, RefreshCw, Building2, Navigation, Clipboard, Clock, Calendar, DollarSign,
   ChevronDown, ChevronUp, Layers, Printer, Download, Settings,
@@ -450,7 +450,6 @@ export default function AllVisitsManager({ user }) {
   const cancelVisit         = useAppStore(s => s.cancelVisit);
   const annulVisit          = useAppStore(s => s.annulVisit);
   const revertVisit         = useAppStore(s => s.revertVisit);
-  const deleteVisit         = useAppStore(s => s.deleteVisit);
   const confirmVisit        = useAppStore(s => s.confirmVisit);
   const handleGenerateSupport = useAppStore(s => s.handleGenerateSupport);
   const setEditingVisit     = useAppStore(s => s.setEditingVisit);
@@ -483,7 +482,6 @@ export default function AllVisitsManager({ user }) {
   const [completeModal, setCompleteModal] = useState(null);
   const [billingTarget, setBillingTarget] = useState(null);
   const [annulConfirm,  setAnnulConfirm]  = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(null);
   const [flashId, setFlashId] = useState(null);
   const [editingMapsId, setEditingMapsId] = useState(null);
@@ -559,13 +557,6 @@ export default function AllVisitsManager({ user }) {
     setBusy(visit.id + '_support');
     await handleGenerateSupport(visit);
     setBusy(null);
-  };
-
-  const onDeleteVisit = async (visitId) => {
-    setBusy(visitId);
-    await deleteVisit(visitId);
-    setBusy(null);
-    setDeleteConfirm(null);
   };
 
   // Índice de clientes para lookup rápido por id
@@ -644,15 +635,6 @@ export default function AllVisitsManager({ user }) {
           confirmLabel="Anular" danger
           onConfirm={() => { doAction(annulVisit, annulConfirm); setAnnulConfirm(null); }}
           onCancel={() => setAnnulConfirm(null)}
-        />
-      )}
-      {deleteConfirm && (
-        <ConfirmDialog
-          title="¿Eliminar visita?"
-          body="La visita se eliminará permanentemente."
-          confirmLabel="Eliminar" danger
-          onConfirm={() => onDeleteVisit(deleteConfirm)}
-          onCancel={() => setDeleteConfirm(null)}
         />
       )}
 
@@ -1155,12 +1137,6 @@ export default function AllVisitsManager({ user }) {
                         <button onClick={() => shareVisitWhatsApp(makeTaskForPDF(visit), visit)}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
                           📱 WA
-                        </button>
-
-                        {/* Eliminar */}
-                        <button onClick={() => setDeleteConfirm(visit.id)}
-                          className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-red-500 border border-red-200 hover:bg-red-50 transition-colors">
-                          <Trash2 size={11} /> Eliminar
                         </button>
                       </div>
                     </div>

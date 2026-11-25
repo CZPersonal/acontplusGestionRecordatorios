@@ -658,10 +658,9 @@ export function ClientForm({ initial, onSave, onCancel, isLoading, existingIds, 
 }
 
 // ─── Menú de acciones por cliente ────────────────────────────────────────────
-function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, onDelete, onHistorial, isAdmin, isLoading, wrapperClassName = 'relative mt-2', showDelete = true }) {
+function ActionsMenu({ client, onNewVisit, onEdit, onToggleActive, onHistorial, isLoading, wrapperClassName = 'relative mt-2' }) {
   const [open,           setOpen]           = useState(false);
   const [confirming,     setConfirming]     = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -670,7 +669,6 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpen(false);
         setConfirming(false);
-        setConfirmingDelete(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -680,7 +678,7 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
   return (
     <div className={wrapperClassName} ref={menuRef}>
       <button
-        onClick={() => { setOpen(p => !p); setConfirming(false); setConfirmingDelete(false); }}
+        onClick={() => { setOpen(p => !p); setConfirming(false); }}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors">
         Acciones <ChevronDown size={11} />
       </button>
@@ -752,48 +750,6 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
               </div>
             </div>
           )}
-
-          {/* Eliminar — solo panel de administrador */}
-          {isAdmin && showDelete && (
-            <>
-              <div className="border-t border-slate-100 my-1" />
-              {!confirmingDelete ? (
-                <button
-                  onClick={() => setConfirmingDelete(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left text-red-600 hover:bg-red-50 transition-colors">
-                  <Trash2 size={12} /> Eliminar
-                </button>
-              ) : (
-                <div className="px-3 py-2.5">
-                  <p className="text-xs text-slate-600 font-medium mb-1">
-                    ¿Eliminar definitivamente a {client.name}?
-                  </p>
-                  {visitCount > 0 && (
-                    <p className="text-xs text-amber-600 mb-2">
-                      Tiene {visitCount} visita{visitCount !== 1 ? 's' : ''} registrada{visitCount !== 1 ? 's' : ''} que quedará{visitCount !== 1 ? 'n' : ''} sin cliente asociado.
-                    </p>
-                  )}
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={async () => {
-                        await onDelete(client);
-                        setOpen(false);
-                        setConfirmingDelete(false);
-                      }}
-                      disabled={isLoading}
-                      className="flex-1 px-2 py-1 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
-                      {isLoading ? '...' : 'Eliminar'}
-                    </button>
-                    <button
-                      onClick={() => setConfirmingDelete(false)}
-                      className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
         </div>
       )}
     </div>
@@ -801,7 +757,7 @@ function ActionsMenu({ client, visitCount, onNewVisit, onEdit, onToggleActive, o
 }
 
 // ─── Fila de cliente ───────────────────────────────────────────────────────────
-function ClientRow({ client, visitCount, onEdit, onToggleActive, onDelete, isAdmin, isLoading, onNewVisit, onHistorial }) {
+function ClientRow({ client, visitCount, onEdit, onToggleActive, isLoading, onNewVisit, onHistorial }) {
   const contacts   = getClientContacts(client);
   const rowCount   = Math.max(contacts.length, 1);
   const inactiveCls = !client.active ? 'opacity-60' : '';
@@ -847,12 +803,9 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, onDelete, isAdm
           </div>
           <ActionsMenu
             client={client}
-            visitCount={visitCount}
             onNewVisit={onNewVisit}
             onEdit={onEdit}
             onToggleActive={onToggleActive}
-            onDelete={onDelete}
-            isAdmin={isAdmin}
             isLoading={isLoading}
           />
         </div>
@@ -948,12 +901,10 @@ function ClientRow({ client, visitCount, onEdit, onToggleActive, onDelete, isAdm
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ClientsManager({ clients, tasks, useClientsHook, pendingClientHistorial, onClearPendingHistorial }) {
-  const { createClient, updateClient, setClientActive, deleteClient, importClients } = useClientsHook;
+  const { createClient, updateClient, setClientActive, importClients } = useClientsHook;
   const openNewVisitModal = useAppStore(s => s.openNewVisitModal);
   const visits            = useAppStore(s => s.visits);
   const addToast          = useAppStore(s => s.addToast);
-  const userRole          = useAppStore(s => s.userRole);
-  const isAdmin           = userRole === 'admin';
   const serviceTypes      = useAppStore(s => s.serviceTypes);
   const empresaConfig     = useAppStore(s => s.empresaConfig);
   const getActiveColumns  = useAppStore(s => s.getActiveColumns);
@@ -1347,26 +1298,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
     }
   };
 
-  // Confirmación resuelta inline en ActionsMenu (no window.confirm: en PWAs
-  // instaladas en modo standalone el diálogo nativo puede resolverse como
-  // "cancelar" sin llegar a mostrarse, dejando el botón sin efecto aparente).
-  const handleDeleteClient = async (client) => {
-    setIsLoading(true);
-    try {
-      const ok = await deleteClient(client.id);
-      if (ok) {
-        addToast({ type: 'success', title: '🗑️ Cliente eliminado', body: `${client.name} fue eliminado correctamente.` });
-      } else {
-        addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el cliente.' });
-      }
-    } catch (error) {
-      console.error('Error al eliminar cliente:', error);
-      addToast({ type: 'error', title: '❌ Error', body: 'No se pudo eliminar el cliente.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const activeCount   = clients.filter(c => c.active !== false).length;
   const inactiveCount = clients.filter(c => c.active === false).length;
 
@@ -1648,8 +1579,6 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                       visitCount={visitCountMap[client.id] || 0}
                       onEdit={handleEdit}
                       onToggleActive={handleToggleActive}
-                      onDelete={handleDeleteClient}
-                      isAdmin={isAdmin}
                       isLoading={isLoading}
                       onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
                       onHistorial={(c) => setHistorialClient(c)}
@@ -1834,15 +1763,12 @@ export default function ClientsManager({ clients, tasks, useClientsHook, pending
                               {client && (
                                 <ActionsMenu
                                   client={client}
-                                  visitCount={visitCountMap[client.id] || 0}
                                   onNewVisit={(c) => openNewVisitModal({ clientId: c.id })}
                                   onEdit={handleEdit}
                                   onToggleActive={handleToggleActive}
                                   onHistorial={(c) => setHistorialClient(c)}
-                                  isAdmin={isAdmin}
                                   isLoading={isLoading}
                                   wrapperClassName="relative"
-                                  showDelete={false}
                                 />
                               )}
                             </div>
