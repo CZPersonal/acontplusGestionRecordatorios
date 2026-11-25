@@ -7,3 +7,7 @@ dist-ssr
 !.env.example
 .DS_Store
 .firebase/
+
+# Credenciales locales (nunca subir)
+nosubir/
+*-firebase-adminsdk-*.json
