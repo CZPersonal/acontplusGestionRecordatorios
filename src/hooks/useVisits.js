@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { getVisitsFlatRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { logAudit } from '../services/auditService';
+import { visitAuditMeta } from '../utils/auditMeta';
 
 const VISITS_PAGE_SIZE = 200;
 
@@ -233,12 +234,15 @@ export function useVisits(user) {
     const { user: u } = useAppStore.getState();
     if (!u) return false;
     try {
+      // Se lee antes del update: el store aún tiene el estado previo.
+      const prev = useAppStore.getState().visits.find(v => v.id === visitId);
       await updateDoc(doc(getVisitsFlatRef(), visitId), {
         status:     'Anulada',
         annulledAt: new Date().toISOString(),
         annulledBy: u.email,
         updatedAt:  new Date().toISOString(),
       });
+      logAudit(u, 'visit_annulled', 'visit', visitId, visitAuditMeta(prev));
       return true;
     } catch (err) {
       console.error('Error al anular visita:', err);

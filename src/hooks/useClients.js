@@ -3,6 +3,8 @@ import { doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, writeBatch, getD
 import { db } from '../lib/firebase';
 import { getCollectionRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
+import { logAudit } from '../services/auditService';
+import { clientAuditMeta } from '../utils/auditMeta';
 
 // ─── Helpers exportados ────────────────────────────────────────────────────────
 
@@ -242,9 +244,11 @@ export function useClients(user) {
   const setClientActive = async (id, active) => {
     if (!user) return false;
     try {
+      const prev = useAppStore.getState().clients.find(c => c.id === id);
       await updateDoc(doc(getCollectionRef('clients'), id), {
         active, updatedAt: new Date().toISOString(),
       });
+      logAudit(user, active ? 'client_activated' : 'client_deactivated', 'client', id, clientAuditMeta(prev));
       return true;
     } catch (error) {
       console.error('Error al cambiar estado cliente:', error);
