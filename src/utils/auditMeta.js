@@ -17,6 +17,40 @@ export function visitAuditMeta(visit) {
 }
 
 /**
+ * Datos de un pago realizado (visit.payments[]) que se anula.
+ * @param {object|undefined} visit   - Visita que contiene el pago.
+ * @param {object|undefined} payment - El pago anulado.
+ */
+export function paymentAuditMeta(visit, payment) {
+  const v = visit || {};
+  const p = payment || {};
+  return {
+    clientName:   v.clientName   || '',
+    serviceOrder: v.serviceOrder || '',
+    visitId:      v.id           || '',
+    amount:       parseFloat(p.amount) || 0,
+    method:       p.method       || '',
+    receiptNo:    p.receiptNo    || '',
+    date:         p.date         || '',
+  };
+}
+
+/**
+ * Datos de un abono programado (colección `abonos`) que se anula.
+ * @param {object|undefined} abono
+ */
+export function abonoAuditMeta(abono) {
+  const a = abono || {};
+  return {
+    clientName:   a.clientName   || '',
+    serviceOrder: a.serviceOrder || '',
+    visitId:      a.visitId      || '',
+    valor:        parseFloat(a.valor) || 0,
+    fecha:        a.fecha        || '',
+  };
+}
+
+/**
  * Datos que identifican un cliente en el log.
  * @param {object|undefined} client - Cliente tal como está en el store (puede faltar).
  */

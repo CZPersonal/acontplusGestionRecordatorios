@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
-  X, DollarSign, Plus, Printer, CreditCard,
+  X, DollarSign, Plus, Printer, CreditCard, Ban,
   Banknote, ArrowRightLeft, Calendar, CheckCircle, Loader2, AlertCircle
 } from 'lucide-react';
 import {
   calcPaymentSummary, saveVisitBilling,
-  addPayment, generateReceiptNo,
+  addPayment, generateReceiptNo, isAnnulled,
   saveFlatVisitBilling, addFlatVisitPayment,
+  annulPayment, annulFlatVisitPayment,
   printReceipt,
 } from '../services/visitBilling.js';
 
@@ -132,6 +133,7 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
   const [isLoading,      setIsLoading]      = useState(false);
   const [localVisit,     setLocalVisit]     = useState(visit);
   const [editingBilling, setEditingBilling] = useState(false);
+  const [confirmAnnulId, setConfirmAnnulId] = useState(null);
 
   // Estado del formulario de facturación principal
   const [billingForm, setBillingForm] = useState({
@@ -192,6 +194,29 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
     } catch (err) {
       console.error(err);
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Anular abono (no se borra: deja de contar en lo abonado y el saldo) ────
+  // Confirmación inline en la propia fila (window.confirm no es fiable en PWA).
+  const handleAnnulPayment = async (paymentId) => {
+    setIsLoading(true);
+    try {
+      if (flatMode) {
+        const fresh = await annulFlatVisitPayment(localVisit, paymentId, user?.email);
+        setLocalVisit(fresh);
+        onUpdate?.(fresh);
+      } else {
+        const updated = await annulPayment(task.id, allVisits, localVisit.id, paymentId, user?.email);
+        const fresh   = updated.find(v => v.id === localVisit.id);
+        setLocalVisit(fresh);
+        onUpdate(updated);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setConfirmAnnulId(null);
       setIsLoading(false);
     }
   };
@@ -380,24 +405,51 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
               <div className="space-y-2">
                 {payments.map(p => (
                   <div key={p.id}
-                    className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                    className={`border rounded-xl p-3 shadow-sm ${isAnnulled(p) ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-200'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {METHOD_ICONS[p.method] || METHOD_ICONS['Otro']}
                         <div>
-                          <p className="text-sm font-bold text-slate-800">${fmtMoney(p.amount)}</p>
+                          <p className={`text-sm font-bold ${isAnnulled(p) ? 'text-slate-400 line-through' : 'text-slate-800'}`}>${fmtMoney(p.amount)}</p>
                           <p className="text-xs text-slate-500">{p.method} · {formatDateOnly(p.date)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => printReceipt(task, localVisit, p)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="Imprimir comprobante">
-                          <Printer size={14} />
-                        </button>
-                      </div>
+                      {isAnnulled(p) ? (
+                        <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">🚫 Anulado</span>
+                      ) : confirmAnnulId === p.id ? (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-xs text-slate-500 mr-1">¿Anular?</span>
+                          <button onClick={() => handleAnnulPayment(p.id)} disabled={isLoading}
+                            className="px-2 py-1 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                            {isLoading ? '...' : 'Sí'}
+                          </button>
+                          <button onClick={() => setConfirmAnnulId(null)} disabled={isLoading}
+                            className="px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => printReceipt(task, localVisit, p)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Imprimir comprobante">
+                            <Printer size={14} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmAnnulId(p.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Anular abono">
+                            <Ban size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
+                    {isAnnulled(p) && (
+                      <p className="text-xs text-red-500 mt-1.5 pl-6">
+                        Anulado por {p.annulledBy || '—'}{p.annulledAt ? ` · ${formatDateOnly(p.annulledAt.slice(0, 10))}` : ''}
+                      </p>
+                    )}
                     {p.note && (
                       <p className="text-xs text-slate-400 mt-1.5 pl-6">📎 {p.note}</p>
                     )}

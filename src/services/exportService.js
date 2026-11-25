@@ -120,7 +120,7 @@ function billingValue(key, { task, visit, summary, cuotas }) {
     case 'payStatus':
       return getPayStatus({ summary, commitmentDate: visit.commitmentDate, cuotas }, localDateStr());
     case 'commitmentDate':  return fmtDate(visit.commitmentDate);
-    case 'paymentMethods':  return (visit.payments || []).map(p => `${p.method}:$${p.amount}`).join(' | ');
+    case 'paymentMethods':  return (visit.payments || []).filter(p => p.status !== 'Anulado').map(p => `${p.method}:$${p.amount}`).join(' | ');
     case 'cuotas':          return (cuotas || []).map(c => `${fmtDate(c.fecha)}: $${fmtMoneyRaw(c.valor)} (${c.pagado ? 'Pagada' : 'Pendiente'})`).join(' | ');
     default: return '';
   }

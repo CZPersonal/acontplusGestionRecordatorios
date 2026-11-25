@@ -8,7 +8,7 @@ import Pagination from './Pagination.jsx';
 import { usePagination } from '../hooks/usePagination.js';
 import BillingModal from './BillingModal.jsx';
 import AbonosModal from './AbonosModal.jsx';
-import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas, printReceipt, getPayStatus } from '../services/visitBilling.js';
+import { calcPaymentSummary, visitToDisplayTask, computeCuotasPagadas, printReceipt, getPayStatus, isAnnulled } from '../services/visitBilling.js';
 import { exportCSV, exportExcel } from '../services/exportService.js';
 import { localDateStr, formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
@@ -69,7 +69,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const [abonosTarget,   setAbonosTarget]   = useState(null); // { task, visit }
 
   const today = localDateStr();
-  const { abonosByVisit, addAbono } = useAbonos();
+  const { abonosByVisit, addAbono, annulAbono } = useAbonos();
   const newVisits = useAppStore(s => s.visits);
   const establecimientos       = useAppStore(s => s.establecimientos);
   const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
@@ -395,11 +395,11 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
                         </td>
 
                         <td className="px-4 py-3">
-                          {(visit.payments || []).length === 0 ? (
+                          {(visit.payments || []).filter(p => !isAnnulled(p)).length === 0 ? (
                             <span className="text-slate-300 text-xs">—</span>
                           ) : (
                             <div className="space-y-1 min-w-[130px]">
-                              {(visit.payments || []).map(p => (
+                              {(visit.payments || []).filter(p => !isAnnulled(p)).map(p => (
                                 <button key={p.id} onClick={() => printReceipt(task, visit, p)}
                                   title="Reimprimir recibo"
                                   className="flex items-center gap-1.5 text-xs whitespace-nowrap text-slate-500 hover:text-pink-600 transition-colors">
@@ -471,6 +471,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
           user={user}
           onClose={() => setAbonosTarget(null)}
           onAdd={addAbono}
+          onAnnul={annulAbono}
         />
       )}
     </div>

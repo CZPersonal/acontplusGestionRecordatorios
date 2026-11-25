@@ -4,12 +4,20 @@ import { getVisitsRef, getVisitsFlatRef } from '../lib/tenantDb';
 import { useAppStore } from '../lib/store';
 import { formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
+import { logAudit } from './auditService.js';
+import { paymentAuditMeta } from '../utils/auditMeta.js';
 
 // ─── Helpers de cálculo ────────────────────────────────────────────────────────
 
+// Un abono (pago o cuota programada) anulado se conserva en la base de datos
+// pero NUNCA cuenta en totales, saldo ni cronograma.
+export const isAnnulled = (item) => item?.status === 'Anulado';
+
 export function calcPaymentSummary(visit) {
   const total    = parseFloat(visit.valorCobrar) || 0;
-  const abonado  = (visit.payments || []).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  const abonado  = (visit.payments || [])
+    .filter(p => !isAnnulled(p))
+    .reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
   const saldo    = Math.max(0, total - abonado);
   const pagado   = total > 0 && saldo === 0;
   return { total, abonado, saldo, pagado };
@@ -205,7 +213,7 @@ export function flattenNewVisits(visits) {
 // depende de un campo `estado` persistido, así siempre queda consistente
 // aunque se agreguen/eliminen abonos reales o cuotas después.
 export function computeCuotasPagadas(abonos, totalAbonado) {
-  const ordenados = [...abonos].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  const ordenados = abonos.filter(a => !isAnnulled(a)).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   let acumulado = 0;
   return ordenados.map(a => {
     acumulado += (parseFloat(a.valor) || 0);
@@ -275,6 +283,34 @@ export async function deletePayment(taskId, visits, visitId, paymentId) {
   return updatedVisits;
 }
 
+// ─── Anular un abono (pago realizado) ─────────────────────────────────────────
+// No se borra: queda con status 'Anulado' y deja de contar en calcPaymentSummary.
+
+function annulInList(payments, paymentId, userEmail) {
+  const target = payments.find(p => p.id === paymentId);
+  if (!target || isAnnulled(target)) return { payments, target: null };
+  const annulled = {
+    ...target,
+    status:     'Anulado',
+    annulledAt: new Date().toISOString(),
+    annulledBy: userEmail || '',
+  };
+  return { payments: payments.map(p => p.id === paymentId ? annulled : p), target };
+}
+
+export async function annulPayment(taskId, visits, visitId, paymentId, userEmail) {
+  const visit = visits.find(v => v.id === visitId);
+  if (!visit) return visits;
+
+  const { payments, target } = annulInList(visit.payments || [], paymentId, userEmail);
+  if (!target) return visits;
+
+  const updatedVisits = visits.map(v => v.id === visitId ? { ...visit, payments } : v);
+  await saveVisitsToSubcollection(taskId, updatedVisits);
+  logAudit(useAppStore.getState().user, 'payment_annulled', 'visit', visitId, paymentAuditMeta(visit, target));
+  return updatedVisits;
+}
+
 // ─── Equivalentes para la colección plana tenants/{tenantId}/visits ──────────
 // A diferencia del modelo legado (array de visitas embebido en una tarea), aquí
 // cada visita es su propio documento — se actualiza directamente, sin batch.
@@ -306,5 +342,14 @@ export async function addFlatVisitPayment(visit, paymentData, userEmail) {
 export async function deleteFlatVisitPayment(visit, paymentId) {
   const payments = (visit.payments || []).filter(p => p.id !== paymentId);
   await updateDoc(doc(getVisitsFlatRef(), visit.id), { payments });
+  return { ...visit, payments };
+}
+
+export async function annulFlatVisitPayment(visit, paymentId, userEmail) {
+  const { payments, target } = annulInList(visit.payments || [], paymentId, userEmail);
+  if (!target) return visit;
+
+  await updateDoc(doc(getVisitsFlatRef(), visit.id), { payments });
+  logAudit(useAppStore.getState().user, 'payment_annulled', 'visit', visit.id, paymentAuditMeta(visit, target));
   return { ...visit, payments };
 }

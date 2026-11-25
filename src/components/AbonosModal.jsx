@@ -1,13 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, Plus, CalendarDays, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Plus, CalendarDays, DollarSign, AlertCircle, CheckCircle, Ban } from 'lucide-react';
 import { formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
-import { calcPaymentSummary, computeCuotasPagadas } from '../services/visitBilling.js';
+import { calcPaymentSummary, computeCuotasPagadas, isAnnulled } from '../services/visitBilling.js';
 import { localDateStr } from '../utils/dates.js';
 
-export default function AbonosModal({ task, visit, visitAbonos = [], user, onClose, onAdd }) {
+export default function AbonosModal({ task, visit, visitAbonos = [], user, onClose, onAdd, onAnnul }) {
   const summary         = calcPaymentSummary(visit);
-  const totalProgramado = useMemo(() => visitAbonos.reduce((s, a) => s + (a.valor || 0), 0), [visitAbonos]);
+  // Las cuotas anuladas se muestran pero no cuentan en el total programado.
+  const totalProgramado = useMemo(
+    () => visitAbonos.filter(a => !isAnnulled(a)).reduce((s, a) => s + (a.valor || 0), 0),
+    [visitAbonos]
+  );
+  const abonosAnulados  = useMemo(() => visitAbonos.filter(isAnnulled), [visitAbonos]);
   const disponible      = Math.max(0, summary.total - totalProgramado);
   // Cuotas cubiertas por el total realmente abonado, en orden de fecha —
   // no depende de un campo `estado` persistido (nunca se actualizaba solo).
@@ -22,6 +27,16 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
   const [err,     setErr]     = useState('');
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
+  const [confirmAnnulId, setConfirmAnnulId] = useState(null);
+  const [annulling,      setAnnulling]      = useState(false);
+
+  // Confirmación inline (window.confirm no es fiable en PWA instaladas).
+  const handleAnnul = async (id) => {
+    setAnnulling(true);
+    try { await onAnnul(id); }
+    catch (e) { console.error(e); }
+    finally { setAnnulling(false); setConfirmAnnulId(null); }
+  };
 
   // Cerrar con Escape
   useEffect(() => {
@@ -104,14 +119,15 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
 
         {/* Lista de abonos programados */}
         <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2">
-          {abonosConEstado.length === 0 ? (
+          {abonosConEstado.length === 0 && abonosAnulados.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <CalendarDays size={32} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm font-medium">Sin abonos programados</p>
               <p className="text-xs mt-0.5">Agrega el primer compromiso de pago</p>
             </div>
           ) : (
-            abonosConEstado.map(a => (
+            <>
+            {abonosConEstado.map(a => (
               <div key={a.id} className="flex items-center gap-3 bg-white border-2 border-slate-100 rounded-xl px-3 py-2.5 hover:border-slate-200 transition-colors">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
                   <CalendarDays size={14} className="text-blue-600" />
@@ -126,8 +142,45 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
                   </div>
                   {a.nota && <p className="text-xs text-slate-400 truncate mt-0.5">📝 {a.nota}</p>}
                 </div>
+                {confirmAnnulId === a.id ? (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-xs text-slate-500 mr-1">¿Anular?</span>
+                    <button onClick={() => handleAnnul(a.id)} disabled={annulling}
+                      className="px-2 py-1 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                      {annulling ? '...' : 'Sí'}
+                    </button>
+                    <button onClick={() => setConfirmAnnulId(null)} disabled={annulling}
+                      className="px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmAnnulId(a.id)}
+                    className="flex-shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="Anular abono programado">
+                    <Ban size={14} />
+                  </button>
+                )}
               </div>
-            ))
+            ))}
+            {abonosAnulados.map(a => (
+              <div key={a.id} className="flex items-center gap-3 bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2.5 opacity-70">
+                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Ban size={14} className="text-slate-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-slate-400 line-through">{formatDateOnly(a.fecha)}</p>
+                    <span className="text-sm font-bold text-slate-400 line-through">${fmtMoney(a.valor)}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">🚫 Anulado</span>
+                  </div>
+                  <p className="text-xs text-red-500 truncate mt-0.5">
+                    Anulado por {a.annulledBy || '—'}{a.annulledAt ? ` · ${formatDateOnly(a.annulledAt.slice(0, 10))}` : ''}
+                  </p>
+                </div>
+              </div>
+            ))}
+            </>
           )}
         </div>
 

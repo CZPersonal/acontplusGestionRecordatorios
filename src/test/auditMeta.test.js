@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { visitAuditMeta, clientAuditMeta } from '../utils/auditMeta';
+import { visitAuditMeta, clientAuditMeta, paymentAuditMeta, abonoAuditMeta } from '../utils/auditMeta';
 
 const hasUndefined = (o) => Object.values(o).some(v => v === undefined);
 
@@ -36,5 +36,23 @@ describe('clientAuditMeta', () => {
   it('nunca devuelve undefined y tolera cliente inexistente', () => {
     expect(hasUndefined(clientAuditMeta({ name: 'X' }))).toBe(false);
     expect(clientAuditMeta(undefined)).toEqual({ clientName: '', identification: '' });
+  });
+});
+
+describe('paymentAuditMeta / abonoAuditMeta', () => {
+  it('paymentAuditMeta identifica el pago y la visita, sin undefined', () => {
+    const m = paymentAuditMeta(
+      { id: 'v1', clientName: 'ANA LOPEZ', serviceOrder: '2196' },
+      { amount: '25.5', method: 'Efectivo', receiptNo: 'REC-1', date: '2026-11-24' },
+    );
+    expect(m).toEqual({ clientName: 'ANA LOPEZ', serviceOrder: '2196', visitId: 'v1', amount: 25.5, method: 'Efectivo', receiptNo: 'REC-1', date: '2026-11-24' });
+    expect(hasUndefined(paymentAuditMeta(undefined, undefined))).toBe(false);
+  });
+
+  it('abonoAuditMeta identifica la cuota, sin undefined', () => {
+    const m = abonoAuditMeta({ clientName: 'X', serviceOrder: '1', visitId: 'v', valor: '10', fecha: '2026-12-01' });
+    expect(m).toEqual({ clientName: 'X', serviceOrder: '1', visitId: 'v', valor: 10, fecha: '2026-12-01' });
+    expect(abonoAuditMeta(null).valor).toBe(0);
+    expect(hasUndefined(abonoAuditMeta({}))).toBe(false);
   });
 });
