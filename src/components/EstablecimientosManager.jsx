@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAppStore } from '../lib/store';
-import { X, Building2, Plus, Edit2, Trash2, MapPin } from 'lucide-react';
+import { X, Building2, Plus, Edit2, MapPin } from 'lucide-react';
 
 export default function EstablecimientosManager({ user, onClose }) {
   const establecimientos      = useAppStore(s => s.establecimientos);
   const addEstablecimiento    = useAppStore(s => s.addEstablecimiento);
   const updateEstablecimiento = useAppStore(s => s.updateEstablecimiento);
-  const deleteEstablecimiento = useAppStore(s => s.deleteEstablecimiento);
   const tenantId              = useAppStore(s => s.tenantId);
 
   const [tab,        setTab]       = useState('establecimientos');
@@ -200,11 +199,6 @@ export default function EstablecimientosManager({ user, onClose }) {
                           setIsAdding(false);
                         }} className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors">
                           <Edit2 size={13} />
-                        </button>
-                        <button onClick={async () => { setBusy(true); await deleteEstablecimiento(est.id); setBusy(false); }}
-                          disabled={busy}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40">
-                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>

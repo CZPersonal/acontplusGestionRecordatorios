@@ -69,7 +69,7 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
   const [abonosTarget,   setAbonosTarget]   = useState(null); // { task, visit }
 
   const today = localDateStr();
-  const { abonosByVisit, addAbono, deleteAbono } = useAbonos();
+  const { abonosByVisit, addAbono } = useAbonos();
   const newVisits = useAppStore(s => s.visits);
   const establecimientos       = useAppStore(s => s.establecimientos);
   const memberEstablecimientos = useAppStore(s => s.memberEstablecimientos);
@@ -471,7 +471,6 @@ export default function BillingReport({ tasks, onTasksUpdate, user, exportConfig
           user={user}
           onClose={() => setAbonosTarget(null)}
           onAdd={addAbono}
-          onDelete={deleteAbono}
         />
       )}
     </div>

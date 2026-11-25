@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, Plus, Trash2, CalendarDays, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Plus, CalendarDays, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { formatDateOnly } from '../utils/dates.js';
 import { fmtMoney } from '../utils/format.js';
 import { calcPaymentSummary, computeCuotasPagadas } from '../services/visitBilling.js';
 import { localDateStr } from '../utils/dates.js';
 
-export default function AbonosModal({ task, visit, visitAbonos = [], user, onClose, onAdd, onDelete }) {
+export default function AbonosModal({ task, visit, visitAbonos = [], user, onClose, onAdd }) {
   const summary         = calcPaymentSummary(visit);
   const totalProgramado = useMemo(() => visitAbonos.reduce((s, a) => s + (a.valor || 0), 0), [visitAbonos]);
   const disponible      = Math.max(0, summary.total - totalProgramado);
@@ -22,7 +22,6 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
   const [err,     setErr]     = useState('');
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
-  const [deleting, setDeleting] = useState(null);
 
   // Cerrar con Escape
   useEffect(() => {
@@ -62,13 +61,6 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleDelete = async (id) => {
-    setDeleting(id);
-    try { await onDelete(id); }
-    catch (e) { console.error(e); }
-    finally { setDeleting(null); }
   };
 
   const inp = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors";
@@ -134,10 +126,6 @@ export default function AbonosModal({ task, visit, visitAbonos = [], user, onClo
                   </div>
                   {a.nota && <p className="text-xs text-slate-400 truncate mt-0.5">📝 {a.nota}</p>}
                 </div>
-                <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
-                  className="flex-shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
-                  <Trash2 size={14} />
-                </button>
               </div>
             ))
           )}

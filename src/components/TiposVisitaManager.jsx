@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { X, Plus, Pencil, Trash2, Check, Loader2, CalendarCheck } from 'lucide-react';
+import { X, Plus, Pencil, Check, Loader2, CalendarCheck } from 'lucide-react';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 
 export default function TiposVisitaManager({ user, onClose }) {
-  const { tipos, isLoading, addTipo, updateTipo, deleteTipo } = useTiposVisita(user);
+  const { tipos, isLoading, addTipo, updateTipo } = useTiposVisita(user);
 
   const [nombre,        setNombre]        = useState('');
   const [editing,       setEditing]       = useState(null); // objeto tipo o null
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const validate = (val) => {
     if (!val.trim()) return 'El nombre es obligatorio.';
@@ -43,12 +42,6 @@ export default function TiposVisitaManager({ user, onClose }) {
     setEditing(null);
     setNombre('');
     setError('');
-  };
-
-  const handleDelete = async (id) => {
-    await deleteTipo(id);
-    setConfirmDelete(null);
-    if (editing?.id === id) handleCancelEdit();
   };
 
   const inp = "w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors bg-white";
@@ -140,32 +133,11 @@ export default function TiposVisitaManager({ user, onClose }) {
                 </div>
 
                 <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                  {confirmDelete === t.id ? (
-                    <>
-                      <span className="text-xs text-slate-500 mr-1">¿Eliminar?</span>
-                      <button onClick={() => handleDelete(t.id)}
-                        className="p-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
-                        <Check size={14} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(null)}
-                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                        <X size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => handleEdit(t)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                        title="Editar">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(t.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Eliminar">
-                        <Trash2 size={14} />
-                      </button>
-                    </>
-                  )}
+                  <button onClick={() => handleEdit(t)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                    title="Editar">
+                    <Pencil size={14} />
+                  </button>
                 </div>
               </li>
             ))}

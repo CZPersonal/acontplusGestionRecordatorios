@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
-  X, DollarSign, Plus, Trash2, Printer, CreditCard,
+  X, DollarSign, Plus, Printer, CreditCard,
   Banknote, ArrowRightLeft, Calendar, CheckCircle, Loader2, AlertCircle
 } from 'lucide-react';
 import {
   calcPaymentSummary, saveVisitBilling,
-  addPayment, deletePayment, generateReceiptNo,
-  saveFlatVisitBilling, addFlatVisitPayment, deleteFlatVisitPayment,
+  addPayment, generateReceiptNo,
+  saveFlatVisitBilling, addFlatVisitPayment,
   printReceipt,
 } from '../services/visitBilling.js';
 
@@ -188,28 +188,6 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
         onUpdate(updatedVisits);
         setShowPayForm(false);
         printReceipt(task, fresh, newPayment);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ── Eliminar abono ─────────────────────────────────────────────────────────
-  const handleDeletePayment = async (paymentId) => {
-    if (!window.confirm('¿Eliminar este abono? Esta acción no se puede deshacer.')) return;
-    setIsLoading(true);
-    try {
-      if (flatMode) {
-        const fresh = await deleteFlatVisitPayment(localVisit, paymentId);
-        setLocalVisit(fresh);
-        onUpdate?.(fresh);
-      } else {
-        const updated = await deletePayment(task.id, allVisits, localVisit.id, paymentId);
-        const fresh   = updated.find(v => v.id === localVisit.id);
-        setLocalVisit(fresh);
-        onUpdate(updated);
       }
     } catch (err) {
       console.error(err);
@@ -417,12 +395,6 @@ export default function BillingModal({ task, visit, allVisits, onClose, onUpdate
                           className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="Imprimir comprobante">
                           <Printer size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePayment(p.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Eliminar abono">
-                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>

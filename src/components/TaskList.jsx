@@ -18,7 +18,7 @@ const INITIAL_FILTERS = {
 };
 
 // ✅ Mejora 1: se añade el prop onNewTask para el botón "Nueva tarea"
-export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTask, user }) {
+export default function TaskList({ tasks, onEdit, onComplete, onNewTask, user }) {
   const hasMoreTasks  = useAppStore(s => s.hasMoreTasks);
   const isLoadingMore = useAppStore(s => s.isLoadingMore);
   const loadMoreTasks = useAppStore(s => s.loadMoreTasks);
@@ -284,7 +284,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTas
               key={task.id}
               task={task}
               onEdit={() => onEdit(task)}
-              onDelete={() => onDelete(task.id)}
               onComplete={() => setCompletingTask(task)}
               user={user}
             />
@@ -318,7 +317,6 @@ export default function TaskList({ tasks, onEdit, onDelete, onComplete, onNewTas
                 key={task.id}
                 task={task}
                 onEdit={() => onEdit(task)}
-                onDelete={() => onDelete(task.id)}
                 onComplete={() => setCompletingTask(task)}
                 user={user}
               />

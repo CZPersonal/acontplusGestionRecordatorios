@@ -1,14 +1,13 @@
 // src/components/TiposVisitaForm.jsx
 import { useState } from 'react';
-import { Plus, Trash2, Wrench, X, Check } from 'lucide-react';
+import { Plus, Wrench, X } from 'lucide-react';
 import { useTiposVisita } from '../hooks/useTiposVisita';
 
 export default function TiposVisitaForm({ user, onClose }) {
-  const { tipos, isLoading, addTipo, deleteTipo } = useTiposVisita(user);
+  const { tipos, isLoading, addTipo } = useTiposVisita(user);
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -28,11 +27,6 @@ export default function TiposVisitaForm({ user, onClose }) {
       setError('');
     }
     setSaving(false);
-  };
-
-  const handleDelete = async (id) => {
-    await deleteTipo(id);
-    setConfirmDelete(null);
   };
 
   return (
@@ -123,28 +117,6 @@ export default function TiposVisitaForm({ user, onClose }) {
                   </div>
                   <span className="text-sm text-slate-700 font-medium">{tipo.nombre}</span>
                 </div>
-
-                {confirmDelete === tipo.id ? (
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-xs text-slate-500 mr-1">¿Eliminar?</span>
-                    <button onClick={() => handleDelete(tipo.id)}
-                      className="p-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                      title="Confirmar">
-                      <Check size={14} />
-                    </button>
-                    <button onClick={() => setConfirmDelete(null)}
-                      className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                      title="Cancelar">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmDelete(tipo.id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                    title="Eliminar">
-                    <Trash2 size={15} />
-                  </button>
-                )}
               </li>
             ))}
           </ul>

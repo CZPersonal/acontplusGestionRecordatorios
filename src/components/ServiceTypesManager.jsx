@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus, Pencil, Trash2, Loader2, CheckCircle, Package } from 'lucide-react';
+import { X, Plus, Pencil, Loader2, CheckCircle, Package } from 'lucide-react';
 import { useServiceTypes } from '../hooks/useServiceTypes';
 
 // ─── Formulario inline (crear / editar) ───────────────────────────────────────
@@ -75,7 +75,7 @@ function ServiceTypeForm({ initial, onSave, onCancel, isLoading }) {
 }
 
 // ─── Fila de tipo existente ────────────────────────────────────────────────────
-function ServiceTypeRow({ st, onEdit, onDelete, isDeleting }) {
+function ServiceTypeRow({ st, onEdit }) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-white transition-colors group">
       <div className="p-1.5 rounded-lg bg-pink-50 flex-shrink-0 mt-0.5">
@@ -93,11 +93,6 @@ function ServiceTypeRow({ st, onEdit, onDelete, isDeleting }) {
           title="Editar">
           <Pencil size={13} />
         </button>
-        <button onClick={() => onDelete(st.id)} disabled={isDeleting}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
-          title="Eliminar">
-          {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-        </button>
       </div>
     </div>
   );
@@ -105,12 +100,11 @@ function ServiceTypeRow({ st, onEdit, onDelete, isDeleting }) {
 
 // ─── Modal principal ───────────────────────────────────────────────────────────
 export default function ServiceTypesManager({ user, onClose }) {
-  const { serviceTypes, isLoading, addServiceType, updateServiceType, deleteServiceType } =
+  const { serviceTypes, isLoading, addServiceType, updateServiceType } =
     useServiceTypes(user);
 
   const [showForm,  setShowForm]  = useState(false);
   const [editing,   setEditing]   = useState(null);   // objeto st o null
-  const [deletingId, setDeletingId] = useState(null);
 
   const handleSave = async (data) => {
     let ok;
@@ -125,13 +119,6 @@ export default function ServiceTypesManager({ user, onClose }) {
   const handleEdit = (st) => {
     setEditing(st);
     setShowForm(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este tipo? Las tareas existentes no se verán afectadas.')) return;
-    setDeletingId(id);
-    await deleteServiceType(id);
-    setDeletingId(null);
   };
 
   const handleCloseForm = () => {
@@ -196,8 +183,6 @@ export default function ServiceTypesManager({ user, onClose }) {
                   key={st.id}
                   st={st}
                   onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  isDeleting={deletingId === st.id}
                 />
               ))}
             </div>

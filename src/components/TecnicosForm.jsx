@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { Plus, Trash2, User, X, Check, Mail, Phone, Pencil, Loader2 } from 'lucide-react';
+import { Plus, User, X, Check, Mail, Phone, Pencil, Loader2 } from 'lucide-react';
 import { useTecnicos } from '../hooks/useTecnicos';
 
 export default function TecnicosForm({ user, onClose }) {
-  const { tecnicos, isLoading, addTecnico, updateTecnico, deleteTecnico } = useTecnicos(user);
+  const { tecnicos, isLoading, addTecnico, updateTecnico } = useTecnicos(user);
 
   const [form,          setForm]          = useState({ nombre: '', email: '', phone: '' });
   const [editing,       setEditing]       = useState(null); // tecnico object o null
   const [saving,        setSaving]        = useState(false);
   const [errors,        setErrors]        = useState({});
-  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const validate = () => {
     const e = {};
@@ -44,12 +43,6 @@ export default function TecnicosForm({ user, onClose }) {
     setEditing(null);
     setForm({ nombre: '', email: '', phone: '' });
     setErrors({});
-  };
-
-  const handleDelete = async (id) => {
-    await deleteTecnico(id);
-    setConfirmDelete(null);
-    if (editing?.id === id) handleCancelEdit();
   };
 
   const handleChange = (field) => (ev) => {
@@ -182,32 +175,11 @@ export default function TecnicosForm({ user, onClose }) {
                 </div>
 
                 <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                  {confirmDelete === t.id ? (
-                    <>
-                      <span className="text-xs text-slate-500 mr-1">¿Eliminar?</span>
-                      <button onClick={() => handleDelete(t.id)}
-                        className="p-1.5 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
-                        <Check size={14} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(null)}
-                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                        <X size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => handleEdit(t)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="Editar">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(t.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Eliminar">
-                        <Trash2 size={14} />
-                      </button>
-                    </>
-                  )}
+                  <button onClick={() => handleEdit(t)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Editar">
+                    <Pencil size={14} />
+                  </button>
                 </div>
               </li>
             ))}

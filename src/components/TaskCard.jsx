@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Phone, MapPin, Edit, Trash2, CheckCircle, FileText,
+  Phone, MapPin, Edit, CheckCircle, FileText,
   Clock, User, Printer, MessageCircle, CalendarDays, CreditCard, Package
 } from 'lucide-react';
 import { printTaskPDF, shareViaWhatsApp } from './TaskPDF.jsx';
@@ -14,7 +14,7 @@ const statusColors = {
   'Cancelado':  'bg-slate-100 text-slate-500',
 };
 
-export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
+export default function TaskCard({ task, onEdit, onComplete, user }) {
   const [showVisits, setShowVisits] = useState(false);
 
   const visitCount    = task.visits?.length || 0;
@@ -189,13 +189,6 @@ export default function TaskCard({ task, onEdit, onDelete, onComplete, user }) {
               <CheckCircle size={15} />
             </button>
           )}
-
-          {/* Eliminar */}
-          <button onClick={() => onDelete(task.id)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-            title="Eliminar">
-            <Trash2 size={15} />
-          </button>
         </div>
       </div>
 
